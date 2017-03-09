@@ -1,6 +1,6 @@
 simple library implementing serveral generic datatypes for C programming
 
-#vec
+##vec
 declare a dynamic array of type Type with `Vector(Type) *instance;`.
 
 - vectors should be pointers
@@ -11,7 +11,7 @@ alloc & initialize a vector with `make_vector(instance);`
 
 free a vector with `vec_free(instance);`
 
-supported operations:
+###supported operations:
 
 - `vec_append(void *vector, void *item);`
 
@@ -41,13 +41,13 @@ supported operations:
 
 - `vec_join(void *destination, void *source)`
 
-- appends the elements of source to destination
+	- appends the elements of source to destination
 
 - `vec_clone(void *vector)`
 
 - returns a copy of vector
 
-#list
+##list
 declare a singly-linked list of type Type with `List(Type) *instance`.
 note that lists do not store pointers like vectors, and therefore
 `List(void)` is invalid and a list of cstrings would be `List(char *)`
@@ -58,7 +58,7 @@ alloc & initialize a vector with `make_list(instance)`
 
 free a list with `free_list(instance)`
 
-supported operations:
+###supported operations:
 
 - `car(list)` -- macro which expands to list-\>val
 
@@ -73,7 +73,7 @@ note that next pointer is stored as void, meaning constructions such as
 
 - `list_append(void *destination, void *source)`
 
-fun:
+###fun:
 
 - `mapl(list, expression)` is a macro which applies expression to each
 item in the list. the currect item is can be accessed in the `each` variable
@@ -82,7 +82,7 @@ e.g. `mapl(list, free(each))` free every element in the list
 	- note that this macro assumes the list is of pointers, and will not
 	work for scalar or struct types
 
-#set
+##set
 declare a radix tree with `Set *instance`
 
 alloc & initialize:
@@ -93,7 +93,7 @@ free:
 
 - `set_free(instance)`
 
-support operations:
+##support operations:
 
 - `set_add(Set *set, void *element, size_t length)`
 
