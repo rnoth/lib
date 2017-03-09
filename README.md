@@ -97,7 +97,7 @@ free:
 
 - `set_free(instance)`
 
-##support operations:
+###supported operations:
 
 - `set_add(Set *set, void *element, size_t length)`
 
