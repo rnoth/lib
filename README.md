@@ -22,7 +22,7 @@ free a vector with `vec_free(instance);`
 	- item should be a pointer of the same type as the vector,
 	that is, `Vector(int) *vector` -> `int *item`
 
-	- these functions return ENOMEM if they cannot allocate memory
+	- these functions return 0 on succces, `ENOMEM` if they cannot allocate memory
 
 - `vec_delete(void *vector, size_t position)`
 
@@ -39,13 +39,17 @@ free a vector with `vec_free(instance);`
 	of the type ('concat'ing an array of five ints would have
 	length == 20, not 5
 
+	- return 0 on succes, `ENOMEM` when out of memory
+
 - `vec_join(void *destination, void *source)`
 
 	- appends the elements of source to destination
 
+	- return 0 on success, `ENOMEM` when out of memory
+
 - `vec_clone(void *vector)`
 
-- returns a copy of vector
+	- returns a copy of vector, or `NULL` if allocation fails
 
 ##list
 declare a singly-linked list of type Type with `List(Type) *instance`.
