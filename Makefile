@@ -3,13 +3,13 @@ CFLAGS	:= -g -Weverything -Wno-padded
 SRC	!= find . -name "*.c"
 OBJ	:= $(SRC:.c=.c.o)
 TESTS	!= find tests -name "*.c"
-NAME	:= libsuck.a
+NAME	:= libutil.a
 
-all:: deps.mk libsuck.a $(TESTS:.c=)
+all:: deps.mk $(NAME) $(TESTS:.c=)
 
 -include deps.mk
 
-libmoth.a: $(OBJ)
+libutil.a: $(OBJ)
 	ar crs $(NAME) $+
 
 deps.mk: $(SRC) $(TESTS)
