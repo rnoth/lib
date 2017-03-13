@@ -35,9 +35,9 @@ free a vector with `vec_free(instance);`
 - `vec_concat(void *vector, void *array, size_t length)`
 
 	- array should be an array of the same type as the vector
-	length should be the length of the array in bytes, not units
-	of the type ('concat'ing an array of five ints would have
-	length == 20, not 5
+
+	- length is the length of the array in type-units, not bytes
+	  (`concat'ing an array of five ints, length would be `5', not `20')
 
 	- return 0 on succes, `ENOMEM` when out of memory
 
