@@ -32,7 +32,7 @@ struct Set {
 static void  free_node(Node *);
 static Node *alloc_node(void);
 
-static void	align	 (Node *);
+static int	align	 (Node *);
 static int 	attach	 (Node *, Node const *);
 static void	delete	 (Node *, Node const *);
 static int	insert	 (Node *, Elem const *);
@@ -45,19 +45,21 @@ static Reply *	traverse (Node *, Elem const *);
 
 static Elem *make_elem(void const *, size_t);
 
-void
+int
 align(Node *nod)
 {
 	Node *chld;
-	if (len(nod->chld) != 1) return;
+	if (len(nod->chld) != 1) return 0;
 
 	chld = *arr(nod->chld);
-	vec_concat(nod->edge, arr(chld->edge), len(chld->edge));
+	if (vec_join(nod->edge, chld->edge))
+		return ENOMEM;
 
 	vec_free(chld->edge);
 	vec_free(nod->chld);
 	nod->chld = chld->chld;
 	free(chld);
+	return 0;
 }
 
 Node *
@@ -390,7 +392,8 @@ set_add(Set *A, void *data, size_t len)
 	err = attach(par, new);
 	if (err) goto fail;
 
-	align(par);
+	err = align(par);
+	if (err) goto fail;
 
 	free_vector(el);
 	return 0;
