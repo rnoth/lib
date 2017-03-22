@@ -3,6 +3,8 @@
 #include <stdbool.h>
 #include <stddef.h>
 
+#include "vec.h"
+
 typedef struct Set Set;
 
 Set *set_alloc(void);
