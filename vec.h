@@ -42,11 +42,11 @@
 
 /* e.g. mapv(vec, sqrt(each)) */
 #define mapv(VEC, expr) do {			\
-	size_t _i				\
-	void *each;				\
-	Vector(void) *_vec;			\
+	size_t _i;				\
+	void **each;				\
+	Vector(void *) *_vec;			\
 						\
-	vec = VEC:				\
+	_vec = (void *)VEC;			\
 	for (_i = 0; _i < len(_vec); ++_i) {	\
 		each = arr(_vec) + _i;		\
 		expr;				\
