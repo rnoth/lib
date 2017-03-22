@@ -29,21 +29,21 @@ struct Set {
 	Node *root;
 };
 
-static void  free_node(Node *);
-static Node *alloc_node(void);
+static void	free_node(Node *);
+static Node*	alloc_node(void);
 
 static int	align	 (Node *);
 static int 	attach	 (Node *, Node const *);
 static void	delete	 (Node *, Node const *);
 static int	insert	 (Node *, Elem const *);
-static Node **	locate	 (Node *, Elem const *);
+static Node**	locate	 (Node *, Elem const *);
 static size_t	match	 (Node const *, Elem const *);
-static void *	marshal	 (Node const *, Elem const *);
-static Node *	search	 (Node const *, Elem const *);
+static void*	marshal	 (Node const *, Elem const *);
+static Node*	search	 (Node const *, Elem const *);
 static int	split	 (Node *, size_t);
-static Reply *	traverse (Node *, Elem const *);
+static Reply*	traverse (Node *, Elem const *);
 
-static Elem *make_elem(void const *, size_t);
+static Elem*	make_elem(void const *, size_t);
 
 int
 align(Node *nod)
@@ -183,12 +183,12 @@ marshal(Node const *nod, Elem const *el)
 {
 	size_t i;
 	Elem *pre;
-	List(uint8_t *) *ret, *tmp;
+	Vector(uint8_t *) *ret, *tmp;
 
 	pre = vec_clone(el);
 	if (!pre) return NULL;
 
-	make_list(ret);
+	make_vector(ret);
 	if (!ret) {
 		free(pre);
 		return NULL;
@@ -199,21 +199,18 @@ marshal(Node const *nod, Elem const *el)
 		tmp = marshal(arr(nod->chld)[i], pre);
 		if (!tmp) {
 			free_vector(pre);
-			free_list(ret);
+			free_vector(ret);
 			return NULL;
 		}
-		list_append(ret, tmp);
+		vec_join(ret, tmp);
+		free_vector(tmp);
+		tmp = 0;
 	}
 
-	if (isleaf(nod)) {
-		tmp = list_cons(&arr(pre), ret);
-		if (!tmp) {
-			mapl(ret, free(each));
-			free_list(ret);
-		}
-		ret = tmp;
+	if (isleaf(nod) && vec_append(ret, &arr(pre))) {
+		mapv(ret, free(each));
+		free_vector(ret);
 	}
-	free(pre);
 
 	return ret;
 }
@@ -447,9 +444,9 @@ set_memb(Set *A, void *data, size_t len)
 void *
 set_query(Set *A, void *data, size_t len)
 {
-	Elem *el;
+	Elem *el = NULL;
 	Reply *rep = NULL;
-	List(uint8_t *) *ret = NULL;
+	Vector(uint8_t *) *ret = NULL;
 
 	el = make_elem(data, len);
 	if (!el) goto finally;
@@ -457,7 +454,7 @@ set_query(Set *A, void *data, size_t len)
 	rep = traverse(A->root, el);
 	if (!rep) goto finally;
 	if (rep->ext != len(el)) {
-		make_list(ret);
+		make_vector(ret);
 		if (!ret) goto finally;
 		return ret;
 	}
