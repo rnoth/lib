@@ -70,7 +70,7 @@ vec_concat(void *_vec, void const *data, size_t nmemb)
 
 	while ((vec.c + nmemb) * vec.z >= vec.m) if (vec_expand(&vec)) return ENOMEM;
 	
-	memcpy(vec.v + vec.c, data, len);
+	memcpy(vec.v + vec.c * vec.z, data, len);
 
 	vec.c += nmemb;
 	memcpy(_vec, &vec, sizeof vec);
