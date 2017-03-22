@@ -192,7 +192,7 @@ vec_slice(void *_vec, size_t beg, size_t ext)
 	min = MIN(ext, vec.c - beg);
 
 	memmove(vec.v, vec.v + beg * vec.z, min * vec.z);
-	memset(vec.v + (beg + min) * vec.z, 0, (vec.c - min) * vec.z);
+	memset(vec.v + (beg + min) * vec.z, 0, (vec.c-min-beg) * vec.z);
 
 	vec.c = min;
 	memcpy(_vec, &vec, sizeof vec);
