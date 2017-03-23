@@ -3,7 +3,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "list.h"
 #include "set.h"
 #include "util.h"
 #include "vec.h"
@@ -355,6 +354,7 @@ set_free(Set *A)
 int	set_adds   (Set *A, char *s) { return set_add   (A, s, strlen(s) + 1); }
 int	set_rms	   (Set *A, char *s) { return set_rm    (A, s, strlen(s) + 1); }
 bool	set_membs  (Set *A, char *s) { return set_memb  (A, s, strlen(s) + 1); }
+bool	set_prefixs(Set *A, char *s) { return set_prefix(A, s, strlen(s)); }
 void *	set_querys (Set *A, char *s) { return set_query (A, s, strlen(s)); }
 
 int
@@ -438,6 +438,25 @@ set_memb(Set *A, void *data, size_t len)
 	free(res);
 	free_vector(el);
 
+	return ret;
+}
+
+bool
+set_prefix(Set *A, void *data, size_t len)
+{
+	bool ret;
+	Reply *rep;
+	Elem *el;
+
+	el = make_elem(data, len);
+
+	rep = traverse(A->root, el);
+	if (!rep) return false;
+
+	ret = rep->off == len(el);
+
+	vec_free(el);
+	free(rep);
 	return ret;
 }
 
