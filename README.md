@@ -107,9 +107,13 @@ free:
 
 	- return true iff element is in set
 
+- `set_prefix(Set *set, void *prefix, size_t length)`
+
+	- return true iff there are elements with the prefix prefix
+
 - `set_query(Set *set, void *prefix, size_t length)`
 
-	- returns a list of elements with the prefix prefix
+	- returns a vector of elements with the prefix prefix
 
 every operation has a version design for use with cstrings, they are
 `set_adds()`, `set_rms()`, `set_membs()`, and `set_querys()`, respectively
