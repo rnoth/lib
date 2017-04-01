@@ -24,17 +24,17 @@
 	free(inst);			\
 } while (0)
 
-#define make_vector(INST) do {			\
-	Vector(void) *inst;			\
-						\
-	inst = malloc(sizeof *inst);		\
-	if (inst) {				\
-		if (vec_alloc(inst)) {		\
-			free(inst);		\
-			inst = NULL;		\
-		}				\
-	}					\
-	(INST) = (void *)inst;			\
+#define make_vector(INST) do {				\
+	Vector(void) *inst;				\
+							\
+	inst = malloc(sizeof *inst);			\
+	if (inst) {					\
+		if (vec_alloc(inst,sizeof *arr(INST))) {\
+			free(inst);			\
+			inst = NULL;			\
+		}					\
+	}						\
+	(INST) = (void *)inst;				\
 } while (0)
 
 /* e.g. mapv(vec, sqrt(each)) */
@@ -52,27 +52,28 @@
 
 #define tovec(arr, len) { .c = len, .v = arr, .m = len }
 
-#define vec_append(vec, el) _vec_append(vec, el, sizeof *arr(el))
-#define vec_concat(vec, arr, len) _vec_concat(vec, el, sizeof *arr(el))
-#define vec_delete(vec, id) _vec_delete(vec, el, sizeof *arr(el))
-#define vec_insert(vec, el, wh) _vec_insert(vec, el, wh, sizeof *arr(el))
-#define vec_join(dest, src) _vec_join(dest, src, sizeof *arr(el))
-#define vec_prepend(vec, el) _vec_prepend(vec, el, sizeof *arr(el))
-#define vec_shift(vec, off) _vec_shift(vec, off, sizeof *arr(el))
-#define vec_slice(vec, beg, end) _vec_shift(vec, beg, end, sizeof *arr(el))
-#define vec_truncate(vec, ext) _vec_truncate(vec, ext, sizeof *arr(el))
+#define vec_append(vec, el) _vec_append(vec, el, sizeof *arr(vec))
+#define vec_clone(vec) _vec_clone(vec, sizeof *arr(vec))
+#define vec_concat(vec, a, len) _vec_concat(vec, a, len, sizeof *arr(vec))
+#define vec_delete(vec, id) _vec_delete(vec, id, sizeof *arr(vec))
+#define vec_insert(vec, el, wh) _vec_insert(vec, el, wh, sizeof *arr(vec))
+#define vec_join(dest, src) _vec_join(dest, src, sizeof *arr(dest))
+#define vec_prepend(vec, el) _vec_prepend(vec, el, sizeof *arr(vec))
+#define vec_shift(vec, off) _vec_shift(vec, off, sizeof *arr(vec))
+#define vec_slice(vec, beg, end) _vec_shift(vec, beg, end, sizeof *arr(vec))
+#define vec_truncate(vec, ext) _vec_truncate(vec, ext, sizeof *arr(vec))
 
-int vec_alloc(void *);
-int _vec_append(void *, void const *);
-void *vec_clone(void const *);
-int _vec_concat(void *, void const *, size_t);
-void _vec_delete(void *, size_t);
-int _vec_insert(void *, void const *, size_t);
-int _vec_join(void *, void const *);
+int vec_alloc(void *, size_t);
+int _vec_append(void *, void const *, size_t);
+void *_vec_clone(void const *, size_t);
+int _vec_concat(void *, void const *, size_t, size_t);
+void _vec_delete(void *, size_t, size_t);
+int _vec_insert(void *, void const *, size_t, size_t);
+int _vec_join(void *, void const *, size_t);
 void vec_free(void *);
-int _vec_prepend(void *, void const *);
-void _vec_shift(void *, size_t);
-void _vec_slice(void *, size_t, size_t);
-void _vec_truncate(void *, size_t);
+int _vec_prepend(void *, void const *, size_t);
+void _vec_shift(void *, size_t, size_t);
+void _vec_slice(void *, size_t, size_t, size_t);
+void _vec_truncate(void *, size_t, size_t);
 
 #endif
