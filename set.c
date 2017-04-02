@@ -207,7 +207,7 @@ marshal(Node const *nod, Elem const *el)
 	}
 
 	if (isleaf(nod) && vec_append(ret, &arr(pre))) {
-		mapv(ret, free(each));
+		mapv(void *each, ret) free(each);
 		free_vector(ret);
 	}
 
@@ -361,11 +361,11 @@ int
 set_add(Set *A, void *data, size_t len)
 {
 	int err = ENOMEM;
-	size_t off;
-	Elem *el;
-	Node *new = NULL;
-	Node *par;
-	Reply *rep = NULL;
+	size_t off = 0;
+	Elem *el = 0;
+	Node *new = 0;
+	Node *par = 0;
+	Reply *rep = 0;
 
 	el = make_elem(data, len);
 	if (!el) goto fail;
@@ -382,7 +382,7 @@ set_add(Set *A, void *data, size_t len)
 	new = alloc_node();
 	if (!new) goto fail;
 
-	vec_shift(el, off);
+	//vec_shift(el, off);
 	err = insert(new, el);
 	if (err) goto fail;
 
