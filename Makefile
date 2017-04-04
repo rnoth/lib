@@ -1,5 +1,5 @@
 CC	:= gcc
-CFLAGS	:= -g -Os -Wall -Wextra #-Weverything -Wno-padded
+CFLAGS	:= -g -O0 -Wall -Wextra #-Weverything -Wno-padded
 SRC	!= find . -name "*.c"
 OBJ	:= $(SRC:.c=.c.o)
 TESTS	!= find tests -name "*.c"
