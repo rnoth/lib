@@ -293,14 +293,16 @@ traverse(Node *nod, Elem const *el)
 	for (;;) {
 		min = MIN(len(cur->edge), len(pre));
 		off = match(cur, pre);
+		ext += off;
+
 		if (off != min) break;
 
-		ext += off;
 		vec_shift(pre, off);
 		if (!len(pre)) break;
 
 		tmp = search(cur, pre);
 		if (!tmp) break;
+
 		cur = tmp;
 	}
 
