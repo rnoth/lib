@@ -37,10 +37,18 @@
 	(INST) = (void *)inst;				\
 } while (0)
 
-#define mapv(var, VEC)								\
-	for (Vector(char) *_vec = (void *)(VEC), *_p=(void*)1; _p; _p = 0)	\
-	for (size_t _i = 0, siz = sizeof *arr(VEC); _i < len(_vec); ++_i)				\
-	for (var = (void*)(arr(_vec) + _i * siz), *_q = (void*)1; _q; _q = 0)
+#define mapv_step(n) (_j += (n))
+#define mapv(var, VEC)						\
+	for (Vector_t *_vec = (void *)(VEC), *_p=(void*)1;	\
+			_vec && _p;				\
+			_p = 0)					\
+	for (size_t _i=0,_j=0, siz = sizeof *arr(VEC);		\
+			_i < len(_vec);				\
+			++_i, _j = _i)				\
+	for (char _q = 1; _q;)					\
+	for (var = (void*)(arr(_vec) + _i*siz);			\
+			_i = _q ? len(_vec) : _j, _q;		\
+			_q = 0)
 
 #define tovec(arr, len) { .c = len, .v = arr, .m = len }
 
@@ -54,6 +62,8 @@
 #define vec_shift(vec, off) _vec_shift(vec, off, sizeof *arr(vec))
 #define vec_slice(vec, beg, end) _vec_slice(vec, beg, end, sizeof *arr(vec))
 #define vec_truncate(vec, ext) _vec_truncate(vec, ext, sizeof *arr(vec))
+
+typedef Vector(char) Vector_t;
 
 int vec_alloc(void *, size_t);
 int _vec_append(void *, void const *, size_t);
