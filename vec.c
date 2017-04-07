@@ -1,5 +1,6 @@
 #include <assert.h>
 #include <errno.h>
+#include <limits.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -8,209 +9,157 @@
 
 #define VECSIZ 16
 #define GROWTH 2
-//#define SHRINK .3
+#define HEADER (sizeof (size_t) * 2)
 
-static int vec_expand(void *);
+static int vec_expand(void **);
 
 int
-vec_alloc(void *_vec, size_t size)
+vec_alloc(void **vecp, size_t size)
 {
-	Vector(char) vec;
+	*vecp = malloc(sizeof (size_t) * 2 + VECSIZ * size);
+	if (!*vecp) return ENOMEM;
 
-	memcpy(&vec, _vec, sizeof vec);
+	*vecp = (size_t *)*vecp + 2;
 
-	vec.c = 0;
-	vec.m = VECSIZ;
-	vec.v = calloc(VECSIZ, size);
-	if (!vec.v) return ENOMEM;
+	len(*vecp) = 0;
+	mem(*vecp) = VECSIZ;
 
-	memcpy(_vec, &vec, sizeof vec);
+	memset(*vecp, 0, VECSIZ * size);
 
 	return 0;
 }
 
 int
-_vec_append(void *_vec, void const *data, size_t size)
+_vec_append(void **vec, void const *data, size_t size)
 {
-	Vector(char) vec;
-	
-	memcpy(&vec, _vec, sizeof vec);
-
-	return _vec_insert(_vec, data, vec.c, size);
+	return _vec_insert(vec, data, len(*vec), size);
 }
 
 void *
-_vec_clone(void const *_vec, size_t size)
+_vec_clone(void const *vec, size_t size)
 {
-	Vector(char) vec, *ret;
+	void *ret = 0;
 
-	memcpy(&vec, _vec, sizeof vec);
-	
-	ret = malloc(sizeof *ret);
-	if (!ret) return NULL;
-	memcpy(ret, _vec, sizeof *ret);
-	ret->v = malloc(vec.m * size);
-	if (!ret->v) { free(ret); return NULL; }
-	memcpy(ret->v, vec.v, vec.m);
+	if (vec_alloc(&ret, size)) return 0;
+
+	if (_vec_join(&ret, vec, size)) {
+		vec_free(ret);
+		return 0;
+	}
 
 	return ret;
 }
 
 int
-_vec_concat(void *_vec, void const *data, size_t nmemb, size_t size)
+_vec_concat(void **vecp, void const *data, size_t nmemb, size_t size)
 {
-	size_t len;
-	Vector(char) vec;
+	char *arr =;
+	size_t ext = nmemb * size;
+	size_t len = len(*vecp) * size;
 
-	assert(_vec);
-	assert(data);
+	if (len(*vecp) + nmemb < len(*vecp)) return EOVERFLOW;
 
-	memcpy(&vec, _vec, sizeof vec);
-	len = nmemb * size;
+	while (len + ext >= mem(*vecp))
+		if (vec_expand(vecp)) return ENOMEM;
 
-	while ((vec.c + nmemb) * size >= vec.m) if (vec_expand(&vec)) return ENOMEM;
-	
-	memcpy(vec.v + vec.c * size, data, len);
-
-	vec.c += nmemb;
-	memcpy(_vec, &vec, sizeof vec);
+	memcpy((char *)*vecp + len(*vecp) * size, data, len);
+	len(*vecp) += nmemb;
 
 	return 0;
 }
 
 void
-_vec_delete(void *_vec, size_t which, size_t size)
+_vec_delete(void *vec, size_t which, size_t size)
 {
-	Vector(char) vec;
+	if (which > len(vec)) return;
 
-	memcpy(&vec, _vec, sizeof vec);
-	if (which > vec.c) return;
+	memmove((char *)vec + which * size, (char *)vec + (which + 1) * size, (len(vec) - which) * size);
 
-	memmove(vec.v + which * size, vec.v + (which + 1) * size, (vec.c - which) * size);
-
-	--vec.c;
-
-	memcpy(_vec, &vec, sizeof vec);
+	--len(vec);
 }
 
 int
-vec_expand(void *_vec)
+vec_expand(void **vecp)
 {
-	Vector(char) vec;
-	void *tmp;
+	char *tmp;
 
-	assert(_vec);
+	assert(mem(*vecp));
 
-	memcpy(&vec, _vec, sizeof vec);
-	assert(vec.m);
-
-	tmp = realloc(vec.v, vec.m * GROWTH);
+	tmp = realloc((size_t *)*vecp - 2, mem(*vecp) * GROWTH);
 	if (!tmp) return ENOMEM;
 
-	vec.v = tmp;
-	vec.m *= GROWTH;
-
-	memcpy(_vec, &vec, sizeof vec);
-	return 0;
-}
-
-int
-_vec_insert(void *_vec, void const *data, size_t pos, size_t size)
-{
-	Vector(char) vec;
-
-	assert(_vec);
-	assert(data);
-
-	memcpy(&vec, _vec, sizeof vec);
-
-	assert(pos <= vec.c);
-
-	if ((vec.c + 1) * size >= vec.m && vec_expand(&vec)) return ENOMEM;
-
-	memmove(vec.v + (pos + 1) * size, vec.v + pos * size, (vec.c - pos) * size);
-	memcpy(vec.v + pos * size, data, size);
-
-	++vec.c;
-
-	memcpy(_vec, &vec, sizeof vec);
+	*vecp = (size_t *)tmp + 2;
+	mem(*vecp) *= GROWTH;
 
 	return 0;
 }
 
 int
-_vec_join(void *_dest, void const *_src, size_t size)
+_vec_insert(void **vecp, void const *data, size_t pos, size_t size)
 {
-	Vector(char) src;
+	char *arr = 0;
+	size_t ext = 0;
+	size_t len = 0;
 
-	memcpy(&src, _src, sizeof src);
+	if (pos > len(*vecp)) return EINVAL;
 
-	return _vec_concat(_dest, src.v, src.c, size);
+	arr = *vecp;
+	ext = pos * size;
+	len = len(arr) * size;
+
+	if (len + size >= mem(arr) && vec_expand(vecp)) return ENOMEM;
+
+	arr = *vecp;
+
+	memmove(arr + ext + size, arr + ext, len - ext);
+	memcpy(arr + ext, data, size);
+
+	++len(*vecp);
+
+	return 0;
 }
-
-void
-vec_free(void *_vec)
-{
-	Vector(char) vec;
-
-	if (!_vec) return;
-
-	memcpy(&vec, _vec, sizeof vec);
-	free(vec.v);
-	memset(_vec, 0, sizeof vec);
-	free(_vec);
-}
-
 
 int
-_vec_prepend(void *vec, void const *data, size_t size)
+_vec_join(void **dest, void const *src, size_t size)
 {
-	return _vec_insert(vec, data, 0, size);
+	return _vec_concat(dest, src, len(src), size);
 }
 
 void
-_vec_shift(void *_vec, size_t off, size_t size)
+vec_free(void *vec)
 {
-	Vector(char) vec;
+	if (!vec) return;
 
-	memcpy(&vec, _vec, sizeof vec);
-	_vec_slice(_vec, off, vec.c - off, size);
-
-	return;
+	free((char *)vec - HEADER);
 }
 
 void
-_vec_slice(void *_vec, size_t beg, size_t ext, size_t size)
+_vec_shift(void *vec, size_t off, size_t size)
+{
+	_vec_slice(vec, off, len(vec) - off, size);
+}
+
+void
+_vec_slice(void *vec, size_t beg, size_t ext, size_t size)
 {
 	size_t min;
-	Vector(char) vec;
 
-	memcpy(&vec, _vec, sizeof vec);
-	if (beg >= vec.c) {
-		_vec_truncate(_vec, 0, size);
+	if (beg >= len(vec)) {
+		_vec_truncate(vec, 0, size);
 		return;
 	}
 
-	min = MIN(ext, vec.c - beg);
+	min = MIN(ext, len(vec) - beg);
 
-	memmove(vec.v, vec.v + beg * size, min * size);
-	memset(vec.v + (beg + min) * size, 0, (vec.c-min-beg) * size);
+	memmove(vec, (char *)vec + beg * size, min * size);
+	memset((char *)vec + (beg + min) * size, 0, (len(vec) - min - beg) * size);
 
-	vec.c = min;
-	memcpy(_vec, &vec, sizeof vec);
+	len(vec) = min;
 }
 
 void
-_vec_truncate(void *_vec, size_t off, size_t size)
+_vec_truncate(void *vec, size_t off, size_t size)
 {
-	Vector(char) vec;
-
-	assert(_vec);
-
-	memcpy(&vec, _vec, sizeof vec);
-
-	memset(vec.v + off * size, 0, (vec.c - off) * size);
-	vec.c = off;
-
-	memcpy(_vec, &vec, sizeof vec);
+	memset((char *)vec + off * size, 0, (len(vec) - off) * size);
+	len(vec) = off;
 }
