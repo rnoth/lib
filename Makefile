@@ -1,5 +1,5 @@
-CC	:= gcc
-CFLAGS	:= -g -O0 -Wall -Wextra #-Weverything -Wno-padded
+CC	?= cc
+CFLAGS	+= -g3 -O0 -Wall -Wextra #-Weverything -Wno-padded
 SRC	!= find . -name "*.c"
 OBJ	:= $(SRC:.c=.c.o)
 TESTS	!= find tests -name "*.c"
@@ -13,7 +13,7 @@ libutil.a: $(OBJ)
 	ar crs $(NAME) $+
 
 deps.mk: $(SRC) $(TESTS)
-	$(CC) -MM $+ | sed -e 's/.o/.c.o/' -e 's/\(.*\)-test.c.o/\1-test/' > deps.mk
+	$(CC) -M $+ | sed -e 's/.o$$/.c.o/' -e 's/\(.*\)-test.c.o/\1-test/' > deps.mk
 
 %.c.o: %.c
 	$(CC) $(CFLAGS) -c -o $@ $<
