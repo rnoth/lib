@@ -15,8 +15,6 @@ free a vector with `vec_free(instance);`
 
 - `vec_append(void *vector, void *item);`
 
-- `vec_prepend(void *vector, void *item);`
-
 - `vec_insert(void *vector, void *item, size_t position);`
 
 	- item should be a pointer of the same type as the vector,
