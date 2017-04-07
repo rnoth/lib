@@ -9,13 +9,13 @@
 
 #define isleaf(nod) (!len((nod)->chld))
 
-typedef Vector(uint8_t) Elem;
+typedef uint8_t * Elem;
 typedef struct Node Node;
 typedef struct Reply Reply;
 
 struct Node {
-	Vector(uint8_t) *edge;
-	Vector(Node *)  *chld;
+	uint8_t  *edge;
+	Node    **chld;
 };
 
 struct Reply {
@@ -77,8 +77,8 @@ alloc_node(void)
 	return ret;
 
 nomem:
-	free_vector(ret->edge);
-	free_vector(ret->chld);
+	vec_free(ret->edge);
+	vec_free(ret->chld);
 	return NULL;
 }
 
@@ -133,8 +133,8 @@ free_node(Node *nod)
 	for (i = 0; i < len(nod->chld); ++i)
 		free_node(arr(nod->chld)[i]);
 
-	free_vector(nod->chld);
-	free_vector(nod->edge);
+	vec_free(nod->chld);
+	vec_free(nod->edge);
 	memset(nod, 0, sizeof *nod);
 	free(nod);
 }
@@ -197,18 +197,18 @@ marshal(Node const *nod, Elem const *el)
 	for (i = 0; i < len(nod->chld); ++i) {
 		tmp = marshal(arr(nod->chld)[i], pre);
 		if (!tmp) {
-			free_vector(pre);
-			free_vector(ret);
+			vec_free(pre);
+			vec_free(ret);
 			return NULL;
 		}
 		vec_join(ret, tmp);
-		free_vector(tmp);
+		vec_free(tmp);
 		tmp = 0;
 	}
 
 	if (isleaf(nod) && vec_append(ret, &arr(pre))) {
 		mapv(void *each, ret) free(each);
-		free_vector(ret);
+		vec_free(ret);
 	}
 
 	return ret;
@@ -321,7 +321,7 @@ make_elem(void const *data, size_t len)
 	if (!ret) return NULL;
 
 	if (vec_concat(ret, data, len)) {
-		free_vector(ret);
+		vec_free(ret);
 		return NULL;
 	}
 
@@ -394,10 +394,10 @@ set_add(Set *A, void *data, size_t len)
 	err = align(par);
 	if (err) goto fail;
 
-	free_vector(el);
+	vec_free(el);
 	return 0;
 fail:
-	free_vector(el);
+	vec_free(el);
 	free_node(new);
 	free(rep);
 	return err;
@@ -414,7 +414,7 @@ set_rm(Set *A, void *data, size_t len)
 
 	res = locate(A->root, el);
 	if (!res[1]) {
-		free_vector(el);
+		vec_free(el);
 		return ENOENT;
 	}
 
@@ -438,7 +438,7 @@ set_memb(Set *A, void *data, size_t len)
 	ret = !!res[1];
 
 	free(res);
-	free_vector(el);
+	vec_free(el);
 
 	return ret;
 }
@@ -485,6 +485,6 @@ set_query(Set *A, void *data, size_t len)
 
 finally:
 	free(rep);
-	free_vector(el);
+	vec_free(el);
 	return ret;
 }
