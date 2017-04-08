@@ -12,7 +12,6 @@
 
 #define make_vector(INST) vec_alloc((void**)&(INST), sizeof *INST)
 
-#if 0
 #define mapv(var, VEC)						\
 	for (char *_vec = (void *)(VEC), *_p=(void*)1;		\
 			_vec && _p;				\
@@ -24,7 +23,6 @@
 	for (var = (void*)(_vec) + _i * _siz;			\
 			_i = _q ? len(_vec) : _j, _q;		\
 			_q = 0)
-#endif
 
 #define vec_append(vec, el)	_vec_append	((void**)&(vec), el, 	 sizeof *arr(vec))
 #define vec_clone(vec)		_vec_clone	(vec, 			 sizeof *arr(vec))
