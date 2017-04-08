@@ -1,5 +1,5 @@
 CC	?= cc
-CFLAGS	+= -g3 -O0 -Wall -Wextra #-Weverything -Wno-padded
+CFLAGS	+= -g3 -O0 -std=c99 -Wall -Wextra -Werror #-Weverything -Wno-padded
 SRC	!= find . -name "*.c"
 OBJ	:= $(SRC:.c=.c.o)
 TESTS	!= find tests -name "*.c"
