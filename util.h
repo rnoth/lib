@@ -33,4 +33,11 @@ do {						\
 	}					\
 } while (0)
 
+static inline
+unsigned long
+umin(unsigned long a, unsigned long b)
+{
+	return a < b ? a : b;
+}
+
 #endif /* _util_ */
