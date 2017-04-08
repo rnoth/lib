@@ -11,7 +11,7 @@ int
 main()
 {
 	Set *A;
-	Vector(char *) *reply;
+	char **reply;
 
 	printf("testing set.c\n");
 	
@@ -32,10 +32,10 @@ main()
 	reply = set_querys(A, "foo");
 	ok(reply);
 	ok(len(reply) == 1);
-	ok(arr(reply)[0]);
-	ok(!strcmp(arr(reply)[0], "foobar"));
-	mapv(void **each, reply) free(*each);
-	free(reply);
+	ok(reply[0]);
+	ok(!strcmp(reply[0], "foobar"));
+	mapv(void **each, reply) vec_free(*each);
+	vec_free(reply);
 	printf("done\n");
 
 	printf("\tremoving the string...");
@@ -46,8 +46,8 @@ main()
 	ok(!set_membs(A, "foobar"));
 	reply = set_querys(A, "foo");
 	ok(!len(reply));
-	mapv(void **each, reply) free(*each);
-	free(reply);
+	mapv(void **each, reply) vec_free(*each);
+	vec_free(reply);
 	printf("done\n");
 
 	printf("\tadding more strings...");
@@ -64,18 +64,18 @@ main()
 	ok(set_membs(A, "quux"));
 
 	reply = set_querys(A, "f");
-	ok(len(reply))
-	ok(!strcmp(arr(reply)[0], "foo"));
-	mapv(void **each, reply) free(each);
-	free(reply);
+	ok(len(reply) == 1)
+	ok(!strcmp(reply[0], "foo"));
+	mapv(void **each, reply) vec_free(*each);
+	vec_free(reply);
 
 	reply = set_querys(A, "b");
 	ok(len(reply) == 2)
-	ok(arr(reply)[0]);
-	ok(!strcmp(arr(reply)[0], "bar"));
-	ok(!strcmp(arr(reply)[1], "baz"));
-	mapv(void **each, reply) free(*each);
-	free(reply);
+	ok(reply[0]);
+	ok(!strcmp(reply[0], "bar"));
+	ok(!strcmp(reply[1], "baz"));
+	mapv(void **each, reply) vec_free(*each);
+	vec_free(reply);
 	printf("done\n");
 
 	printf("\tadding a prefix conflict...");

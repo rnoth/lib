@@ -9,7 +9,7 @@
 
 #define isleaf(nod) (!len((nod)->chld))
 
-typedef uint8_t * Elem;
+typedef uint8_t Elem;
 typedef struct Node Node;
 typedef struct Reply Reply;
 
@@ -50,8 +50,8 @@ align(Node *nod)
 	Node *chld;
 	if (len(nod->chld) != 1) return 0;
 
-	chld = *arr(nod->chld);
-	if (vec_join(nod->edge, chld->edge))
+	chld = *nod->chld;
+	if (vec_join(&nod->edge, &chld->edge))
 		return ENOMEM;
 
 	vec_free(chld->edge);
@@ -91,13 +91,13 @@ attach(Node *cur, Node const *new)
 	Node *chld;
 
 	for (off = 0; off < len(cur->chld); ++off) {
-		chld = arr(cur->chld)[off];
-		min = MIN(len(chld->edge), len(new->edge));
-		cmp = memcmp(arr(new->edge), arr(chld->edge), min);
+		chld = cur->chld[off];
+		min = umin(len(chld->edge), len(new->edge));
+		cmp = memcmp(new->edge, chld->edge, min);
 		if (cmp < 0) break;
 	}
 
-	return vec_insert(cur->chld, &new, off);
+	return vec_insert(&cur->chld, &new, off);
 }
 
 void
@@ -106,13 +106,13 @@ delete(Node *cur, Node const *targ)
 	size_t off;
 
 	if (!targ) {
-		vec_truncate(cur->edge, 0);
+		vec_truncate(&cur->edge, 0);
 		return;
 	}
 
 	for (off = 0; off < len(cur->chld); ++off) {
-		if (arr(cur->chld)[off] == targ) {
-			vec_delete(cur->chld, off);
+		if (cur->chld[off] == targ) {
+			vec_delete(&cur->chld, off);
 			return;
 		}
 	}
@@ -121,8 +121,8 @@ delete(Node *cur, Node const *targ)
 int
 insert(Node *nod, Elem const *el)
 {
-	vec_truncate(nod->edge, 0);
-	return vec_join(nod->edge, el);
+	vec_truncate(&nod->edge, 0);
+	return vec_join(&nod->edge, &el);
 }
 
 void
@@ -131,7 +131,7 @@ free_node(Node *nod)
 	size_t i;
 
 	for (i = 0; i < len(nod->chld); ++i)
-		free_node(arr(nod->chld)[i]);
+		free_node(nod->chld[i]);
 
 	vec_free(nod->chld);
 	vec_free(nod->edge);
@@ -150,7 +150,7 @@ locate(Node *nod, Elem const *el)
 
 	res = calloc(2, sizeof *res);
 	if (!res) return NULL;
-	pre = vec_clone(el);
+	pre = vec_clone(&el);
 	if (!pre) {
 		free(res);
 		return NULL;
@@ -162,7 +162,7 @@ locate(Node *nod, Elem const *el)
 		off = match(cur, pre);
 		if (off != len(cur->edge)) break;
 
-		vec_shift(pre, off);
+		vec_shift(&pre, off);
 		if (!len(pre) && isleaf(cur)) {
 			res[0] = prev;
 			res[1] = cur;
@@ -174,42 +174,45 @@ locate(Node *nod, Elem const *el)
 		if (!cur) break;
 	}
 
+	vec_free(pre);
 	return res;
 }
 
 void *
 marshal(Node const *nod, Elem const *el)
 {
-	size_t i;
-	Elem *pre;
-	Vector(uint8_t *) *ret, *tmp;
+	uint8_t **ret = 0x0;
+	uint8_t **tmp = 0x0;
+	Elem *pre = 0x0;
+	Node **chld = 0x0;
 
-	pre = vec_clone(el);
-	if (!pre) return NULL;
+	pre = vec_clone(&el);
+	if (!pre) return 0x0;
 
 	make_vector(ret);
 	if (!ret) {
-		free(pre);
-		return NULL;
+		vec_free(pre);
+		return 0x0;
 	}
 
-	vec_join(pre, nod->edge);
-	for (i = 0; i < len(nod->chld); ++i) {
-		tmp = marshal(arr(nod->chld)[i], pre);
+	vec_join(&pre, &nod->edge);
+	mapv (chld, nod->chld) {
+		tmp = marshal(*chld, pre);
 		if (!tmp) {
 			vec_free(pre);
 			vec_free(ret);
-			return NULL;
+			return 0x0;
 		}
-		vec_join(ret, tmp);
+		vec_join(&ret, &tmp);
 		vec_free(tmp);
-		tmp = 0;
+		tmp = 0x0;
 	}
 
-	if (isleaf(nod) && vec_append(ret, &arr(pre))) {
-		mapv(void *each, ret) free(each);
+	if (isleaf(nod) && vec_append(&ret, &pre)) {
+		mapv (void **each, ret) vec_free(each);
+		vec_free(pre);
 		vec_free(ret);
-	}
+	} else if (!isleaf(nod)) vec_free(pre);
 
 	return ret;
 }
@@ -219,8 +222,8 @@ match(Node const *nod, Elem const *el)
 {
 	size_t off;
 
-	for (off = 0; off < MIN(len(nod->edge), len(el)); ++off)
-		if (arr(nod->edge)[off] != arr(el)[off])
+	for (off = 0; off < umin(len(nod->edge), len(el)); ++off)
+		if (nod->edge[off] != el[off])
 			break;
 
 	return off;
@@ -232,16 +235,16 @@ search(Node const *nod, Elem const *el)
 	size_t i;
 
 	if (!len(el)) {
-		if (!len(arr(nod->chld)[0]->edge))
-			return arr(nod->chld)[0];
-		else return NULL;
+		if (!len(nod->chld[0]->edge))
+			return nod->chld[0];
+		else return 0x0;
 	}
 
 	for (i = 0; i < len(nod->chld); ++i)
-		if (*arr(arr(nod->chld)[i]->edge) == *arr(el))
-			return arr(nod->chld)[i];
+		if (*nod->chld[i]->edge == *el)
+			return nod->chld[i];
 
-	return NULL;
+	return 0x0;
 }
 
 int
@@ -254,18 +257,23 @@ split(Node *nod, size_t off)
 
 	len = len(nod->edge) - off;
 	if (!len) return 0;
+
 	tmp = malloc(len);
 	if (!tmp && len) return ENOMEM;
+
 	new = alloc_node();
 	if (!new) {
 		free(tmp);
 		return ENOMEM;
 	}
 
-	memcpy(tmp, arr(nod->edge) + off, len);
-	vec_truncate(nod->edge, off);
-	err = vec_concat(new->edge, tmp, len);
+	memcpy(tmp, nod->edge + off, len);
+	vec_truncate(&nod->edge, off);
+	
+	err = vec_concat(&new->edge, tmp, len);
 	if (err) return err;
+
+	free(tmp);
 
 	return attach(nod, new);
 }
@@ -274,30 +282,31 @@ Reply *
 traverse(Node *nod, Elem const *el)
 {
 	size_t ext = 0;
-	size_t min;
-	size_t off;
-	Elem *pre;
-	Node *cur;
-	Node *tmp;
-	Reply *ret;
+	size_t min = 0;
+	size_t off = 0;
+	Elem *pre = 0x0;
+	Node *cur = 0x0;
+	Node *tmp = 0x0;
+	Reply *ret = 0x0;
 
 	ret = calloc(1, sizeof *ret);
-	if (!ret) return NULL;
-	pre = vec_clone(el);
+	if (!ret) return 0x0;
+
+	pre = vec_clone(&el);
 	if (!pre) {
 		free(ret);
-		return NULL;
+		return 0x0;
 	}
 
 	cur = nod;
 	for (;;) {
-		min = MIN(len(cur->edge), len(pre));
+		min = umin(len(cur->edge), len(pre));
 		off = match(cur, pre);
 		ext += off;
 
 		if (off != min) break;
 
-		vec_shift(pre, off);
+		vec_shift(&pre, off);
 		if (!len(pre)) break;
 
 		tmp = search(cur, pre);
@@ -309,6 +318,7 @@ traverse(Node *nod, Elem const *el)
 	ret->ext = ext;
 	ret->off = off;
 	ret->nod = cur;
+	vec_free(pre);
 	return ret;
 }
 
@@ -318,11 +328,11 @@ make_elem(void const *data, size_t len)
 	Elem *ret;
 
 	make_vector(ret);
-	if (!ret) return NULL;
+	if (!ret) return 0x0;
 
-	if (vec_concat(ret, data, len)) {
+	if (vec_concat(&ret, data, len)) {
 		vec_free(ret);
-		return NULL;
+		return 0x0;
 	}
 
 	return ret;
@@ -334,12 +344,12 @@ set_alloc(void)
 	Set *ret;
 
 	ret = calloc(1, sizeof *ret);
-	if (!ret) return NULL;
+	if (!ret) return 0x0;
 
 	ret->root = alloc_node();
 	if (!ret->root) {
 		free(ret);
-		return NULL;
+		return 0x0;
 	}
 
 	return ret;
@@ -374,9 +384,10 @@ set_add(Set *A, void *data, size_t len)
 	
 	rep = traverse(A->root, el);
 	if (!rep) goto fail;
+
 	par = rep->nod;
 	off = rep->off;
-	vec_shift(el, rep->ext);
+	vec_shift(&el, rep->ext);
 
 	err = split(par, off);
 	if (err) goto fail;
@@ -384,7 +395,6 @@ set_add(Set *A, void *data, size_t len)
 	new = alloc_node();
 	if (!new) goto fail;
 
-	//vec_shift(el, off);
 	err = insert(new, el);
 	if (err) goto fail;
 
@@ -394,8 +404,10 @@ set_add(Set *A, void *data, size_t len)
 	err = align(par);
 	if (err) goto fail;
 
+	free(rep);
 	vec_free(el);
 	return 0;
+
 fail:
 	vec_free(el);
 	free_node(new);
@@ -421,6 +433,7 @@ set_rm(Set *A, void *data, size_t len)
 	delete(res[1], res[0]);
 
 	free(res);
+	vec_free(el);
 	return 0;
 }
 
@@ -465,9 +478,9 @@ set_prefix(Set *A, void *data, size_t len)
 void *
 set_query(Set *A, void *data, size_t len)
 {
-	Elem *el = NULL;
-	Reply *rep = NULL;
-	Vector(uint8_t *) *ret = NULL;
+	Elem *el = 0x0;
+	Reply *rep = 0x0;
+	uint8_t **ret = 0x0;
 
 	el = make_elem(data, len);
 	if (!el) goto finally;
@@ -476,11 +489,10 @@ set_query(Set *A, void *data, size_t len)
 	if (!rep) goto finally;
 	if (rep->ext != len(el)) {
 		make_vector(ret);
-		if (!ret) goto finally;
-		return ret;
+		goto finally;
 	}
 	
-	vec_truncate(el, rep->ext - rep->off);
+	vec_truncate(&el, rep->ext - rep->off);
 	ret = marshal(rep->nod, el);
 
 finally:
