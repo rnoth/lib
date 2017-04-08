@@ -8,8 +8,6 @@
 #include "vec.h"
 
 #define VECSIZ 16
-#define GROWTH 2
-#define HEADER (sizeof (size_t) * 2)
 
 static int vec_expand(void **);
 
@@ -53,17 +51,19 @@ _vec_clone(void const *vec, size_t size)
 int
 _vec_concat(void **vecp, void const *data, size_t nmemb, size_t size)
 {
-	char *arr =;
+	char *arr = *vecp;
 	size_t ext = nmemb * size;
 	size_t len = len(*vecp) * size;
 
-	if (len(*vecp) + nmemb < len(*vecp)) return EOVERFLOW;
+	if (len(arr) + nmemb < len(arr)) return EOVERFLOW;
 
 	while (len + ext >= mem(*vecp))
 		if (vec_expand(vecp)) return ENOMEM;
 
-	memcpy((char *)*vecp + len(*vecp) * size, data, len);
-	len(*vecp) += nmemb;
+	arr = *vecp;
+
+	memcpy(arr + len, data, ext);
+	len(arr) += nmemb;
 
 	return 0;
 }
@@ -82,14 +82,16 @@ int
 vec_expand(void **vecp)
 {
 	char *tmp;
+	size_t siz;
 
 	assert(mem(*vecp));
 
-	tmp = realloc((size_t *)*vecp - 2, mem(*vecp) * GROWTH);
+	siz = mem(*vecp) * 2 + sizeof (size_t) * 2;
+	tmp = realloc((size_t *)*vecp - 2, siz);
 	if (!tmp) return ENOMEM;
 
 	*vecp = (size_t *)tmp + 2;
-	mem(*vecp) *= GROWTH;
+	mem(*vecp) *= 2;
 
 	return 0;
 }
@@ -130,7 +132,7 @@ vec_free(void *vec)
 {
 	if (!vec) return;
 
-	free((char *)vec - HEADER);
+	free((char *)vec - sizeof (size_t) * 2);
 }
 
 void
