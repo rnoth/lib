@@ -1,5 +1,5 @@
 CC	?= cc
-CFLAGS	+= -g3 -O0 -std=c99 -Wall -Wextra -Werror #-Weverything -Wno-padded
+CFLAGS	+= -g3 -Os -std=c99 -Wall -Wextra -Werror -fstrict-aliasing #-Weverything -Wno-padded
 SRC	!= find . -name "*.c"
 OBJ	:= $(SRC:.c=.c.o)
 TESTS	!= find tests -name "*.c"
@@ -20,3 +20,6 @@ deps.mk: $(SRC) $(TESTS)
 
 tests/%-test: tests/%-test.c $(NAME) %.c
 	$(CC) $(CFLAGS) -o $@ $< $(NAME)
+
+clean:
+	rm -f *.o $(NAME) tests/*-test
