@@ -100,6 +100,7 @@ main()
 	vec_concat(vec, clone, len(clone));
 	printf("done\n");
 
+#	if 0
 	printf("\ttesting functional macros...");
 	{
 		printf("\n\t\ttrying a basic map...");
@@ -131,6 +132,7 @@ main()
 		printf("done\n");
 	}
 	printf("\tdone\n");
+#	endif
 
 	printf("\tfreeing the vectors...");
 	vec_free(vec);
