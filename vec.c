@@ -9,38 +9,63 @@
 
 #define VECSIZ 16
 
-static int vec_expand(void **);
+#define sanitycheck(vecv) do {			\
+	assert(vecv != 0x0);			\
+	assert(*vecv != 0x0);			\
+	assert(*vecv != (void*)(sizeof (size_t) * 3));	\
+	assert(len(*vecv) <= mem(*vecv));	\
+	assert(siz(*vecv) < mem(*vecv));	\
+	assert(len(*vecv) * siz(*vecv) <= mem(*vecv)); \
+} while (0)
+
+union vec {
+	void const *p;
+	char **v;
+};
+
+static int vec_expand(char **);
 
 int
-vec_alloc(void **vecp, size_t size)
+vec_alloc(void *vecp, size_t size)
 {
-	*vecp = malloc(sizeof (size_t) * 2 + VECSIZ * size);
-	if (!*vecp) return ENOMEM;
+	size_t siz = 0;
+	union vec vec = {.p = vecp};
 
-	*vecp = (size_t *)*vecp + 2;
+	assert(vec.v != 0x0);
 
-	len(*vecp) = 0;
-	mem(*vecp) = VECSIZ;
+	siz = sizeof (size_t) * 3 + VECSIZ * size;
+	*vec.v = malloc(siz);
+	if (!*vec.v) return ENOMEM;
 
-	memset(*vecp, 0, VECSIZ * size);
+	*vec.v = *vec.v + 3 * sizeof (size_t);
+
+	len(*vec.v) = 0;
+	siz(*vec.v) = size;
+	mem(*vec.v) = VECSIZ;
+
+	memset(*vec.v, 0, VECSIZ * size);
 
 	return 0;
 }
 
 int
-_vec_append(void **vec, void const *data, size_t size)
+vec_append(void *vecp, void const *data)
 {
-	return _vec_insert(vec, data, len(*vec), size);
+	union vec vec = {.p = vecp};
+	sanitycheck(vec.v);
+	return vec_insert(vecp, data, len(*vec.v));
 }
 
 void *
-_vec_clone(void const *vec, size_t size)
+vec_clone(void const *vecp)
 {
-	void *ret = 0;
+	void * ret = 0x0;
+	union vec vec = {.p = vecp};
 
-	if (vec_alloc(&ret, size)) return 0;
+	if (vec_alloc(&ret, siz(*vec.v)))
+		return 0x0;
 
-	if (_vec_join(&ret, vec, size)) {
+	if (vec_join(&ret, vec.v)) {
 		vec_free(ret);
 		return 0;
 	}
@@ -49,119 +74,150 @@ _vec_clone(void const *vec, size_t size)
 }
 
 int
-_vec_concat(void **vecp, void const *data, size_t nmemb, size_t size)
+vec_concat(void *vecp, void const * data, size_t nmemb)
 {
-	char *arr = *vecp;
-	size_t ext = nmemb * size;
-	size_t len = len(*vecp) * size;
+	size_t ext = 0;
+	size_t len = 0;
+	union vec vec = {.p = vecp};
 
-	if (len(arr) + nmemb < len(arr)) return EOVERFLOW;
+	sanitycheck(vec.v);
 
-	while (len + ext >= mem(*vecp))
-		if (vec_expand(vecp)) return ENOMEM;
+	ext = nmemb * siz(*vec.v);
+	len = len(*vec.v) * siz(*vec.v);
 
-	arr = *vecp;
+	if (len(*vec.v) + nmemb < len(*vec.v))
+		return EOVERFLOW;
 
-	memcpy(arr + len, data, ext);
-	len(arr) += nmemb;
+	while (len + ext >= mem(*vec.v))
+		if (vec_expand(vec.v))
+			return ENOMEM;
+
+	memcpy(*vec.v + len, data, ext);
+	len(*vec.v) += nmemb;
 
 	return 0;
 }
 
 void
-_vec_delete(void *vec, size_t which, size_t size)
+vec_delete(void *vecp, size_t which)
 {
-	if (which > len(vec)) return;
+	union vec vec = {.p = vecp};
 
-	memmove((char *)vec + which * size, (char *)vec + (which + 1) * size, (len(vec) - which) * size);
+	sanitycheck(vec.v);
 
-	--len(vec);
+	if (which > len(*vec.v)) return;
+
+	memmove(*vec.v + which * siz(*vec.v),
+		*vec.v + (which + 1) * siz(*vec.v),
+		(len(*vec.v) - which) * siz(*vec.v));
+
+	--len(*vec.v);
 }
 
 int
-vec_expand(void **vecp)
+vec_expand(char **vecv)
 {
 	char *tmp;
-	size_t siz;
+	size_t newsiz;
 
-	assert(mem(*vecp));
+	assert(mem(*vecv) != 0);
 
-	siz = mem(*vecp) * 2 + sizeof (size_t) * 2;
-	tmp = realloc((size_t *)*vecp - 2, siz);
+	newsiz = mem(*vecv) * 2 + sizeof (size_t) * 3;
+	tmp = realloc((size_t *)*vecv - 3, newsiz);
 	if (!tmp) return ENOMEM;
 
-	*vecp = (size_t *)tmp + 2;
-	mem(*vecp) *= 2;
+	*vecv = (char *)tmp + 3 * sizeof (size_t);
+	mem(*vecv) *= 2;
 
 	return 0;
 }
 
 int
-_vec_insert(void **vecp, void const *data, size_t pos, size_t size)
+vec_insert(void *vecp, void const * data, size_t pos)
 {
 	char *arr = 0;
+	int err = 0;
 	size_t ext = 0;
 	size_t len = 0;
+	union vec vec = {.p = vecp};
 
-	if (pos > len(*vecp)) return EINVAL;
+	sanitycheck(vec.v);
 
-	arr = *vecp;
-	ext = pos * size;
-	len = len(arr) * size;
+	if (pos > len(*vec.v)) return EINVAL;
 
-	if (len + size >= mem(arr) && vec_expand(vecp)) return ENOMEM;
+	arr = *vec.v;
+	ext = pos * siz(*vec.v);
+	len = len(arr) * siz(*vec.v);
 
-	arr = *vecp;
+	if (len + siz(*vec.v) >= mem(arr)) {
+		err = vec_expand(vecp);
+		if (err) return err;
+	}
 
-	memmove(arr + ext + size, arr + ext, len - ext);
-	memcpy(arr + ext, data, size);
+	arr = *vec.v;
 
-	++len(*vecp);
+	memmove(arr + ext + siz(*vec.v), arr + ext, len - ext);
+	memcpy(arr + ext, data, siz(arr));
+
+	++len(*vec.v);
 
 	return 0;
 }
 
 int
-_vec_join(void **dest, void const *src, size_t size)
+vec_join(void * destp, void const * srcp)
 {
-	return _vec_concat(dest, src, len(src), size);
+	union vec src = {.p = srcp};
+	sanitycheck(src.v);
+	return vec_concat(destp, *src.v, len(*src.v));
 }
 
 void
 vec_free(void *vec)
 {
 	if (!vec) return;
-
-	free((char *)vec - sizeof (size_t) * 2);
+	free((char *)vec - sizeof (size_t) * 3);
 }
 
 void
-_vec_shift(void *vec, size_t off, size_t size)
+vec_shift(void *vecp, size_t off)
 {
-	_vec_slice(vec, off, len(vec) - off, size);
+	union vec vec = {.p = vecp};
+	sanitycheck(vec.v);
+	vec_slice(vecp, off, len(*vec.v) - off);
 }
 
 void
-_vec_slice(void *vec, size_t beg, size_t ext, size_t size)
+vec_slice(void *vecp, size_t beg, size_t ext)
 {
-	size_t min;
+	size_t min = 0;
+	union vec vec = {.p = vecp};
 
-	if (beg >= len(vec)) {
-		_vec_truncate(vec, 0, size);
+	sanitycheck(vec.v);
+
+	if (beg >= len(*vec.v)) {
+		vec_truncate(vecp, 0);
 		return;
 	}
 
-	min = MIN(ext, len(vec) - beg);
+	min = umin(ext, len(*vec.v) - beg);
 
-	memmove(vec, (char *)vec + beg * size, min * size);
-	memset((char *)vec + (beg + min) * size, 0, (len(vec) - min - beg) * size);
+	memmove(*vec.v,
+		*vec.v + beg * siz(*vec.v),
+		min * siz(*vec.v));
+	memset(*vec.v + (beg + min) * siz(*vec.v),
+		0,
+		(len(*vec.v) - min - beg) * siz(*vec.v));
 
-	len(vec) = min;
+	len(*vec.v) = min;
 }
 
 void
-_vec_truncate(void *vec, size_t off, size_t size)
+vec_truncate(void *vecp, size_t off)
 {
-	memset((char *)vec + off * size, 0, (len(vec) - off) * size);
-	len(vec) = off;
+	union vec vec = {.p = vecp};
+	memset(*vec.v + off * siz(*vec.v),
+		0,
+		(len(*vec.v) - off) * siz(*vec.v));
+	len(*vec.v) = off;
 }
