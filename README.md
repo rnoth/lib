@@ -2,64 +2,102 @@ simple library implementing serveral generic datatypes for C programming
 
 ##vec
 
-the vec.h functions are built on top of ordinary C arrays, so a vector of type Type would be declared as normal: `Type *vec`. These 'vectors' can interoperate with functions expecting normal arrays, but the reverse is not true.
+The vec.h functions are built on top of ordinary C arrays.
+So, a vector of type `Type` would be declared as a normal array: `Type *myvec`.
+These 'vectors' can interoperate with functions expecting normal arrays, but the reverse is not true.
 
-the 'make\_vector()' macro will magically initialize the vector for you.
-Use it like: `make_vector(vec);`
+The `vec_ctor()` macro will magically initialize an array as a vector for you.
+Use it like: `vec_ctor(myvec);`
 
-- instance is o (or `NULL`) if an allocation fails
+- instance is the null pointer if an allocation fails
 
-to allocate a vector manually, just do: `vec_alloc(vec, sizeof *vec)`.
-This function return `ENOMEM` if the allocation fails.
+to allocate a vector manually, just do: `vec_alloc(&myvec, sizeof *myvec)`.
+This function returns `0` on succes, `ENOMEM` if the allocation fails, or EOVERFLOW if you somehow manage to overflow a `size_t` somewhere.
 
-free a vector with `vec_free(vec);`
+Free a vector with `vec_free(myvec)`
 
 ###supported operations:
 
-**important**: all of these functions take pointers to vectors allocated with `make_vector()` (or `vec_alloc()`.
-if you just pass the vector itself, your program might blow up.
+**important**: all of these functions take pointers to vectors allocated with `vec_ctor()` (or `vec_alloc()`) as their first argument.
+If you just pass the vector itself, your program might blow up.
 
-- `vec_append(void *vec_ptr, void *item);`
+- `vec_append(void *vec_ptr, void *item)`
 
-- `vec_insert(void *vec_ptr, void *item, size_t position);`
+- `vec_prepend(void *vec_ptr, void *item)`
 
-	- item should be a pointer of the same type as the vector,
-	that is, `int *vector` -> `int *item`
+- `vec_insert(void *vec_ptr, void *item, size_t position)`
 
-	- these functions return 0 on succces, `ENOMEM` if they cannot allocate memory, `EOVERFLOW` if some value would overflow (this should never happen).
+	- _append_, _prepend_, or _insert_ elements into a vector
+
+	- `item` (or `array`) should be a pointer of the same type as the vector,
+	that is: `int *myvec` => `int *item`
+
+	- These functions return `0` on succces, `ENOMEM` if they cannot allocate memory, `EOVERFLOW` if some value would overflow (this should never happen).
 
 	- `vec_insert()` can also return `EINVAL` if the position is out of bounds
 
-- `vec_delete(void *vec_ptr, size_t position)`
+- `vec_delete(void *vec_ptr, size_t which)`
+
+	- _delete_ `which` element.
+
+	- Returns nothing, cannot fail.
+
+- `vec_elim(void *vec_ptr, size_t offset, size_t extent)`
+
+	- _eliminate_ `extent` elements from `offset` on.
+
+	- Returns nothing, cannot fail.
 
 - `vec_truncate(void *vec_ptr, size_t offset)`
 
+	- _truncate_ the vector, starting from `offset`.
+
+	- Returns nothing, cannot fail.
+
 - `vec_shift(void *vec_ptr, size_t offset)`
 
+	- _shift_ the vector by `offset` elements.
+
+	- If `offset` is 2, for example, vec[2] becomes vec[0], vec[3] becomes vec[1], and so on
+
+	- Returns nothing, cannot fail.
+
 - `vec_slice(void *vec_ptr, size_t begin, size_t extent)`
+
+	- _slice_ `extent` elements, starting at `begin`.
+
+	- After `vec_slice(&myvec, 2, 4)`, myvec consists of the four 4 elements it had starting at index 2.
+
+	- Returns nothing, cannot fail.
 	
 - `vec_concat(void *vec_ptr, void *array, size_t length)`
 
-	- array should be an array of the same type as the vector
+- `vec_splice(void *vec_ptr, size_t offset, void *array, size_t length)`
 
-	- length is the length of the array in type-units, not bytes
-	  (\`concat'ing an array of five ints, length would be \`5', not \`20')
+	- _concatenate_, or _splice_ a vector with an array.
 
-	- return 0 on succes, `ENOMEM` when out of memory
+	- Array should be an array of the same type as the vector.
+
+	- Length is the length of the array in type-units, not bytes
+	  ('concat'ing (or 'splice'ing) an array of five ints, length would be `5`, not `20`).
+
+	- returns `0` on succes, `ENOMEM` when out of memory, `EOVERFLOW` if something overflows.
 
 - `vec_join(void *dest_ptr, void *src_ptr)`
 
-	- appends the elements of `*src_ptr` to `*dest`
+	- _join_ two vectors
 
-	- return 0 on success, `ENOMEM` when out of memory
+	- behaves equivalently to `vec_concat()`, assuming `src_ptr` points to a valid vector
+
+	- returns `0` on success, `ENOMEM` when out of memory, `EOVERFLOW` if something overflows
 
 - `vec_clone(void *vec_ptr)`
 
-	- returns a copy of vector, or 0 (`NULL`) if allocation fails
+	- returns a copy of the vector, or the null pointer if allocation fails
 
 ###fun
 
-- `mapv(variable, vector)` is a macro which loops over the elements of `vector`,
+- `vec_map(variable, vector)` is a macro which loops over the elements of `vector`,
 assigning the address of each one to `varible` in sequence. e.g.
 
 ```
@@ -68,12 +106,12 @@ main()
 {
 	int *foo;
 
-	make_vector(foo);
+	vec_ctor(foo);
 	if (!foo) abort();
 
 	/* ... */
 
-	mapv(int *each, foo) {
+	vec_map(int *each, foo) {
 		printf("%d^2 == %d\n", *each, *each * *each);
 	}
 
@@ -87,43 +125,10 @@ main()
 
 	- furthermore, `continue` and `break` behave as expected
 
-##list
-
-declare a singly-linked list of type Type with `List(Type) *instance`.
-note that lists do not store pointers like vectors, and therefore
-`List(void)` is invalid and a list of cstrings would be `List(char *)`
-
-alloc & initialize a vector with `make_list(instance)`
-
-- instance is NULL if the allocation fails
-
-free a list with `free_list(instance)`
-
-###supported operations:
-
-- `car(list)` -- macro which expands to `list->val`
-
-- `cdr(list)` -- macro which expands to `list-\>next`
-
-note that next pointer is stored as void, meaning constructions such as
-`cdr(cdr(list))` will not work
-
-- `list_cons(void *item, void *list)`
-
-	- item should be a pointer to the type which the list was declared
-
-- `list_append(void *destination, void *source)`
-
-###fun:
-
-- `mapl(list, expression)` is a macro which applies expression to each
-item in the list. the currect item is can be accessed in the `each` variable
-e.g. `mapl(list, free(each))` free every element in the list
-
-	- note that this macro assumes the list is of pointers, and will not
-	work for scalar or struct types
+	- finally, `vec_map()` contains no double evaluatation. any correctly typed expression can be used as `vector` or `variable`;
 
 ##set
+
 declare a radix tree with `Set *instance`
 
 alloc & initialize:
@@ -154,3 +159,43 @@ free:
 
 every operation has a version design for use with cstrings, they are
 `set_adds()`, `set_rms()`, `set_membs()`, and `set_querys()`, respectively
+
+##list
+
+**note**: I do not used any of the list.h functions in my programs at the moment, so these functions should be considered unmaintained.
+
+declare a singly-linked list of type Type with `List(Type) *instance`.
+note that lists do not store pointers like vectors, and therefore
+`List(void)` is invalid and a list of cstrings would be `List(char *)`
+
+alloc & initialize a vector with `make_list(instance)`
+
+- instance is the null pointer if the allocation fails
+
+free a list with `free_list(instance)`
+
+###supported operations:
+
+- `car(list)` -- macro which expands to `list->val`
+
+- `cdr(list)` -- macro which expands to `list->next`
+
+note that next pointer is stored as void, meaning constructions such as
+`cdr(cdr(list))` will not work
+
+- `list_cons(void *item, void *list)`
+
+	- add `item` to the front of `list`.
+
+	- item should be a pointer to the type which the list was declared
+
+- `list_append(void *destination, void *source)`
+
+###fun:
+
+- `mapl(list, expression)` is a macro which applies expression to each
+item in the list. the currect item is can be accessed in the `each` variable
+e.g. `mapl(list, free(each))` free every element in the list
+
+	- note that this macro assumes the list is of pointers, and will not
+	work for scalar or struct types
