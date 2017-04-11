@@ -69,9 +69,9 @@ alloc_node(void)
 	ret = malloc(sizeof *ret);
 	if (!ret) return NULL;
 
-	make_vector(ret->edge);
+	vec_ctor(ret->edge);
 	if (!ret->edge) goto nomem;
-	make_vector(ret->chld);
+	vec_ctor(ret->chld);
 	if (!ret->chld) goto nomem;
 
 	return ret;
@@ -92,7 +92,7 @@ attach(Node *cur, Node const *new)
 
 	for (off = 0; off < len(cur->chld); ++off) {
 		chld = cur->chld[off];
-		min = umin(len(chld->edge), len(new->edge));
+		min = minz(len(chld->edge), len(new->edge));
 		cmp = memcmp(new->edge, chld->edge, min);
 		if (cmp < 0) break;
 	}
@@ -189,7 +189,7 @@ marshal(Node const *nod, Elem const *el)
 	pre = vec_clone(&el);
 	if (!pre) return 0x0;
 
-	make_vector(ret);
+	vec_ctor(ret);
 	if (!ret) {
 		vec_free(pre);
 		return 0x0;
@@ -222,7 +222,7 @@ match(Node const *nod, Elem const *el)
 {
 	size_t off;
 
-	for (off = 0; off < umin(len(nod->edge), len(el)); ++off)
+	for (off = 0; off < minz(len(nod->edge), len(el)); ++off)
 		if (nod->edge[off] != el[off])
 			break;
 
@@ -300,7 +300,7 @@ traverse(Node *nod, Elem const *el)
 
 	cur = nod;
 	for (;;) {
-		min = umin(len(cur->edge), len(pre));
+		min = minz(len(cur->edge), len(pre));
 		off = match(cur, pre);
 		ext += off;
 
@@ -327,7 +327,7 @@ make_elem(void const *data, size_t len)
 {
 	Elem *ret;
 
-	make_vector(ret);
+	vec_ctor(ret);
 	if (!ret) return 0x0;
 
 	if (vec_concat(&ret, data, len)) {
@@ -488,7 +488,7 @@ set_query(Set *A, void *data, size_t len)
 	rep = traverse(A->root, el);
 	if (!rep) goto finally;
 	if (rep->ext != len(el)) {
-		make_vector(ret);
+		vec_ctor(ret);
 		goto finally;
 	}
 	
