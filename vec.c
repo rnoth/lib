@@ -12,7 +12,6 @@
 #define sanitycheck(vecv) do {			\
 	assert(vecv != 0x0);			\
 	assert(*vecv != 0x0);			\
-	assert(*vecv != (void*)(sizeof (size_t) * 3));	\
 	assert(len(*vecv) <= mem(*vecv));	\
 	assert(siz(*vecv) < mem(*vecv));	\
 	assert(len(*vecv) * siz(*vecv) <= mem(*vecv)); \
@@ -41,7 +40,7 @@ vec_alloc(void *vecp, size_t size)
 
 	len(*vec.v) = 0;
 	siz(*vec.v) = size;
-	mem(*vec.v) = VECSIZ;
+	mem(*vec.v) = VECSIZ * size;
 
 	memset(*vec.v, 0, VECSIZ * size);
 
@@ -213,7 +212,7 @@ vec_slice(void *vecp, size_t beg, size_t ext)
 		return;
 	}
 
-	min = umin(ext, len(*vec.v) - beg);
+	min = minz(ext, len(*vec.v) - beg);
 
 	memmove(*vec.v,
 		*vec.v + beg * siz(*vec.v),
