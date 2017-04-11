@@ -20,13 +20,14 @@
 			_i < len(_vec);				\
 			++_i, _j = _i)				\
 	for (char _q = 1; _q; _q = 0)				\
-	for (var = (void*)(_vec) + _i * _siz;			\
+	for (var = (void*)(_vec + _i * _siz);			\
 			_i = _q ? len(_vec) : _j, _q;		\
 			_q = 0)
 
 int	vec_alloc	(void *, size_t);
 int	vec_append	(void *, void const *);
 void *	vec_clone	(void const *);
+int	vec_copy	(void *, void *);
 int	vec_concat	(void *, void const *, size_t);
 void	vec_delete	(void *, size_t);
 int	vec_insert	(void *, void const *, size_t);
@@ -35,5 +36,6 @@ void	vec_free	(void *);
 void	vec_shift	(void *, size_t);
 void	vec_slice	(void *, size_t, size_t);
 void	vec_truncate	(void *, size_t);
+int	vec_transfer	(void *, void const *, size_t);
 
 #endif

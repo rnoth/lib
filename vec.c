@@ -74,6 +74,19 @@ vec_clone(void const *vecp)
 }
 
 int
+vec_copy(void *destp, void *srcp)
+{
+	union vec dest = {.p = destp};
+	union vec src = {.p = srcp};
+
+	sanitycheck(dest.v);
+	sanitycheck(src.v);
+
+	vec_truncate(destp, 0);
+	return vec_join(destp, srcp);
+}
+
+int
 vec_concat(void *vecp, void const * data, size_t nmemb)
 {
 	size_t ext = 0;
@@ -220,4 +233,11 @@ vec_truncate(void *vecp, size_t off)
 		0,
 		(len(*vec.v) - off) * siz(*vec.v));
 	len(*vec.v) = off;
+}
+
+int
+vec_transfer(void *destp, void const *data, size_t len)
+{
+	vec_truncate(destp, 0);
+	return vec_concat(destp, data, len);
 }
