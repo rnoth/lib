@@ -1,5 +1,6 @@
 #ifndef _util_
 #define _util_
+#include <stdbool.h>
 #include <stdlib.h>
 #include <wchar.h>
 
@@ -12,6 +13,7 @@
 #define copy(dest,src)	(memcpy((dest), (src), sizeof *(dest)))
 #define die(blame) do { perror(blame); abort(); } while (0);
 
+/* deprecated */
 #define eat(ret, buf, expr)			\
 do {						\
         char *_buf = buf;			\
@@ -34,10 +36,31 @@ do {						\
 } while (0)
 
 static inline
-unsigned long
-umin(unsigned long a, unsigned long b)
+size_t
+minz(size_t a, size_t b)
 {
 	return a < b ? a : b;
+}
+
+static inline
+bool
+addz_overflows(size_t a, size_t b)
+{
+	return a + b < a || a + b < b;
+}
+
+static inline
+bool
+subz_overflows(size_t a, size_t b)
+{
+	return a - b > a;
+}
+
+static inline
+bool
+mulz_overflows(size_t a, size_t b)
+{
+	return a * b < a || a * b < b;
 }
 
 #endif /* _util_ */
