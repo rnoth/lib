@@ -12,7 +12,7 @@
 
 #define vec_ctor(INST) vec_alloc(&(INST), sizeof *INST)
 
-#define mapv(var, VEC)						\
+#define vec_map(var, VEC)					\
 	for (char *_vec = (void *)(VEC), *_p=(void*)1;		\
 			_vec && _p;				\
 			_p = 0)					\
@@ -27,15 +27,17 @@
 int	vec_alloc	(void *, size_t);
 int	vec_append	(void *, void const *);
 void *	vec_clone	(void const *);
-int	vec_copy	(void *, void *);
 int	vec_concat	(void *, void const *, size_t);
+int	vec_copy	(void *, void *);
 void	vec_delete	(void *, size_t);
+void	vec_elim	(void *, size_t, size_t);
 int	vec_insert	(void *, void const *, size_t);
 int	vec_join	(void *, void const *);
 void	vec_free	(void *);
 void	vec_shift	(void *, size_t);
 void	vec_slice	(void *, size_t, size_t);
-void	vec_truncate	(void *, size_t);
+int	vec_splice	(void *, size_t, void const *, size_t);
 int	vec_transfer	(void *, void const *, size_t);
+void	vec_truncate	(void *, size_t);
 
 #endif
