@@ -18,7 +18,7 @@ main()
 	printf("testing vec.c\n");
 
 	printf("\tallocating a vector...");
-	make_vector(vec);
+	vec_ctor(vec);
 	ok(len(vec) == 0);
 	printf("done\n");
 
@@ -88,14 +88,14 @@ main()
 	printf("done\n");
 
 	vec_free(vec);
-	make_vector(vec);
+	vec_ctor(vec);
 	printf("\tjoining two vectors...");
 	vec_join(&vec, &clone);
 	ok(vec[4] == 4);
 	printf("done\n");
 
 	vec_free(vec);
-	make_vector(vec);
+	vec_ctor(vec);
 	printf("\tconcatenating a vector...");
 	vec_concat(&vec, clone, len(clone));
 	printf("done\n");
