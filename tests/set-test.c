@@ -34,7 +34,7 @@ main()
 	ok(len(reply) == 1);
 	ok(reply[0]);
 	ok(!strcmp(reply[0], "foobar"));
-	mapv(void **each, reply) vec_free(*each);
+	vec_map(void **each, reply) vec_free(*each);
 	vec_free(reply);
 	printf("done\n");
 
@@ -46,7 +46,7 @@ main()
 	ok(!set_membs(A, "foobar"));
 	reply = set_querys(A, "foo");
 	ok(!len(reply));
-	mapv(void **each, reply) vec_free(*each);
+	vec_map(void **each, reply) vec_free(*each);
 	vec_free(reply);
 	printf("done\n");
 
@@ -66,7 +66,7 @@ main()
 	reply = set_querys(A, "f");
 	ok(len(reply) == 1)
 	ok(!strcmp(reply[0], "foo"));
-	mapv(void **each, reply) vec_free(*each);
+	vec_map(void **each, reply) vec_free(*each);
 	vec_free(reply);
 
 	reply = set_querys(A, "b");
@@ -74,7 +74,7 @@ main()
 	ok(reply[0]);
 	ok(!strcmp(reply[0], "bar"));
 	ok(!strcmp(reply[1], "baz"));
-	mapv(void **each, reply) vec_free(*each);
+	vec_map(void **each, reply) vec_free(*each);
 	vec_free(reply);
 	printf("done\n");
 

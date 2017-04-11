@@ -8,6 +8,8 @@
 #include "test.h"
 #include "../vec.h"
 
+/* FIXME: no tests for vec_transfer(), vec_copy(), or vec_elim() */
+
 int
 main()
 {
@@ -90,7 +92,7 @@ main()
 	vec_free(vec);
 	vec_ctor(vec);
 	printf("\tjoining two vectors...");
-	vec_join(&vec, &clone);
+	vec_join(&vec, clone);
 	ok(vec[4] == 4);
 	printf("done\n");
 
@@ -104,17 +106,17 @@ main()
 	{
 		printf("\n\t\ttrying a basic map...");
 		elem = 0;
-		mapv (int *each, vec) ok(*each == elem++);
+		vec_map (int *each, vec) ok(*each == elem++);
 		printf("done\n");
 
 		printf("\t\tretrying without a declaration...");
 		elem = 0;
 		int *each;
-		mapv (each, vec) ok(*each == elem++);
+		vec_map (each, vec) ok(*each == elem++);
 		printf("done\n");
 
 		printf("\t\ttrying continue inside a map...");
-		mapv (int *i, vec) {
+		vec_map (int *i, vec) {
 			if (*i != 8) continue;
 			vec_delete(&vec, i - vec);
 		}
@@ -124,10 +126,11 @@ main()
 		printf("done\n");
 
 		printf("\t\ttrying to break out of a map...");
-		mapv (int *i, vec) {
+		vec_map (int *i, vec) {
 			if (*i == 9) break;
 			ok(*i < 9);
 		}
+		// FIXME: does not test nested maps
 		printf("done\n");
 	}
 	printf("\tdone\n");

@@ -51,7 +51,7 @@ align(Node *nod)
 	if (len(nod->chld) != 1) return 0;
 
 	chld = *nod->chld;
-	if (vec_join(&nod->edge, &chld->edge))
+	if (vec_join(&nod->edge, chld->edge))
 		return ENOMEM;
 
 	vec_free(chld->edge);
@@ -122,7 +122,7 @@ int
 insert(Node *nod, Elem const *el)
 {
 	vec_truncate(&nod->edge, 0);
-	return vec_join(&nod->edge, &el);
+	return vec_join(&nod->edge, el);
 }
 
 void
@@ -195,21 +195,21 @@ marshal(Node const *nod, Elem const *el)
 		return 0x0;
 	}
 
-	vec_join(&pre, &nod->edge);
-	mapv (chld, nod->chld) {
+	vec_join(&pre, nod->edge);
+	vec_map (chld, nod->chld) {
 		tmp = marshal(*chld, pre);
 		if (!tmp) {
 			vec_free(pre);
 			vec_free(ret);
 			return 0x0;
 		}
-		vec_join(&ret, &tmp);
+		vec_join(&ret, tmp);
 		vec_free(tmp);
 		tmp = 0x0;
 	}
 
 	if (isleaf(nod) && vec_append(&ret, &pre)) {
-		mapv (void **each, ret) vec_free(each);
+		vec_map (void **each, ret) vec_free(each);
 		vec_free(pre);
 		vec_free(ret);
 	} else if (!isleaf(nod)) vec_free(pre);
