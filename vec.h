@@ -10,7 +10,7 @@
 
 #define Vector(Type) Type
 
-#define make_vector(INST) vec_alloc(&(INST), sizeof *INST)
+#define vec_ctor(INST) vec_alloc(&(INST), sizeof *INST)
 
 #define mapv(var, VEC)						\
 	for (char *_vec = (void *)(VEC), *_p=(void*)1;		\
