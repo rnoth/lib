@@ -1,6 +1,7 @@
 #include <assert.h>
 #include <errno.h>
 #include <limits.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -9,12 +10,16 @@
 
 #define VECSIZ 16
 
+#define check(prop) do if (!(prop))	\
+		fprintf(stderr, "error: invalid pointer passed to %s\n", __func__);	\
+while (0)
+
+
 #define sanitycheck(vecv) do {			\
-	assert(vecv != 0x0);			\
-	assert(*vecv != 0x0);			\
-	assert(len(*vecv) <= mem(*vecv));	\
-	assert(siz(*vecv) < mem(*vecv));	\
-	assert(len(*vecv) * siz(*vecv) <= mem(*vecv)); \
+	check(*vecv != 0x0);			\
+	check(len(*vecv) <= mem(*vecv));	\
+	check(siz(*vecv) < mem(*vecv));		\
+	check(len(*vecv) * siz(*vecv) <= mem(*vecv)); \
 } while (0)
 
 union vec {
@@ -22,7 +27,7 @@ union vec {
 	char **v;
 };
 
-static int vec_expand(char **);
+static int vec_expand(char **, size_t);
 
 int
 vec_alloc(void *vecp, size_t size)
@@ -32,6 +37,7 @@ vec_alloc(void *vecp, size_t size)
 
 	assert(vec.v != 0x0);
 
+	if (mulz_overflows(VECSIZ, size)) return EOVERFLOW;
 	siz = sizeof (size_t) * 3 + VECSIZ * size;
 	*vec.v = malloc(siz);
 	if (!*vec.v) return ENOMEM;
@@ -48,11 +54,11 @@ vec_alloc(void *vecp, size_t size)
 }
 
 int
-vec_append(void *vecp, void const *data)
+vec_append(void *destp, void const *data)
 {
-	union vec vec = {.p = vecp};
-	sanitycheck(vec.v);
-	return vec_insert(vecp, data, len(*vec.v));
+	union vec dest = {.p = destp};
+	sanitycheck(dest.v);
+	return vec_splice(destp, len(*dest.v), data, 1);
 }
 
 void *
@@ -64,7 +70,7 @@ vec_clone(void const *vecp)
 	if (vec_alloc(&ret, siz(*vec.v)))
 		return 0x0;
 
-	if (vec_join(&ret, vec.v)) {
+	if (vec_join(&ret, *vec.v)) {
 		vec_free(ret);
 		return 0;
 	}
@@ -73,73 +79,66 @@ vec_clone(void const *vecp)
 }
 
 int
-vec_copy(void *destp, void *srcp)
+vec_copy(void *destp, void *src)
 {
 	union vec dest = {.p = destp};
-	union vec src = {.p = srcp};
 
 	sanitycheck(dest.v);
-	sanitycheck(src.v);
+	sanitycheck(&src);
 
 	vec_truncate(destp, 0);
-	return vec_join(destp, srcp);
+
+	return vec_splice(destp, 0, src, len(src));
 }
 
 int
-vec_concat(void *vecp, void const * data, size_t nmemb)
+vec_concat(void *destp, void const *src, size_t nmemb)
 {
-	size_t ext = 0;
-	size_t len = 0;
-	union vec vec = {.p = vecp};
-
-	sanitycheck(vec.v);
-
-	ext = nmemb * siz(*vec.v);
-	len = len(*vec.v) * siz(*vec.v);
-
-	if (len(*vec.v) + nmemb < len(*vec.v))
-		return EOVERFLOW;
-
-	while (len + ext >= mem(*vec.v))
-		if (vec_expand(vec.v))
-			return ENOMEM;
-
-	memcpy(*vec.v + len, data, ext);
-	len(*vec.v) += nmemb;
-
-	return 0;
+	union vec dest = {.p = destp};
+	sanitycheck(dest.v);
+	return vec_splice(destp, len(*dest.v), src, nmemb);
 }
 
 void
 vec_delete(void *vecp, size_t which)
 {
+	return vec_elim(vecp, which, 1);
+}
+
+void
+vec_elim(void *vecp, size_t off, size_t ext)
+{
+	size_t min = 0;
 	union vec vec = {.p = vecp};
 
-	sanitycheck(vec.v);
+	if (off > len(*vec.v)) return;
 
-	if (which > len(*vec.v)) return;
+	min = minz(ext, len(*vec.v) - off);
 
-	memmove(*vec.v + which * siz(*vec.v),
-		*vec.v + (which + 1) * siz(*vec.v),
-		(len(*vec.v) - which) * siz(*vec.v));
+	memmove(*vec.v + off * siz(*vec.v),
+		*vec.v + (off + min) * siz(*vec.v),
+		(len(*vec.v) - off - min) * siz(*vec.v));
 
-	--len(*vec.v);
+	len(*vec.v) -= min;
+
+	memset(*vec.v + len(*vec.v),
+	       0,
+	       min * siz(*vec.v));
 }
 
 int
-vec_expand(char **vecv)
+vec_expand(char **vecv, size_t diff)
 {
-	char *tmp;
-	size_t newsiz;
+	char *tmp = 0x0;
 
 	assert(mem(*vecv) != 0);
 
-	newsiz = mem(*vecv) * 2 + sizeof (size_t) * 3;
-	tmp = realloc((size_t *)*vecv - 3, newsiz);
+	tmp = realloc(*vecv - 3 * sizeof (size_t),
+			diff + 3 * sizeof (size_t));
 	if (!tmp) return ENOMEM;
 
-	*vecv = (char *)tmp + 3 * sizeof (size_t);
-	mem(*vecv) *= 2;
+	*vecv = tmp + 3 * sizeof (size_t);
+	mem(*vecv) = diff;
 
 	return 0;
 }
@@ -147,41 +146,17 @@ vec_expand(char **vecv)
 int
 vec_insert(void *vecp, void const * data, size_t pos)
 {
-	char *arr = 0;
-	int err = 0;
-	size_t ext = 0;
-	size_t len = 0;
 	union vec vec = {.p = vecp};
-
 	sanitycheck(vec.v);
-
-	if (pos > len(*vec.v)) return EINVAL;
-
-	arr = *vec.v;
-	ext = pos * siz(*vec.v);
-	len = len(arr) * siz(*vec.v);
-
-	if (len + siz(*vec.v) >= mem(arr)) {
-		err = vec_expand(vecp);
-		if (err) return err;
-	}
-
-	arr = *vec.v;
-
-	memmove(arr + ext + siz(*vec.v), arr + ext, len - ext);
-	memcpy(arr + ext, data, siz(arr));
-
-	++len(*vec.v);
-
-	return 0;
+	return vec_splice(vecp, pos, data, 1);
 }
 
 int
-vec_join(void * destp, void const * srcp)
+vec_join(void *destp, void const *src)
 {
-	union vec src = {.p = srcp};
-	sanitycheck(src.v);
-	return vec_concat(destp, *src.v, len(*src.v));
+	union vec dest = {.p = destp};
+	sanitycheck(dest.v);
+	return vec_splice(destp, len(*dest.v), src, len(src));
 }
 
 void
@@ -217,11 +192,49 @@ vec_slice(void *vecp, size_t beg, size_t ext)
 	memmove(*vec.v,
 		*vec.v + beg * siz(*vec.v),
 		min * siz(*vec.v));
+
 	memset(*vec.v + (beg + min) * siz(*vec.v),
 		0,
 		(len(*vec.v) - min - beg) * siz(*vec.v));
 
 	len(*vec.v) = min;
+}
+
+int
+vec_splice(void *destp, size_t pos, void const *src, size_t nmemb)
+{
+	int err = 0;
+	size_t ext = 0;
+	size_t len = 0;
+	size_t off = 0;
+	size_t mem = 0;
+	union vec dest = {.p = destp};
+
+	if (off > len(*dest.v)) return EINVAL;
+
+	if (addz_overflows(len(*dest.v), nmemb))
+		return EOVERFLOW;
+
+	ext = nmemb * siz(*dest.v);
+	len = len(*dest.v) * siz(*dest.v);
+	off = pos * siz(*dest.v);
+
+	while (len + ext >= mem(*dest.v)) {
+		mem = mem(*dest.v);
+		while (mem <= len + ext) mem *= 2;
+		err = vec_expand(dest.v, mem);
+		if (err) return err;
+	}
+
+	memmove(*dest.v + off + ext,
+		*dest.v + off,
+		len - off);
+
+	memcpy(*dest.v + off, src, ext);
+
+	len(*dest.v) += nmemb;
+
+	return 0;
 }
 
 void
@@ -238,5 +251,5 @@ int
 vec_transfer(void *destp, void const *data, size_t len)
 {
 	vec_truncate(destp, 0);
-	return vec_concat(destp, data, len);
+	return vec_splice(destp, 0, data, len);
 }
