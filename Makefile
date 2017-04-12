@@ -23,3 +23,5 @@ tests/%-test: tests/%-test.c $(NAME) %.c
 
 clean:
 	rm -f *.o $(NAME) tests/*-test
+
+pat.c.o: CFLAGS += -Wno-unused-parameter
