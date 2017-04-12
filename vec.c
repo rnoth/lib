@@ -10,18 +10,6 @@
 
 #define VECSIZ 16
 
-#define check(prop) do if (!(prop))	\
-		fprintf(stderr, "error: invalid pointer passed to %s\n", __func__);	\
-while (0)
-
-
-#define sanitycheck(vecv) do {			\
-	check(*vecv != 0x0);			\
-	check(len(*vecv) <= mem(*vecv));	\
-	check(siz(*vecv) < mem(*vecv));		\
-	check(len(*vecv) * siz(*vecv) <= mem(*vecv)); \
-} while (0)
-
 union vec {
 	void const *p;
 	char **v;
@@ -57,7 +45,7 @@ int
 vec_append(void *destp, void const *data)
 {
 	union vec dest = {.p = destp};
-	sanitycheck(dest.v);
+	vec_check(dest.v);
 	return vec_splice(destp, len(*dest.v), data, 1);
 }
 
@@ -83,8 +71,8 @@ vec_copy(void *destp, void *src)
 {
 	union vec dest = {.p = destp};
 
-	sanitycheck(dest.v);
-	sanitycheck(&src);
+	vec_check(dest.v);
+	vec_check(&src);
 
 	vec_truncate(destp, 0);
 
@@ -95,14 +83,14 @@ int
 vec_concat(void *destp, void const *src, size_t nmemb)
 {
 	union vec dest = {.p = destp};
-	sanitycheck(dest.v);
+	vec_check(dest.v);
 	return vec_splice(destp, len(*dest.v), src, nmemb);
 }
 
 void
 vec_delete(void *vecp, size_t which)
 {
-	return vec_elim(vecp, which, 1);
+	vec_elim(vecp, which, 1);
 }
 
 void
@@ -147,7 +135,7 @@ int
 vec_insert(void *vecp, void const * data, size_t pos)
 {
 	union vec vec = {.p = vecp};
-	sanitycheck(vec.v);
+	vec_check(vec.v);
 	return vec_splice(vecp, pos, data, 1);
 }
 
@@ -155,7 +143,7 @@ int
 vec_join(void *destp, void const *src)
 {
 	union vec dest = {.p = destp};
-	sanitycheck(dest.v);
+	vec_check(dest.v);
 	return vec_splice(destp, len(*dest.v), src, len(src));
 }
 
@@ -170,7 +158,7 @@ void
 vec_shift(void *vecp, size_t off)
 {
 	union vec vec = {.p = vecp};
-	sanitycheck(vec.v);
+	vec_check(vec.v);
 	vec_slice(vecp, off, len(*vec.v) - off);
 }
 
@@ -180,7 +168,7 @@ vec_slice(void *vecp, size_t beg, size_t ext)
 	size_t min = 0;
 	union vec vec = {.p = vecp};
 
-	sanitycheck(vec.v);
+	vec_check(vec.v);
 
 	if (beg >= len(*vec.v)) {
 		vec_truncate(vecp, 0);
