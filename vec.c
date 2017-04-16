@@ -55,6 +55,8 @@ vec_clone(void const *vecp)
 	void * ret = 0x0;
 	union vec vec = {.p = vecp};
 
+	vec_check(vec.v);
+
 	if (vec_alloc(&ret, siz(*vec.v)))
 		return 0x0;
 
@@ -101,7 +103,7 @@ vec_elim(void *vecp, size_t off, size_t ext)
 
 	if (off > len(*vec.v)) return;
 
-	min = minz(ext, len(*vec.v) - off);
+	min = umin(ext, len(*vec.v) - off);
 
 	memmove(*vec.v + off * siz(*vec.v),
 		*vec.v + (off + min) * siz(*vec.v),
@@ -175,7 +177,7 @@ vec_slice(void *vecp, size_t beg, size_t ext)
 		return;
 	}
 
-	min = minz(ext, len(*vec.v) - beg);
+	min = umin(ext, len(*vec.v) - beg);
 
 	memmove(*vec.v,
 		*vec.v + beg * siz(*vec.v),
