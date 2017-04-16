@@ -1,7 +1,9 @@
 CC	?= cc
-CFLAGS	+= -g3 -Os -std=c99 -pedantic -Wall -Wextra -Werror -fstrict-aliasing \
-	   -fomit-frame-pointer -fdata-sections -ffunction-sections -fno-exceptions \
-	   -fno-unwind-tables -fno-asynchronous-unwind-tables -fno-stack-protector \
+CFLAGS	+= -g3 -O0 -std=c99 -pedantic -Wall -Wextra -Werror \
+	   -Wno-missing-field-initializers -Wno-unused-parameter \
+	   -fstrict-aliasing -fomit-frame-pointer -fdata-sections \
+	   -ffunction-sections -fno-exceptions -fno-unwind-tables \
+	   -fno-asynchronous-unwind-tables -fno-stack-protector \
 	   -Wa,--noexecstack
 LDFLAGS += -lc -Wl,--gc-sections -Wl,--sort-section=alignment -Wl,--sort-common
 
@@ -28,5 +30,3 @@ tests/%-test: tests/%-test.c $(NAME) %.c
 
 clean:
 	rm -f *.o $(NAME) tests/*-test
-
-pat.c.o: CFLAGS += -Wno-unused-parameter
