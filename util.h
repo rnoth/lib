@@ -37,7 +37,7 @@ do {						\
 
 static inline
 size_t
-minz(size_t a, size_t b)
+umin(size_t a, size_t b)
 {
 	return a < b ? a : b;
 }

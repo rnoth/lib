@@ -92,7 +92,7 @@ attach(Node *cur, Node const *new)
 
 	for (off = 0; off < len(cur->chld); ++off) {
 		chld = cur->chld[off];
-		min = minz(len(chld->edge), len(new->edge));
+		min = umin(len(chld->edge), len(new->edge));
 		cmp = memcmp(new->edge, chld->edge, min);
 		if (cmp < 0) break;
 	}
@@ -222,7 +222,7 @@ match(Node const *nod, Elem const *el)
 {
 	size_t off;
 
-	for (off = 0; off < minz(len(nod->edge), len(el)); ++off)
+	for (off = 0; off < umin(len(nod->edge), len(el)); ++off)
 		if (nod->edge[off] != el[off])
 			break;
 
@@ -300,7 +300,7 @@ traverse(Node *nod, Elem const *el)
 
 	cur = nod;
 	for (;;) {
-		min = minz(len(cur->edge), len(pre));
+		min = umin(len(cur->edge), len(pre));
 		off = match(cur, pre);
 		ext += off;
 
