@@ -9,7 +9,7 @@ These 'vectors' can interoperate with functions expecting normal arrays, but the
 The `vec_ctor()` macro will magically initialize an array as a vector for you.
 Use it like: `vec_ctor(myvec);`
 
-- instance is the null pointer if an allocation fails
+- `myvec` is the null pointer if an allocation fails
 
 to allocate a vector manually, just do: `vec_alloc(&myvec, sizeof *myvec)`.
 This function returns `0` on succes, `ENOMEM` if the allocation fails, or EOVERFLOW if you somehow manage to overflow a `size_t` somewhere.
@@ -42,15 +42,15 @@ If you just pass the vector itself, your program might blow up.
 
 	- Returns nothing, cannot fail.
 
-- `vec_elim(void *vec_ptr, size_t offset, size_t extent)`
+- `vec_elim(void *vec_ptr, size_t index, size_t nmemb)`
 
-	- _eliminate_ `extent` elements from `offset` on.
+	- _eliminate_ `nmemb` elements from `index` on.
 
 	- Returns nothing, cannot fail.
 
-- `vec_truncate(void *vec_ptr, size_t offset)`
+- `vec_truncate(void *vec_ptr, size_t index)`
 
-	- _truncate_ the vector, starting from `offset`.
+	- _truncate_ the vector, starting from `index`.
 
 	- Returns nothing, cannot fail.
 
@@ -62,9 +62,9 @@ If you just pass the vector itself, your program might blow up.
 
 	- Returns nothing, cannot fail.
 
-- `vec_slice(void *vec_ptr, size_t begin, size_t extent)`
+- `vec_slice(void *vec_ptr, size_t begin, size_t nmemb)`
 
-	- _slice_ `extent` elements, starting at `begin`.
+	- _slice_ `nmemb` elements, starting at `begin`.
 
 	- After `vec_slice(&myvec, 2, 4)`, myvec consists of the four 4 elements it had starting at index 2.
 
@@ -79,9 +79,17 @@ If you just pass the vector itself, your program might blow up.
 	- Array should be an array of the same type as the vector.
 
 	- Length is the length of the array in type-units, not bytes
-	  ('concat'ing (or 'splice'ing) an array of five ints, length would be `5`, not `20`).
+	  ('concat'ing (or 'splice'ing) an array of five ints, length would be `5`, not `20` or however big fives ints are).
 
 	- returns `0` on succes, `ENOMEM` when out of memory, `EOVERFLOW` if something overflows.
+
+- `vec_copy(void *dest_ptr, void *src_ptr)`
+- `vec_transfer(void *dest_ptr, void *src, size_t nmemb)`
+	- copy elements to a vector from a source vector (`vec_copy()`) or a source array (`vec_transfer()`)
+
+	- returns `0` on succes, `ENOMEM` when out of memory, `EOVERFLOW` if something overflows.
+
+	- **note** the functionality of `vec_transfer()` is likely to be completely changed in the near future
 
 - `vec_join(void *dest_ptr, void *src_ptr)`
 
@@ -97,7 +105,7 @@ If you just pass the vector itself, your program might blow up.
 
 ###fun
 
-- `vec_map(variable, vector)` is a macro which loops over the elements of `vector`,
+- `vec_foreach(variable, vector)` is a macro which loops over the elements of `vector`,
 assigning the address of each one to `varible` in sequence. e.g.
 
 ```
@@ -112,7 +120,7 @@ main()
 	/* ... */
 
 	vec_map(int *each, foo) {
-		printf("%d^2 == %d\n", *each, *each * *each);
+		printf("%d * 2 == %d\n", *each, *each + *each);
 	}
 
 	/* ... */
@@ -121,11 +129,11 @@ main()
 }
 ```
 
-	- as seen above, you can declare variables inside mapv(), like a for loop initializer
+	- as seen above, you can declare variables inside vec_foreach(), like a for loop initializer
 
 	- furthermore, `continue` and `break` behave as expected
 
-	- finally, `vec_map()` contains no double evaluatation. any correctly typed expression can be used as `vector` or `variable`;
+	- finally, `vec_foreach()` contains no double evaluatation. any correctly typed expression can be used as `vector` or `variable`;
 
 ##set
 
