@@ -1,6 +1,7 @@
 #ifndef _vector_
 #define _vector_
 #include <stddef.h>
+#include <stdlib.h>
 
 #define VECSIZ 16
 
@@ -24,9 +25,12 @@
 			_i = _q ? len(_vec) : _j, _q;		\
 			_q = 0)
 
-#define vec_assert(prop) do if (!(prop))	\
-		fprintf(stderr, "error: invalid pointer passed to %s\n", __func__);	\
-while (0)
+#define vec_assert(prop) do if (!(prop)) {			\
+		fprintf(stderr,					\
+			"error: invalid pointer passed to %s\n",\
+			__func__);				\
+		abort();					\
+} while (0)
 
 #define vec_check(vecv) do {			\
 	vec_assert(*vecv != 0x0);			\
@@ -35,6 +39,9 @@ while (0)
 	vec_assert(len(*vecv) * siz(*vecv) <= mem(*vecv)); \
 } while (0)
 
+static inline size_t vec_len(void const *vec) { return (((size_t *)(vec))[-3]); }
+static inline size_t vec_siz(void const *vec) { return (((size_t *)(vec))[-2]); }
+static inline size_t vec_mem(void const *vec) { return (((size_t *)(vec))[-1]); }
 
 int	vec_alloc	(void *, size_t);
 int	vec_append	(void *, void const *);
