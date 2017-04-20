@@ -87,21 +87,21 @@ static
 void
 test_fun(void)
 {
-	printf("\ttesting functional macros...");
+	printf("\ttesting fancy macros...");
 	{
 		printf("\n\t\ttrying a basic map...");
 		elem = 0;
-		vec_map (int *each, vec) ok(*each == elem++);
+		vec_foreach (int *each, vec) ok(*each == elem++);
 		printf("done\n");
 
 		printf("\t\tretrying without a declaration...");
 		elem = 0;
 		int *each;
-		vec_map (each, vec) ok(*each == elem++);
+		vec_foreach (each, vec) ok(*each == elem++);
 		printf("done\n");
 
 		printf("\t\ttrying continue inside a map...");
-		vec_map (int *i, vec) {
+		vec_foreach (int *i, vec) {
 			if (*i != 8) continue;
 			vec_delete(&vec, i - vec);
 		}
@@ -111,7 +111,7 @@ test_fun(void)
 		printf("done\n");
 
 		printf("\t\ttrying to break out of a map...");
-		vec_map (int *i, vec) {
+		vec_foreach (int *i, vec) {
 			if (*i == 9) break;
 			ok(*i < 9);
 		}

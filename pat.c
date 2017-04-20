@@ -146,16 +146,14 @@ int
 pataddfini(struct pattern *pat, struct patins **bufp)
 {
 	int err = 0;
-	struct patins insv[] = {
-		[0] = { .op = SAVE, .arg = 0 },
-	};
+	struct patins ins = { .op = SAVE, .arg = 0 };
 
 	err = vec_join(&pat->prog, *bufp);
 	if (err) return err;
 
 	vec_truncate(bufp, 0);
 
-	return vec_concat(&pat->prog, insv, sizeof insv / sizeof *insv);
+	return vec_append(&pat->prog, &ins);
 }
 
 struct patthread
@@ -171,39 +169,38 @@ patfork(struct patthread *th)
 }
 
 int
-pataddlit(struct pattern *pat, struct pattok *tok, struct patins **tmp)
+pataddlit(struct pattern *pat, struct pattok *tok, struct patins **bufp)
 {
 	struct patins ins = { .op = CHAR, .arg = tok->wc };
-
-	return vec_append(tmp, &ins);
+	return vec_append(bufp, &ins);
 }
 
 int
-pataddlpar(struct pattern *pat, struct pattok *tok, struct patins **tmp)
+pataddlpar(struct pattern *pat, struct pattok *tok, struct patins **bufp)
 {
 	int err = 0;
 	struct patins ins = { .op = JUMP, .arg = -2 };
 
-	err = vec_join(&pat->prog, *tmp);
+	err = vec_join(&pat->prog, *bufp);
 	if (err) return err;
 
 	return vec_append(&pat->prog, &ins);
 }
 
 int
-pataddrep(struct pattern *pat, struct pattok *tok, struct patins **tmp)
+pataddrep(struct pattern *pat, struct pattok *tok, struct patins **bufp)
 {
 	int err = 0;
 	struct patins ins = {0};
 	size_t again = len(pat->prog);
 	size_t offset = tok->type != QMARK ? 3 : 2;
 
-	if (!len(*tmp)) return 0;
+	if (!len(*bufp)) return 0;
 
-	if (addz_overflows(len(pat->prog), len(*tmp) + offset))
+	if (addz_overflows(len(pat->prog), len(*bufp) + offset))
 		return EOVERFLOW;
 
-	err = vec_concat(&pat->prog, *tmp, len(*tmp) - 1);
+	err = vec_concat(&pat->prog, *bufp, len(*bufp) - 1);
 	if (err) return err;
 
 	if (tok->type != PLUS) {
@@ -216,7 +213,7 @@ pataddrep(struct pattern *pat, struct pattok *tok, struct patins **tmp)
 		++again;
 	}
 
-	ins = (*tmp)[len(*tmp) - 1];
+	ins = (*bufp)[len(*bufp) - 1];
 
 	err = vec_append(&pat->prog, &ins);
 	if (err) return err;
@@ -229,13 +226,13 @@ pataddrep(struct pattern *pat, struct pattok *tok, struct patins **tmp)
 		if (err) return err;
 	}
 
-	vec_truncate(tmp, 0);
+	vec_truncate(bufp, 0);
 
 	return 0;
 }
 
 int
-pataddrpar(struct pattern *pat, struct pattok *tok, struct patins **tmp)
+pataddrpar(struct pattern *pat, struct pattok *tok, struct patins **bufp)
 {
 	int err = 0;
 	size_t i = 0;
@@ -243,8 +240,10 @@ pataddrpar(struct pattern *pat, struct pattok *tok, struct patins **tmp)
 	struct patins ins = {0};
 	struct patins *p = 0x0;
 
-	err = vec_join(&pat->prog, *tmp);
+	err = vec_join(&pat->prog, *bufp);
 	if (err) return err;
+
+	vec_truncate(bufp, 0);
 
 	for (i = len(pat->prog); p = pat->prog + i, i --> 0;) {
 		if (p->op == JUMP && p->arg > -3UL) {
@@ -267,8 +266,6 @@ pataddrpar(struct pattern *pat, struct pattok *tok, struct patins **tmp)
 
 	err = vec_append(&pat->prog, &ins);
 	if (err) return err;
-
-	vec_truncate(tmp, 0);
 
 	return 0;
 }
@@ -396,7 +393,7 @@ patexec(patmatch_t **matv, char const *str, pattern_t const *pat)
 	if (matv) err = vec_copy(matv, th.mat);
 
 finally:
-	vec_map(tmp, ctx.thr) vec_free(tmp->mat);
+	vec_foreach(tmp, ctx.thr) vec_free(tmp->mat);
 	vec_free(ctx.thr);
 	return err;
 }

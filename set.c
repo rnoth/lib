@@ -196,7 +196,7 @@ marshal(Node const *nod, Elem const *el)
 	}
 
 	vec_join(&pre, nod->edge);
-	vec_map (chld, nod->chld) {
+	vec_foreach (chld, nod->chld) {
 		tmp = marshal(*chld, pre);
 		if (!tmp) {
 			vec_free(pre);
@@ -209,7 +209,7 @@ marshal(Node const *nod, Elem const *el)
 	}
 
 	if (isleaf(nod) && vec_append(&ret, &pre)) {
-		vec_map (void **each, ret) vec_free(each);
+		vec_foreach (void **each, ret) vec_free(each);
 		vec_free(pre);
 		vec_free(ret);
 	} else if (!isleaf(nod)) vec_free(pre);

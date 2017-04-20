@@ -12,7 +12,7 @@
 
 #define vec_ctor(INST) vec_alloc(&(INST), sizeof *INST)
 
-#define vec_map(var, VEC)					\
+#define vec_foreach(var, VEC)					\
 	for (char *_vec = (void *)(VEC), *_p=(void*)1;		\
 			_vec && _p;				\
 			_p = 0)					\
