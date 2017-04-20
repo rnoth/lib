@@ -96,24 +96,28 @@ vec_delete(void *vecp, size_t which)
 }
 
 void
-vec_elim(void *vecp, size_t off, size_t ext)
+vec_elim(void *vecp, size_t ind, size_t nmemb)
 {
-	size_t min = 0;
+	size_t len = 0;
+	size_t ext = 0;
+	size_t off = 0;
 	union vec vec = {.p = vecp};
 
-	if (off > len(*vec.v)) return;
+	if (ind > len(*vec.v)) return;
 
-	min = umin(ext, len(*vec.v) - off);
+	ext = umin(nmemb, len(*vec.v) - ind) * siz(*vec.v);
+	len = len(*vec.v) * siz(*vec.v);
+	off = ind * siz(*vec.v);
 
-	memmove(*vec.v + off * siz(*vec.v),
-		*vec.v + (off + min) * siz(*vec.v),
-		(len(*vec.v) - off - min) * siz(*vec.v));
+	memmove(*vec.v + off,
+		*vec.v + off + ext,
+		len - off - ext);
 
-	len(*vec.v) -= min;
+	len(*vec.v) -= nmemb;
 
-	memset(*vec.v + len(*vec.v),
+	memset(*vec.v + len,
 	       0,
-	       min * siz(*vec.v));
+	       ext);
 }
 
 int
