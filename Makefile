@@ -3,7 +3,7 @@ CFLAGS	+= -g3 -pipe -O3 -std=c99 -pedantic -Wall -Wextra -Werror \
 	   -Wno-missing-field-initializers -Wno-unused-parameter \
 	   -flto -fstrict-aliasing -fomit-frame-pointer -fdata-sections \
 	   -ffunction-sections -fno-exceptions -fno-unwind-tables \
-	   -fno-asynchronous-unwind-tables -fno-stack-protector \
+	   -fno-asynchronous-unwind-tables -fno-stack-protector
 LDFLAGS += -lc -Wl,--gc-sections -Wl,--sort-section=alignment -Wl,--sort-common
 
 SRC	!= find . -maxdepth 1 -name "*.c"
