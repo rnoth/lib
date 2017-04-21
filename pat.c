@@ -44,8 +44,9 @@ enum patret {
 };
 
 struct patcontext {
-	size_t		  ind;
 	size_t		  pos;
+	size_t		  ind;
+	size_t		  nmat;
 	struct patthread *thr;
 };
 
@@ -78,7 +79,8 @@ static int pataddfini(struct pattern *, struct patins **);
 
 static size_t patlex(struct pattok *, char const *, size_t);
 static int patmatch(struct patmatch **, struct patcontext *, char const *);
-static int patstep(struct patcontext *, char const *, struct patthread *);
+static int patstep(struct patthread **, struct patcontext *, char const *);
+static int patstepthread(struct patcontext *, char const *, struct patthread *);
 static struct patthread patfork(struct patthread *);
 
 static int (* const patadd[])(struct pattern *, struct pattok *, struct patins **) = {
@@ -154,18 +156,6 @@ pataddfini(struct pattern *pat, struct patins **bufp)
 	vec_truncate(bufp, 0);
 
 	return vec_append(&pat->prog, &ins);
-}
-
-struct patthread
-patfork(struct patthread *th)
-{
-	struct patthread ret = {0};
-
-	ret.ins = th->ins;
-	ret.pos = th->pos;
-	ret.mat = vec_clone(&th->mat);
-
-	return ret;
 }
 
 int
@@ -270,182 +260,16 @@ pataddrpar(struct pattern *pat, struct pattok *tok, struct patins **bufp)
 	return 0;
 }
 
-int
-patcomp(struct pattern *dest, char const *src)
+struct patthread
+patfork(struct patthread *th)
 {
-	int err = 0;
-	size_t off = 0;
-	struct pattok tok = {0};
-	struct patins *buf = 0x0;
+	struct patthread ret = {0};
 
-	vec_ctor(buf);
-	if (!buf) return ENOMEM;
-
-	vec_ctor(dest->prog);
-	if (!dest->prog) goto finally;
-
-	pataddinit(dest);
-
-	while (src[off]) {
-		off += patlex(&tok, src, off);
-		err = patadd[tok.type](dest, &tok, &buf);
-		if (err) goto finally;
-	}
-
-	pataddfini(dest, &buf);
-
-finally:
-	vec_free(buf);
-	if (err) vec_free(dest->prog);
-	return err;
-}
-
-int
-patstep(struct patcontext *ctx, char const *str, struct patthread *th)
-{
-	int err = 0;
-	int len = 0;
-	int ret = 0;
-	wchar_t wc = 0;
-	struct patins *ins = 0x0;
-	struct patthread new = {0};
-	struct patmatch mat = {0};
-
-again:
-	ins = th->ins + th->pos++;
-
-	switch (ins->op) {
-	case HALT:
-		ret = MATCH;
-		break;
-
-	case CHAR:
-		len = mbtowc(&wc, str, strlen(str));
-		if (len < 0) return errno;
-
-		if ((wchar_t)ins->arg != wc) ret = MISMATCH;
-		break;
-
-	case JUMP:
-		th->pos = ins->arg;
-		goto again;
-
-	case FORK:
-		new = patfork(th);
-		if (!new.mat) return ENOMEM;
-
-		new.pos = ins->arg;
-
-		err = vec_append(&ctx->thr, &new);
-		if (err) return err;
-
-		goto again;
-
-	case MARK:
-		mat.off = ctx->pos;
-		mat.ext = -1;
-
-		err = vec_append(&th->mat, &mat);
-		if (err) return err;
-
-		goto again;
-
-	case SAVE: 
-		th->mat[ins->arg].ext = ctx->pos - th->mat[ins->arg].off;
-
-		goto again;
-
-	case CLSS:
-		if (!*str || *str == '\n') ret = MISMATCH;
-		break;
-
-	case REFR:
-		break;
-	}
+	ret.ins = th->ins;
+	ret.pos = th->pos;
+	ret.mat = vec_clone(&th->mat);
 
 	return ret;
-}
-
-int
-patexec(patmatch_t **matv, char const *str, pattern_t const *pat)
-{
-	int err = 0;
-	struct patcontext ctx = {0};
-	struct patthread *tmp = 0x0;
-	struct patthread th = { .ins = pat->prog, .pos = 0, .mat = 0x0 };
-
-	if (matv) vec_check(matv);
-
-	err = vec_ctor(ctx.thr);
-	if (err) return ENOMEM;
-
-	err = vec_ctor(th.mat);
-	if (err) goto finally;
-
-	err = vec_append(&ctx.thr, &th);
-	if (err) goto finally;
-
-	err = patmatch(matv, &ctx, str);
-	if (err) goto finally;
-
-finally:
-	vec_foreach(tmp, ctx.thr) vec_free(tmp->mat);
-	vec_free(ctx.thr);
-	return err;
-}
-
-int
-patmatch(struct patmatch **res, struct patcontext *ctx, char const *str)
-{
-	int err = 0;
-	int len = 0;
-	size_t cur = 0;
-	struct patthread *fin;
-	struct patthread *it;
-
-	err = vec_ctor(fin);
-	if (err) return err;
-
-again:
-	for (ctx->ind = 0; ctx->ind < len(ctx->thr); ++ctx->ind) {
-		err = patstep(ctx, str, ctx->thr + ctx->ind);
-
-		switch (err) {
-		case 0:
-			break;
-		case MISMATCH:
-			vec_free(ctx->thr[ctx->ind].mat);
-			vec_delete(&ctx->thr, ctx->ind);
-			break;
-		case MATCH:
-			err = vec_append(&fin, ctx->thr + ctx->ind);
-			if (err) return err;
-			return 0;
-		default:
-			return err;
-		}
-	}
-
-	vec_foreach (it, fin)
-		if (it->mat[0].ext > fin[cur].mat[0].ext)
-			cur = it - fin;
-
-	*res = fin[cur].mat;
-
-	if (!*str) return -1;
-
-	len = mblen(str, strlen(str));
-	if (len == -1) return errno;
-	str += len;
-	ctx->pos += len;
-
-	goto again;
-}
-
-void
-patfree(pattern_t *pat)
-{
-	vec_free(pat->prog);
 }
 
 size_t
@@ -498,7 +322,207 @@ esc:
 }
 
 int
+patmatch(struct patmatch **res, struct patcontext *ctx, char const *str)
+{
+	int err = 0;
+	int len = 0;
+	size_t cur = 0;
+	struct patthread *fin;
+	struct patthread *it;
+
+	err = vec_ctor(fin);
+	if (err) return err;
+
+	while (str[ctx->pos]) {
+		ctx->pos += len;
+
+		err = patstep(&fin, ctx, str + ctx->pos);
+		if (err) break;
+
+		len = mblen(str + ctx->pos, strlen(str + ctx->pos));
+		if (len == -1) {
+			err = errno;
+			break;
+		}
+	}
+
+	if (err > 0) {
+		vec_free(fin);
+		return err;
+	}
+	
+	vec_foreach (it, fin)
+		if (it->mat[0].ext > fin[cur].mat[0].ext)
+			cur = it - fin;
+
+	vec_copy(res, fin[cur].mat);
+
+	return 0;
+}
+
+int
+patstep(struct patthread **fin, struct patcontext *ctx, char const *str)
+{
+	int err = 0;
+	size_t i = 0;
+
+	for (i = 0; i < len(ctx->thr); ++i) {
+		err = patstepthread(ctx, str, ctx->thr + i);
+
+		switch (err) {
+		case 0:
+			break;
+		case MISMATCH:
+			vec_free(ctx->thr[i].mat);
+			vec_delete(&ctx->thr, i);
+			--i;
+			break;
+		case MATCH:
+			err = vec_append(fin, ctx->thr + i);
+			if (err) return err;
+			vec_delete(&ctx->thr, i);
+			++ctx->nmat;
+			break;
+		default:
+			return err;
+		}
+	}
+
+	return len(ctx->thr) ? 0 : -1;
+}
+
+int
+patstepthread(struct patcontext *ctx, char const *str, struct patthread *th)
+{
+	int err = 0;
+	int len = 0;
+	int ret = 0;
+	wchar_t wc = 0;
+	struct patins *ins = 0x0;
+	struct patthread new = {0};
+	struct patmatch mat = {0};
+
+again:
+	ins = th->ins + th->pos++;
+
+	switch (ins->op) {
+	case HALT:
+		ret = MATCH;
+		break;
+
+	case CHAR:
+		len = mbtowc(&wc, str, strlen(str));
+		if (len < 0) return errno;
+
+		if ((wchar_t)ins->arg != wc) ret = MISMATCH;
+		break;
+
+	case JUMP:
+		th->pos = ins->arg;
+		goto again;
+
+	case FORK:
+		new = patfork(th);
+		if (!new.mat) return ENOMEM;
+
+		new.pos = ins->arg;
+
+		err = vec_insert(&ctx->thr, &new, th - ctx->thr + 1);
+		if (err) return err;
+
+		goto again;
+
+	case MARK:
+		mat.off = ctx->pos;
+		mat.ext = -1;
+
+		err = vec_append(&th->mat, &mat);
+		if (err) return err;
+
+		goto again;
+
+	case SAVE: 
+		th->mat[ins->arg].ext = ctx->pos - th->mat[ins->arg].off;
+
+		goto again;
+
+	case CLSS:
+		if (!*str || *str == '\n') ret = MISMATCH;
+		break;
+
+	case REFR:
+		break;
+	}
+
+	return ret;
+}
+
+int
+patcomp(struct pattern *dest, char const *src)
+{
+	int err = 0;
+	size_t off = 0;
+	struct pattok tok = {0};
+	struct patins *buf = 0x0;
+
+	vec_ctor(buf);
+	if (!buf) return ENOMEM;
+
+	vec_ctor(dest->prog);
+	if (!dest->prog) goto finally;
+
+	pataddinit(dest);
+
+	while (src[off]) {
+		off += patlex(&tok, src, off);
+		err = patadd[tok.type](dest, &tok, &buf);
+		if (err) goto finally;
+	}
+
+	pataddfini(dest, &buf);
+
+finally:
+	vec_free(buf);
+	if (err) vec_free(dest->prog);
+	return err;
+}
+
+int
 pateval(patmatch_t **matv, char const *str, char const *pat, long opts)
 {
 	return -1;
+}
+
+int
+patexec(patmatch_t **matv, char const *str, pattern_t const *pat)
+{
+	int err = 0;
+	struct patcontext ctx = {0};
+	struct patthread *tmp = 0x0;
+	struct patthread th = { .ins = pat->prog, .pos = 0, .mat = 0x0 };
+
+	if (matv) vec_check(matv);
+
+	err = vec_ctor(ctx.thr);
+	if (err) return ENOMEM;
+
+	err = vec_ctor(th.mat);
+	if (err) goto finally;
+
+	err = vec_append(&ctx.thr, &th);
+	if (err) goto finally;
+
+	err = patmatch(matv, &ctx, str);
+	if (err) goto finally;
+
+finally:
+	vec_foreach(tmp, ctx.thr) vec_free(tmp->mat);
+	vec_free(ctx.thr);
+	return err;
+}
+
+void
+patfree(pattern_t *pat)
+{
+	vec_free(pat->prog);
 }
