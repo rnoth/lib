@@ -39,8 +39,8 @@ enum pattype {
 };
 
 enum patret {
-	PAT_MISMATCH = -1,
-	PAT_MATCH = -2,
+	MISMATCH = -1,
+	MATCH = -2,
 };
 
 struct patcontext {
@@ -77,8 +77,8 @@ static int pataddinit(struct pattern *);
 static int pataddfini(struct pattern *, struct patins **);
 
 static size_t patlex(struct pattok *, char const *, size_t);
-static int patloop(struct patcontext *, char const *);
-static int patdothread(size_t *, struct patcontext *, char const *, struct patthread *);
+static int patmatch(struct patmatch **, struct patcontext *, char const *);
+static int patstep(struct patcontext *, char const *, struct patthread *);
 static struct patthread patfork(struct patthread *);
 
 static int (* const patadd[])(struct pattern *, struct pattok *, struct patins **) = {
@@ -301,7 +301,7 @@ finally:
 }
 
 int
-patdothread(size_t *nfork, struct patcontext *ctx, char const *str, struct patthread *th)
+patstep(struct patcontext *ctx, char const *str, struct patthread *th)
 {
 	int err = 0;
 	int len = 0;
@@ -316,14 +316,14 @@ again:
 
 	switch (ins->op) {
 	case HALT:
-		ret = PAT_MATCH;
+		ret = MATCH;
 		break;
 
 	case CHAR:
 		len = mbtowc(&wc, str, strlen(str));
 		if (len < 0) return errno;
 
-		if ((wchar_t)ins->arg != wc) ret = PAT_MISMATCH;
+		if ((wchar_t)ins->arg != wc) ret = MISMATCH;
 		break;
 
 	case JUMP:
@@ -339,7 +339,6 @@ again:
 		err = vec_append(&ctx->thr, &new);
 		if (err) return err;
 
-		++*nfork;
 		goto again;
 
 	case MARK:
@@ -357,7 +356,7 @@ again:
 		goto again;
 
 	case CLSS:
-		if (!*str || *str == '\n') ret = PAT_MISMATCH;
+		if (!*str || *str == '\n') ret = MISMATCH;
 		break;
 
 	case REFR:
@@ -386,11 +385,8 @@ patexec(patmatch_t **matv, char const *str, pattern_t const *pat)
 	err = vec_append(&ctx.thr, &th);
 	if (err) goto finally;
 
-	err = patloop(&ctx, str);
+	err = patmatch(matv, &ctx, str);
 	if (err) goto finally;
-
-	th = ctx.thr[ctx.ind];
-	if (matv) err = vec_copy(matv, th.mat);
 
 finally:
 	vec_foreach(tmp, ctx.thr) vec_free(tmp->mat);
@@ -399,31 +395,42 @@ finally:
 }
 
 int
-patloop(struct patcontext *ctx, char const *str)
+patmatch(struct patmatch **res, struct patcontext *ctx, char const *str)
 {
 	int err = 0;
 	int len = 0;
-	size_t nfork = 0;
+	size_t cur = 0;
+	struct patthread *fin;
+	struct patthread *it;
+
+	err = vec_ctor(fin);
+	if (err) return err;
 
 again:
-	for (ctx->ind = 0; ctx->ind < len(ctx->thr); ctx->ind += nfork + 1) {
-		err = patdothread(&nfork, ctx, str, ctx->thr + ctx->ind);
+	for (ctx->ind = 0; ctx->ind < len(ctx->thr); ++ctx->ind) {
+		err = patstep(ctx, str, ctx->thr + ctx->ind);
 
 		switch (err) {
 		case 0:
 			break;
-		case PAT_MISMATCH:
+		case MISMATCH:
 			vec_free(ctx->thr[ctx->ind].mat);
 			vec_delete(&ctx->thr, ctx->ind);
 			break;
-		case PAT_MATCH:
+		case MATCH:
+			err = vec_append(&fin, ctx->thr + ctx->ind);
+			if (err) return err;
 			return 0;
 		default:
 			return err;
 		}
-
-		if (addz_overflows(ctx->ind, nfork)) return EOVERFLOW;
 	}
+
+	vec_foreach (it, fin)
+		if (it->mat[0].ext > fin[cur].mat[0].ext)
+			cur = it - fin;
+
+	*res = fin[cur].mat;
 
 	if (!*str) return -1;
 
@@ -491,7 +498,7 @@ esc:
 }
 
 int
-patmatch(patmatch_t **matv, char const *str, char const *pat, long opts)
+pateval(patmatch_t **matv, char const *str, char const *pat, long opts)
 {
 	return -1;
 }

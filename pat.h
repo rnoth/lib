@@ -5,10 +5,6 @@
 #include <stddef.h>
 #include "str.h"
 
-enum {
-	PAT_START = 1,
-};
-
 typedef struct pattern pattern_t;
 typedef struct patmatch patmatch_t;
 
@@ -26,6 +22,6 @@ struct patmatch {
 int patcomp(pattern_t *, string_t const *);
 int patexec(patmatch_t **, char const *, pattern_t const *);
 void patfree(pattern_t *);
-int patmatch(patmatch_t **, string_t const *, char const *, long);
+int pateval(patmatch_t **, string_t const *, char const *, long);
 
 #endif
