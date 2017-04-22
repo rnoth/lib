@@ -27,7 +27,7 @@ vec_alloc(void *vecp, size_t size)
 
 	if (mulz_overflows(VECSIZ, size)) return EOVERFLOW;
 	siz = sizeof (size_t) * 3 + VECSIZ * size;
-	*vec.v = malloc(siz);
+	*vec.v = calloc(1, siz);
 	if (!*vec.v) return ENOMEM;
 
 	*vec.v = *vec.v + 3 * sizeof (size_t);
@@ -123,19 +123,19 @@ vec_elim(void *vecp, size_t ind, size_t nmemb)
 int
 vec_expand(char **vecv, size_t diff)
 {
+	char *real = 0x0;
 	char *tmp = 0x0;
 
 	assert(mem(*vecv) != 0);
 
-	tmp = realloc(*vecv - 3 * sizeof (size_t),
-			diff + 3 * sizeof (size_t));
+	real = *vecv - 3 * sizeof (size_t);
+
+	tmp = calloc(1, diff + 3 * sizeof (size_t));
 	if (!tmp) return ENOMEM;
+	memcpy(tmp, real, len(*vecv) * siz(*vecv) + 3 * sizeof (size_t));
+	free(real);
 
 	*vecv = tmp + 3 * sizeof (size_t);
-
-	memset(*vecv + len(*vecv) * siz(*vecv),
-		0,
-		diff - mem(*vecv));
 
 	mem(*vecv) = diff;
 
