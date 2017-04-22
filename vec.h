@@ -3,8 +3,6 @@
 #include <stddef.h>
 #include <stdlib.h>
 
-#define VECSIZ 16
-
 #define len(vec) (((size_t *)(vec))[-3])
 #define siz(vec) (((size_t *)(vec))[-2])
 #define mem(vec) (((size_t *)(vec))[-1])
