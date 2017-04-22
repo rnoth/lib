@@ -42,8 +42,8 @@ enum pattype {
 
 enum patret {
 	MISMATCH = -1,
-	MATCH = -2,
-	STEP = -3,
+	MATCH    = -2,
+	STEP     = -3,
 };
 
 struct patcontext {
