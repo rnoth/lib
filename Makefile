@@ -1,9 +1,11 @@
 CC	?= cc
 CFLAGS	+= -pipe -std=c99 -pedantic -Wall -Wextra \
 	   -Wno-missing-field-initializers -Wno-unused-parameter \
-	   -fstrict-aliasing -fomit-frame-pointer -fdata-sections \
-	   -ffunction-sections -fno-exceptions -fno-unwind-tables \
-	   -fno-asynchronous-unwind-tables -fno-stack-protector
+	   -Warray-bounds=2 \
+	   -fstrict-aliasing -fstrict-overflow -fomit-frame-pointer \
+	   -fdata-sections -ffunction-sections -fno-exceptions \
+	   -fno-unwind-tables -fno-asynchronous-unwind-tables \
+	   -fno-stack-protector
 LDFLAGS += -lc -Wl,--sort-section=alignment -Wl,--sort-common
 
 SRC	!= find . -maxdepth 1 -name "*.c"
