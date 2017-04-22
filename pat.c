@@ -48,7 +48,6 @@ enum patret {
 
 struct patcontext {
 	size_t		  pos;
-	size_t		  ind;
 	size_t		  nmat;
 	struct patthread *thr;
 };
