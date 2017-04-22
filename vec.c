@@ -8,7 +8,7 @@
 #include "util.h"
 #include "vec.h"
 
-#define VECSIZ 16
+#define VECSIZ 8
 
 union vec {
 	void const *p;
@@ -132,6 +132,11 @@ vec_expand(char **vecv, size_t diff)
 	if (!tmp) return ENOMEM;
 
 	*vecv = tmp + 3 * sizeof (size_t);
+
+	memset(*vecv + len(*vecv) * siz(*vecv),
+		0,
+		diff - mem(*vecv));
+
 	mem(*vecv) = diff;
 
 	return 0;
