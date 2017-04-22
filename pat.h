@@ -21,9 +21,9 @@ struct patmatch {
 
 int patcomp(pattern_t *, string_t const *);
 int pateval(patmatch_t **, string_t const *, char const *, long);
-int pateval_r(patmatch_t **, void *, int (*)(char *, void *), char const *);
+int pateval_r(patmatch_t **, void *, int (*)(char *, void **), char const *);
 int patexec(patmatch_t **, char const *, pattern_t const *);
-int patexec_r(patmatch_t **, void *, int (*)(char *, void *), pattern_t const *);
+int patexec_r(patmatch_t **, void *, int (*)(char *, void **), pattern_t const *);
 void patfree(pattern_t *);
 
 #endif
