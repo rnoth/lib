@@ -9,7 +9,7 @@
 
 enum patclass {
 	ANY = 0x0,
-	DOT = 0x1,
+	NOTNL = 0x1,
 	ALPHA = 0x2,
 	UPPER = 0x3,
 	LOWER = 0x4,
@@ -30,6 +30,7 @@ enum patop {
 
 enum pattype {
 	LITER,
+	DOT,
 	QMARK,
 	STAR,
 	PLUS,
@@ -71,23 +72,25 @@ struct pattok {
 
 static int pataddalt(struct pattern *, struct pattok *, struct patins **);
 static int pataddbol(struct pattern *, struct pattok *, struct patins **);
+static int pataddeol(struct pattern *, struct pattok *, struct patins **);
 static int pataddlit(struct pattern *, struct pattok *, struct patins **);
 static int pataddlpar(struct pattern *, struct pattok *, struct patins **);
 static int pataddrpar(struct pattern *, struct pattok *, struct patins **);
 static int pataddrep(struct pattern *, struct pattok *, struct patins **);
 
-static int patdohalt(struct patcontext *, struct patthread *, char const *);
 static int patdochar(struct patcontext *, struct patthread *, char const *);
+static int patdoclss(struct patcontext *, struct patthread *, char const *);
 static int patdofork(struct patcontext *, struct patthread *, char const *);
+static int patdohalt(struct patcontext *, struct patthread *, char const *);
 static int patdojump(struct patcontext *, struct patthread *, char const *);
 static int patdomark(struct patcontext *, struct patthread *, char const *);
 static int patdosave(struct patcontext *, struct patthread *, char const *);
-static int patdoclss(struct patcontext *, struct patthread *, char const *);
 static int patdorefr(struct patcontext *, struct patthread *, char const *);
 
 static int pataddinit(struct pattern *);
 static int pataddfini(struct pattern *, struct patins **);
 
+//static int patgetnext(char * restrict, void **);
 static size_t patlex(struct pattok *, char const *, size_t);
 static int patmatch(struct patmatch **, struct patcontext *, char const *);
 static int patstep(struct patthread **, struct patcontext *, char const *);
@@ -101,7 +104,7 @@ static int (* const patadd[])(struct pattern *, struct pattok *, struct patins *
 	[PLUS]	= pataddrep,
 	[ALTER] = pataddalt,
 	[BOL]	= pataddbol,
-	[EOL]	= 0x0,
+	[EOL]	= pataddeol,
 	[LPAR]	= pataddlpar,
 	[RPAR]	= pataddrpar,
 };
@@ -118,13 +121,18 @@ static int (* const patdo[])() = {
 };
 
 int
-pataddalt(struct pattern *pat, struct pattok *tok, struct patins **tmp)
+pataddalt(struct pattern *pat, struct pattok *tok, struct patins **bufp)
 {
 	int err = 0;
-	size_t offset = vec_len(*tmp) + 2;
+	size_t offset = 0;
 	struct patins ins = {0};
 
-	if (offset < vec_len(*tmp)) return EOVERFLOW;
+	if (addz_overflows(vec_len(pat->prog), len(*bufp)))
+		return EOVERFLOW;
+	offset = vec_len(pat->prog) + len(*bufp);
+	if (addz_overflows(offset, 2))
+		return EOVERFLOW;
+	offset += 2;
 
 	ins.op = FORK;
 	ins.arg = offset;
@@ -132,7 +140,7 @@ pataddalt(struct pattern *pat, struct pattok *tok, struct patins **tmp)
 	err = vec_append(&pat->prog, &ins);
 	if (err) return err;
 
-	err = vec_join(&pat->prog, *tmp);
+	err = vec_join(&pat->prog, *bufp);
 	if (err) return err;
 
 	ins.op = JUMP;
@@ -141,16 +149,27 @@ pataddalt(struct pattern *pat, struct pattok *tok, struct patins **tmp)
 	err = vec_append(&pat->prog, &ins);
 	if (err) return err;
 
-	vec_truncate(tmp, 0);
+	vec_truncate(bufp, 0);
 
 	return 0;
 }
 
 int
-pataddbol(struct pattern *pat, struct pattok *tok, struct patins **tmp)
+pataddbol(struct pattern *pat, struct pattok *tok, struct patins **bufp)
 {
-	vec_truncate(tmp, 0);
+	vec_shift(&pat->prog, 3);
 	return 0;
+}
+
+int
+pataddeol(struct pattern *pat, struct pattok *tok, struct patins **bufp)
+{
+	int err;
+	struct patins ins = { .op = CHAR, .arg = 0 };
+	err = vec_join(&pat->prog, *bufp);
+	if (err) return err;
+	vec_truncate(bufp, 0);
+	return vec_append(&pat->prog, &ins);
 }
 
 int
@@ -195,6 +214,8 @@ pataddlpar(struct pattern *pat, struct pattok *tok, struct patins **bufp)
 
 	err = vec_join(&pat->prog, *bufp);
 	if (err) return err;
+
+	vec_truncate(bufp, 0);
 
 	return vec_append(&pat->prog, &ins);
 }
@@ -262,6 +283,7 @@ pataddrpar(struct pattern *pat, struct pattok *tok, struct patins **bufp)
 			arg = p->arg;
 			p->arg = vec_len(pat->prog);
 			if (arg == -2UL) break;
+			else ++p->arg;
 		}
 	}
 
@@ -273,7 +295,7 @@ pataddrpar(struct pattern *pat, struct pattok *tok, struct patins **bufp)
 	if (err) return err;
 
 	ins.op = JUMP;
-	ins.arg = i;
+	ins.arg = i + 1;
 
 	err = vec_append(&pat->prog, &ins);
 	if (err) return err;
@@ -355,7 +377,7 @@ patdoclss(struct patcontext *ctx, struct patthread *th, char const *str)
 	switch (th->ins[th->pos].arg) {
 	case ANY:
 		return STEP;
-	case DOT:
+	case NOTNL:
 		return *str || *str != '\n' ? STEP : MISMATCH;
 	case ALPHA:
 		return iswalpha(wc) ? STEP : MISMATCH;
@@ -390,12 +412,34 @@ patfork(struct patthread *th)
 	return ret;
 }
 
+#if 0
+int
+patgetnext(char * restrict dest, void **vp)
+{
+	union { char **p; void **v; } str = { .v = vp };
+	int len = mbtowc(0x0, *str.p, strlen(*str.p));
+	if (len == -1) return errno;
+
+	memcpy(dest, *str.p, len);
+	dest[len] = 0;
+
+	*str.p += len;
+
+	return 0;
+}
+#endif
+
 size_t
 patlex(struct pattok *tok, char const *src, size_t off)
 {
-	size_t ret;
+	size_t ret = 0;
+	int len = 0;
+
 	ret = tok->len = 1;
 	switch (src[off]) {
+	case '.':
+		tok->type = DOT;
+		break;
 	case '?':
 		tok->type = QMARK;
 		break;
@@ -418,10 +462,13 @@ patlex(struct pattok *tok, char const *src, size_t off)
 		if (off) goto literal;
 		tok->type = BOL;
 		break;
+	case '$':
+		tok->type = EOL;
+		break;
 	case '\\':
 		goto esc;
 	default:
-literal:
+	literal:
 		tok->type = LITER;
 		ret = tok->len = mbtowc(&tok->wc, src + off, strlen(src + off));
 	}
@@ -429,11 +476,12 @@ literal:
 	return ret;
 
 esc:
-	abort();
 	switch (src[1]) {
 	default:
 		tok->type = LITER;
-		tok->len = 1 + mblen(src, strlen(src + 1));
+		len = mbtowc(&tok->wc, src, strlen(src + ret));
+		if (len == -1) abort();
+		ret = tok->len += len;
 	}
 
 	return ret;
@@ -464,20 +512,24 @@ patmatch(struct patmatch **res, struct patcontext *ctx, char const *str)
 		}
 	}
 
-	if (err > 0) {
-		vec_free(fin);
-		return err;
+	if (err > 0) goto finally;
+
+	if (!len(fin)) {
+		err = -1;
+		goto finally;
 	}
 	
 	vec_foreach (it, fin)
 		if (it->mat[0].ext > fin[max].mat[0].ext)
 			max = it - fin;
 
-	vec_copy(res, fin[max].mat);
+	err = vec_copy(res, fin[max].mat);
+
+finally:
 	vec_foreach (it, fin) vec_free(it->mat);
 	vec_free(fin);
 
-	return 0;
+	return err;
 }
 
 int
