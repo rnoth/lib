@@ -1,22 +1,25 @@
 CC	?= cc
-CFLAGS	+= -g3 -pipe -O3 -std=c99 -pedantic -Wall -Wextra -Werror \
+CFLAGS	+= -pipe -std=c99 -pedantic -Wall -Wextra \
 	   -Wno-missing-field-initializers -Wno-unused-parameter \
-	   -flto -fstrict-aliasing -fomit-frame-pointer -fdata-sections \
+	   -fstrict-aliasing -fomit-frame-pointer -fdata-sections \
 	   -ffunction-sections -fno-exceptions -fno-unwind-tables \
 	   -fno-asynchronous-unwind-tables -fno-stack-protector
-LDFLAGS += -lc -Wl,--gc-sections -Wl,--sort-section=alignment -Wl,--sort-common
+LDFLAGS += -lc -Wl,--sort-section=alignment -Wl,--sort-common
 
 SRC	!= find . -maxdepth 1 -name "*.c"
 OBJ	:= $(SRC:.c=.c.o)
 TESTS	!= find tests -name "*.c"
-#NAME	:= libutil.a
 
 all:: deps.mk $(NAME) $(TESTS:.c=)
 
--include deps.mk
+ifndef NDEBUG
+CFLAGS += -O0 -ggdb -g3 -Werror
+else
+LDFLAGS += -Wl,--gc-section
+CFLAGS += -O3 -flto
+endif
 
-#libutil.a: $(OBJ)
-#	ar crs $(NAME) $+
+-include deps.mk
 
 deps.mk: $(SRC) $(TESTS)
 	$(CC) -M $+ | sed -e 's/.o$$/.c.o/' -e 's/\(.*\)-test.c.o/\1-test/' > deps.mk
@@ -29,3 +32,6 @@ tests/%-test: tests/%-test.c %.c $(OBJ)
 
 clean:
 	rm -f *.o $(NAME) tests/*-test
+
+.PHONY: clean
+.SECONDARY: $(OBJ)
