@@ -40,6 +40,7 @@ main()
 	printf("\tfreeing a pattern...");
 	fflush(stdout);
 	patfree(&pat);
+	vec_free(mat);
 	printf("done\n");
 
 	printf("testing complete (pat.c)\n");
