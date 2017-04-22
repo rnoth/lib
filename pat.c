@@ -1,18 +1,20 @@
 #include <errno.h>
 #include <stdlib.h>
 #include <string.h>
+#include <wctype.h>
 
 #include "pat.h"
 #include "util.h"
 #include "vec.h"
 
 enum patclass {
-	DOT = 0x0,
-	ALPHA = 0x1,
-	UPPER = 0x2,
-	LOWER = 0x3,
-	DIGIT = 0x4,
-	SPACE = 0x5,
+	ANY = 0x0,
+	DOT = 0x1,
+	ALPHA = 0x2,
+	UPPER = 0x3,
+	LOWER = 0x4,
+	DIGIT = 0x5,
+	SPACE = 0x6,
 };
 
 enum patop {
@@ -41,6 +43,7 @@ enum pattype {
 enum patret {
 	MISMATCH = -1,
 	MATCH = -2,
+	STEP = -3,
 };
 
 struct patcontext {
@@ -74,6 +77,15 @@ static int pataddlpar(struct pattern *, struct pattok *, struct patins **);
 static int pataddrpar(struct pattern *, struct pattok *, struct patins **);
 static int pataddrep(struct pattern *, struct pattok *, struct patins **);
 
+static int patdohalt(struct patcontext *, struct patthread *, char const *);
+static int patdochar(struct patcontext *, struct patthread *, char const *);
+static int patdofork(struct patcontext *, struct patthread *, char const *);
+static int patdojump(struct patcontext *, struct patthread *, char const *);
+static int patdomark(struct patcontext *, struct patthread *, char const *);
+static int patdosave(struct patcontext *, struct patthread *, char const *);
+static int patdoclss(struct patcontext *, struct patthread *, char const *);
+static int patdorefr(struct patcontext *, struct patthread *, char const *);
+
 static int pataddinit(struct pattern *);
 static int pataddfini(struct pattern *, struct patins **);
 
@@ -95,14 +107,25 @@ static int (* const patadd[])(struct pattern *, struct pattok *, struct patins *
 	[RPAR]	= pataddrpar,
 };
 
+static int (* const patdo[])() = {
+	[HALT] = patdohalt,
+	[CHAR] = patdochar,
+	[FORK] = patdofork,
+	[JUMP] = patdojump,
+	[MARK] = patdomark,
+	[SAVE] = patdosave,
+	[CLSS] = patdoclss,
+	[REFR] = patdorefr,
+};
+
 int
 pataddalt(struct pattern *pat, struct pattok *tok, struct patins **tmp)
 {
 	int err = 0;
-	size_t offset = len(*tmp) + 2;
+	size_t offset = vec_len(*tmp) + 2;
 	struct patins ins = {0};
 
-	if (offset < len(*tmp)) return EOVERFLOW;
+	if (offset < vec_len(*tmp)) return EOVERFLOW;
 
 	ins.op = FORK;
 	ins.arg = offset;
@@ -135,7 +158,7 @@ int
 pataddinit(struct pattern *pat)
 {
 	struct patins insv[] = {
-		[0] = { .op = JUMP, .arg = 2 },
+		[0] = { .op = JUMP, .arg = 1 },
 		[1] = { .op = CLSS, .arg = 0 },
 		[2] = { .op = FORK, .arg = 1 },
 		[3] = { .op = MARK, .arg = 0 },
@@ -182,20 +205,20 @@ pataddrep(struct pattern *pat, struct pattok *tok, struct patins **bufp)
 {
 	int err = 0;
 	struct patins ins = {0};
-	size_t again = len(pat->prog);
+	size_t again = vec_len(pat->prog);
 	size_t offset = tok->type != QMARK ? 3 : 2;
 
-	if (!len(*bufp)) return 0;
+	if (!vec_len(*bufp)) return 0;
 
-	if (addz_overflows(len(pat->prog), len(*bufp) + offset))
+	if (addz_overflows(vec_len(pat->prog), vec_len(*bufp) + offset))
 		return EOVERFLOW;
 
-	err = vec_concat(&pat->prog, *bufp, len(*bufp) - 1);
+	err = vec_concat(&pat->prog, *bufp, vec_len(*bufp) - 1);
 	if (err) return err;
 
 	if (tok->type != PLUS) {
 		ins.op = FORK;
-		ins.arg = len(pat->prog) + offset;
+		ins.arg = vec_len(pat->prog) + offset;
 
 		err = vec_append(&pat->prog, &ins);
 		if (err) return err;
@@ -203,7 +226,7 @@ pataddrep(struct pattern *pat, struct pattok *tok, struct patins **bufp)
 		++again;
 	}
 
-	ins = (*bufp)[len(*bufp) - 1];
+	ins = (*bufp)[vec_len(*bufp) - 1];
 
 	err = vec_append(&pat->prog, &ins);
 	if (err) return err;
@@ -235,28 +258,124 @@ pataddrpar(struct pattern *pat, struct pattok *tok, struct patins **bufp)
 
 	vec_truncate(bufp, 0);
 
-	for (i = len(pat->prog); p = pat->prog + i, i --> 0;) {
+	for (i = vec_len(pat->prog); p = pat->prog + i, i --> 0;) {
 		if (p->op == JUMP && p->arg > -3UL) {
 			arg = p->arg;
-			p->arg = len(pat->prog) + 1;
-			if (p->arg > len(pat->prog)) return EOVERFLOW;
+			p->arg = vec_len(pat->prog);
 			if (arg == -2UL) break;
 		}
 	}
 
 	ins.op = JUMP;
-	ins.arg = len(pat->prog) + 2;
-	if (ins.arg < len(pat->prog)) return EOVERFLOW;
+	ins.arg = vec_len(pat->prog) + 1;
+	if (ins.arg < vec_len(pat->prog)) return EOVERFLOW;
 
 	err = vec_append(&pat->prog, &ins);
 	if (err) return err;
 
 	ins.op = JUMP;
-	ins.arg = i + 1;
+	ins.arg = i;
 
 	err = vec_append(&pat->prog, &ins);
 	if (err) return err;
 
+	return 0;
+}
+
+int
+patdohalt(struct patcontext *ctx, struct patthread *th, char const *str)
+{
+	return MATCH;
+}
+
+int
+patdochar(struct patcontext *ctx, struct patthread *th, char const *str)
+{
+	int len = 0;
+	wchar_t wc = 0;
+	struct patins *ins = th->ins + th->pos;
+
+	len = mbtowc(&wc, str, strlen(str));
+	if (len < 0) return errno;
+
+	if ((wchar_t)ins->arg != wc) return MISMATCH;
+	return STEP;
+}
+
+int
+patdojump(struct patcontext *ctx, struct patthread *th, char const *str)
+{
+	struct patins *ins = th->ins + th->pos;
+
+	th->pos = ins->arg;
+	return 0;
+}
+
+int
+patdofork(struct patcontext *ctx, struct patthread *th, char const *str)
+{
+	struct patins *ins = th->ins + th->pos;
+	struct patthread new = {0};
+
+	new = patfork(th);
+	if (!new.mat) return ENOMEM;
+
+	new.pos = ins->arg;
+
+	return vec_insert(&ctx->thr, &new, th - ctx->thr + 1);
+}
+
+int
+patdomark(struct patcontext *ctx, struct patthread *th, char const *str)
+{
+	struct patmatch mat = {0};
+
+	mat.off = ctx->pos;
+	mat.ext = -1;
+
+	return vec_append(&th->mat, &mat);
+}
+
+int
+patdosave(struct patcontext *ctx, struct patthread *th, char const *str)
+{
+	struct patins *ins = th->ins + th->pos;
+	th->mat[ins->arg].ext = ctx->pos - th->mat[ins->arg].off;
+	return 0;
+}
+
+int
+patdoclss(struct patcontext *ctx, struct patthread *th, char const *str)
+{
+	wchar_t wc = 0;
+	int len = 0;
+
+	len = mbtowc(&wc, str, strlen(str));
+	if (len == -1) return errno;
+
+	switch (th->ins[th->pos].arg) {
+	case ANY:
+		return STEP;
+	case DOT:
+		return *str || *str != '\n' ? STEP : MISMATCH;
+	case ALPHA:
+		return iswalpha(wc) ? STEP : MISMATCH;
+	case UPPER:
+		return iswupper(wc) ? STEP : MISMATCH;
+	case LOWER:
+		return iswlower(wc) ? STEP : MISMATCH;
+	case SPACE:
+		return iswspace(wc) ? STEP : MISMATCH;
+	case DIGIT:
+		return iswdigit(wc) ? STEP : MISMATCH;
+	default:
+		return EINVAL;
+	}
+}
+
+int
+patdorefr(struct patcontext *ctx, struct patthread *th, char const *str)
+{
 	return 0;
 }
 
@@ -326,7 +445,7 @@ patmatch(struct patmatch **res, struct patcontext *ctx, char const *str)
 {
 	int err = 0;
 	int len = 0;
-	size_t cur = 0;
+	size_t max = 0;
 	struct patthread *fin;
 	struct patthread *it;
 
@@ -352,10 +471,12 @@ patmatch(struct patmatch **res, struct patcontext *ctx, char const *str)
 	}
 	
 	vec_foreach (it, fin)
-		if (it->mat[0].ext > fin[cur].mat[0].ext)
-			cur = it - fin;
+		if (it->mat[0].ext > fin[max].mat[0].ext)
+			max = it - fin;
 
-	vec_copy(res, fin[cur].mat);
+	vec_copy(res, fin[max].mat);
+	vec_foreach (it, fin) vec_free(it->mat);
+	vec_free(fin);
 
 	return 0;
 }
@@ -370,8 +491,8 @@ patstep(struct patthread **fin, struct patcontext *ctx, char const *str)
 		err = patstepthread(ctx, str, ctx->thr + i);
 
 		switch (err) {
-		case 0:
-			break;
+		case 0: break;
+		case STEP: break;
 		case MISMATCH:
 			vec_free(ctx->thr[i].mat);
 			vec_delete(&ctx->thr, i);
@@ -395,66 +516,15 @@ int
 patstepthread(struct patcontext *ctx, char const *str, struct patthread *th)
 {
 	int err = 0;
-	int len = 0;
-	int ret = 0;
-	wchar_t wc = 0;
-	struct patins *ins = 0x0;
-	struct patthread new = {0};
-	struct patmatch mat = {0};
+	enum patop ind = 0;
 
 again:
-	ins = th->ins + th->pos++;
-
-	switch (ins->op) {
-	case HALT:
-		ret = MATCH;
-		break;
-
-	case CHAR:
-		len = mbtowc(&wc, str, strlen(str));
-		if (len < 0) return errno;
-
-		if ((wchar_t)ins->arg != wc) ret = MISMATCH;
-		break;
-
-	case JUMP:
-		th->pos = ins->arg;
-		goto again;
-
-	case FORK:
-		new = patfork(th);
-		if (!new.mat) return ENOMEM;
-
-		new.pos = ins->arg;
-
-		err = vec_insert(&ctx->thr, &new, th - ctx->thr + 1);
-		if (err) return err;
-
-		goto again;
-
-	case MARK:
-		mat.off = ctx->pos;
-		mat.ext = -1;
-
-		err = vec_append(&th->mat, &mat);
-		if (err) return err;
-
-		goto again;
-
-	case SAVE: 
-		th->mat[ins->arg].ext = ctx->pos - th->mat[ins->arg].off;
-
-		goto again;
-
-	case CLSS:
-		if (!*str || *str == '\n') ret = MISMATCH;
-		break;
-
-	case REFR:
-		break;
-	}
-
-	return ret;
+	ind = th->ins[th->pos].op;
+	err = patdo[ind](ctx, th, str);
+	++th->pos;
+	if (err > 0) return err;
+	if (err == 0) goto again;
+	return err;
 }
 
 int
