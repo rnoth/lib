@@ -33,7 +33,7 @@ tests/%-test: tests/%-test.c %.c $(OBJ)
 	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $< $(OBJ)
 
 clean:
-	rm -f *.o $(NAME) tests/*-test
+	rm -f *.o $(NAME) tests/*-test core vgcore.*
 
 .PHONY: clean
 .SECONDARY: $(OBJ)
