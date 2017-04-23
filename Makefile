@@ -24,7 +24,7 @@ endif
 -include deps.mk
 
 deps.mk: $(SRC) $(TESTS)
-	$(CC) -M $+ | sed -e 's/.o$$/.c.o/' -e 's/\(.*\)-test.c.o/\1-test/' > deps.mk
+	$(CC) -M $+ | sed -e 's/\.o/.c.o/' -e 's/\(.*\)-test.c.o/\1-test/' > deps.mk
 
 %.c.o: %.c
 	$(CC) $(CFLAGS) -c -o $@ $<
