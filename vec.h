@@ -38,8 +38,6 @@
 } while (0)
 
 static inline size_t vec_len(void const *vec) { return (((size_t *)(vec))[-3]); }
-static inline size_t vec_siz(void const *vec) { return (((size_t *)(vec))[-2]); }
-static inline size_t vec_mem(void const *vec) { return (((size_t *)(vec))[-1]); }
 
 int	vec_alloc	(void *, size_t);
 int	vec_append	(void *, void const *);
