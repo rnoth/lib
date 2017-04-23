@@ -4,7 +4,6 @@
 #include <stdlib.h>
 
 #include "test.h"
-#include "../list.h"
 #include "../set.h"
 
 int
