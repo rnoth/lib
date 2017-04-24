@@ -30,7 +30,7 @@ void
 test_clone(void)
 {
 	printf("\tcloning vector...");
-	clone = vec_clone(&vec);
+	clone = vec_clone(vec);
 	ok(clone);
 	ok(!memcmp(vec, clone, len(vec) * sizeof *vec));
 	printf("done\n");
@@ -136,7 +136,8 @@ void
 test_join(void)
 {
 	printf("\tjoining two vectors...");
-	vec_join(&vec, clone);
+	vec_copy(&vec, clone);
+	//vec_join(&vec, clone);
 	ok(vec[4] == 4);
 	printf("done\n");
 }
@@ -211,8 +212,6 @@ main()
 	test_delete();
 	test_shift();
 	test_slice();
-	vec_free(vec);
-	vec_ctor(vec);
 	test_join();
 	test_concat();
 	test_fun();

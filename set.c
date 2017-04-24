@@ -150,7 +150,7 @@ locate(Node *nod, Elem const *el)
 
 	res = calloc(2, sizeof *res);
 	if (!res) return NULL;
-	pre = vec_clone(&el);
+	pre = vec_clone(el);
 	if (!pre) {
 		free(res);
 		return NULL;
@@ -186,7 +186,7 @@ marshal(Node const *nod, Elem const *el)
 	Elem *pre = 0x0;
 	Node **chld = 0x0;
 
-	pre = vec_clone(&el);
+	pre = vec_clone(el);
 	if (!pre) return 0x0;
 
 	vec_ctor(ret);
@@ -292,7 +292,7 @@ traverse(Node *nod, Elem const *el)
 	ret = calloc(1, sizeof *ret);
 	if (!ret) return 0x0;
 
-	pre = vec_clone(&el);
+	pre = vec_clone(el);
 	if (!pre) {
 		free(ret);
 		return 0x0;
