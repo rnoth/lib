@@ -7,360 +7,140 @@
 #include "util.h"
 #include "vec.h"
 
-#define isleaf(nod) (!len((nod)->chld))
+#define isleaf(n) (!((n) & 1))
+#define nod(n) ((struct internal *)((n) - 1))
+#define leaf(n) ((struct external *)(n))
 
-typedef uint8_t Elem;
-typedef struct Node Node;
-typedef struct Reply Reply;
-
-struct Node {
-	uint8_t  *edge;
-	Node    **chld;
+enum set_ret {
+	SET_MATCH  = -0,
+	SET_SPLIT  = -1,
+	SET_SLOT   = -2,
+	SET_EXTERN = -3,
 };
 
-struct Reply {
-	size_t off;
-	size_t ext;
-	Node *nod;
+
+struct context {
+	uint8_t off;
+	uint8_t mask;
+	struct internal *nod;
 };
 
-struct Set {
-	Node *root;
+struct external {
+	size_t len;
+	uint8_t bytes[];
 };
 
-static void	free_node(Node *);
-static Node*	alloc_node(void);
+struct internal {
+	uint8_t crit;
+	uint32_t edge;
+	uintptr_t chld[2];
+};
 
-static int	align	 (Node *);
-static int 	attach	 (Node *, Node const *);
-static void	delete	 (Node *, Node const *);
-static int	insert	 (Node *, Elem const *);
-static Node**	locate	 (Node *, Elem const *);
-static size_t	match	 (Node const *, Elem const *);
-static void*	marshal	 (Node const *, Elem const *);
-static Node*	search	 (Node const *, Elem const *);
-static int	split	 (Node *, size_t);
-static Reply*	traverse (Node *, Elem const *);
+union edge {
+	uint32_t *w;
+	uint8_t *y;
+};
 
-static Elem*	make_elem(void const *, size_t);
-
-int
-align(Node *nod)
+struct external *
+set_extern_alloc(size_t len)
 {
-	Node *chld;
-	if (len(nod->chld) != 1) return 0;
-
-	chld = *nod->chld;
-	if (vec_join(&nod->edge, chld->edge))
-		return ENOMEM;
-
-	vec_free(chld->edge);
-	vec_free(nod->chld);
-	nod->chld = chld->chld;
-	free(chld);
-	return 0;
+	return calloc(1, sizeof (struct external) + len);
 }
 
-Node *
-alloc_node(void)
+struct internal *
+set_intern_alloc(void)
 {
-	Node *ret;
-
-	ret = malloc(sizeof *ret);
-	if (!ret) return NULL;
-
-	vec_ctor(ret->edge);
-	if (!ret->edge) goto nomem;
-	vec_ctor(ret->chld);
-	if (!ret->chld) goto nomem;
-
-	return ret;
-
-nomem:
-	vec_free(ret->edge);
-	vec_free(ret->chld);
-	return NULL;
+	return calloc(1, sizeof (struct internal));
 }
 
 int
-attach(Node *cur, Node const *new)
+set_attach(struct context *ctx, struct internal *nod)
 {
-	int cmp;
-	size_t min;
-	size_t off;
-	Node *chld;
-
-	for (off = 0; off < len(cur->chld); ++off) {
-		chld = cur->chld[off];
-		min = umin(len(chld->edge), len(new->edge));
-		cmp = memcmp(new->edge, chld->edge, min);
-		if (cmp < 0) break;
-	}
-
-	return vec_insert(&cur->chld, &new, off);
+	return -1;
 }
 
-void
-delete(Node *cur, Node const *targ)
+int
+set_split(struct context *ctx)
 {
-	size_t off;
+	return -1;
+}
 
-	if (!targ) {
-		vec_truncate(&cur->edge, 0);
-		return;
-	}
+int
+set_traverse(struct context *ctx, uint8_t *key)
+{
+	union edge ed = { .w = &ctx->nod->edge };
+	size_t off = 0;
+	uint8_t bit = 0;
+	uint8_t byte = 0;
+	uint8_t crit = ctx->nod->crit;
+	uint8_t i = 0;
+	uintptr_t tmp;
 
-	for (off = 0; off < len(cur->chld); ++off) {
-		if (cur->chld[off] == targ) {
-			vec_delete(&cur->chld, off);
-			return;
+	while (vec_len(key)) {
+		byte = key[off];
+		if (ctx->mask) byte &= ctx->mask;
+		
+		for (i = 0; i < 4; ++i) {
+			if (crit < 7) byte &= ~0 << crit;
+			if (byte != ed.y[i]) goto split;
+
+			if (++off >= vec_len(key)) goto done;
+			if (crit < 8) break;
+
+			byte = key[off];
+			crit -= 8;
+			ctx->off += 8;
 		}
-	}
-}
 
-int
-insert(Node *nod, Elem const *el)
-{
-	vec_truncate(&nod->edge, 0);
-	return vec_join(&nod->edge, el);
+		ctx->off = 0;
+		if (crit < 7) ctx->mask = ~0 >> crit;
+
+		bit = (key[off] >> -~crit) & 1;
+
+		tmp = ctx->nod->chld[bit];
+		if (!tmp) goto slot;
+		if (isleaf(tmp)) goto ext;
+
+		ctx->nod = nod(tmp);
+	}
+
+done:
+	if (ctx->nod->crit != ctx->off) goto split;
+
+	return SET_MATCH;
+split:
+	return SET_SPLIT;
+slot:
+	return SET_SLOT;
+ext:
+	return SET_EXTERN;
+
 }
 
 void
-free_node(Node *nod)
+set_tree_free(struct internal *nod)
 {
-	size_t i;
+	if (!nod) return;
 
-	for (i = 0; i < len(nod->chld); ++i)
-		free_node(nod->chld[i]);
+	for (uint8_t i = 0; i < 2; ++i) {
+		if (isleaf(nod->chld[i])) free(leaf(nod->chld[i]));
+		else set_tree_free(nod(nod->chld[i]));
+	}
 
-	vec_free(nod->chld);
-	vec_free(nod->edge);
 	memset(nod, 0, sizeof *nod);
 	free(nod);
 }
 
-Node **
-locate(Node *nod, Elem const *el)
-{
-	size_t off;
-	Elem *pre;
-	Node **res;
-	Node *cur;
-	Node *prev;
-
-	res = calloc(2, sizeof *res);
-	if (!res) return NULL;
-	pre = vec_clone(el);
-	if (!pre) {
-		free(res);
-		return NULL;
-	}
-
-	cur = nod;
-	prev = NULL;
-	for (;;) {
-		off = match(cur, pre);
-		if (off != len(cur->edge)) break;
-
-		vec_shift(&pre, off);
-		if (!len(pre) && isleaf(cur)) {
-			res[0] = prev;
-			res[1] = cur;
-			break;
-		}
-
-		prev = cur;
-		cur = search(cur, pre);
-		if (!cur) break;
-	}
-
-	vec_free(pre);
-	return res;
-}
-
-void *
-marshal(Node const *nod, Elem const *el)
-{
-	uint8_t **ret = 0x0;
-	uint8_t **tmp = 0x0;
-	Elem *pre = 0x0;
-	Node **chld = 0x0;
-
-	pre = vec_clone(el);
-	if (!pre) return 0x0;
-
-	vec_ctor(ret);
-	if (!ret) {
-		vec_free(pre);
-		return 0x0;
-	}
-
-	vec_join(&pre, nod->edge);
-	vec_foreach (chld, nod->chld) {
-		tmp = marshal(*chld, pre);
-		if (!tmp) {
-			vec_free(pre);
-			vec_free(ret);
-			return 0x0;
-		}
-		vec_join(&ret, tmp);
-		vec_free(tmp);
-		tmp = 0x0;
-	}
-
-	if (isleaf(nod) && vec_append(&ret, &pre)) {
-		vec_foreach (void **each, ret) vec_free(each);
-		vec_free(pre);
-		vec_free(ret);
-	} else if (!isleaf(nod)) vec_free(pre);
-
-	return ret;
-}
-
-size_t
-match(Node const *nod, Elem const *el)
-{
-	size_t off;
-
-	for (off = 0; off < umin(len(nod->edge), len(el)); ++off)
-		if (nod->edge[off] != el[off])
-			break;
-
-	return off;
-}
-
-Node *
-search(Node const *nod, Elem const *el)
-{
-	size_t i;
-
-	if (!len(el)) {
-		if (!len(nod->chld[0]->edge))
-			return nod->chld[0];
-		else return 0x0;
-	}
-
-	for (i = 0; i < len(nod->chld); ++i)
-		if (*nod->chld[i]->edge == *el)
-			return nod->chld[i];
-
-	return 0x0;
-}
-
-int
-split(Node *nod, size_t off)
-{
-	int err;
-	size_t len;
-	uint8_t *tmp;
-	Node *new;
-
-	len = len(nod->edge) - off;
-	if (!len) return 0;
-
-	tmp = malloc(len);
-	if (!tmp && len) return ENOMEM;
-
-	new = alloc_node();
-	if (!new) {
-		free(tmp);
-		return ENOMEM;
-	}
-
-	memcpy(tmp, nod->edge + off, len);
-	vec_truncate(&nod->edge, off);
-	
-	err = vec_concat(&new->edge, tmp, len);
-	if (err) return err;
-
-	free(tmp);
-
-	return attach(nod, new);
-}
-
-Reply *
-traverse(Node *nod, Elem const *el)
-{
-	size_t ext = 0;
-	size_t min = 0;
-	size_t off = 0;
-	Elem *pre = 0x0;
-	Node *cur = 0x0;
-	Node *tmp = 0x0;
-	Reply *ret = 0x0;
-
-	ret = calloc(1, sizeof *ret);
-	if (!ret) return 0x0;
-
-	pre = vec_clone(el);
-	if (!pre) {
-		free(ret);
-		return 0x0;
-	}
-
-	cur = nod;
-	for (;;) {
-		min = umin(len(cur->edge), len(pre));
-		off = match(cur, pre);
-		ext += off;
-
-		if (off != min) break;
-
-		vec_shift(&pre, off);
-		if (!len(pre)) break;
-
-		tmp = search(cur, pre);
-		if (!tmp) break;
-
-		cur = tmp;
-	}
-
-	ret->ext = ext;
-	ret->off = off;
-	ret->nod = cur;
-	vec_free(pre);
-	return ret;
-}
-
-Elem *
-make_elem(void const *data, size_t len)
-{
-	Elem *ret;
-
-	vec_ctor(ret);
-	if (!ret) return 0x0;
-
-	if (vec_concat(&ret, data, len)) {
-		vec_free(ret);
-		return 0x0;
-	}
-
-	return ret;
-}
-
-Set *
+struct internal *
 set_alloc(void)
 {
-	Set *ret;
-
-	ret = calloc(1, sizeof *ret);
-	if (!ret) return 0x0;
-
-	ret->root = alloc_node();
-	if (!ret->root) {
-		free(ret);
-		return 0x0;
-	}
-
-	return ret;
+	return set_intern_alloc();
 }
 
 void
-set_free(Set *A)
+set_free(Set *a)
 {
-	free_node(A->root);
-	memset(A, 0, sizeof *A);
-	free(A);
+	set_tree_free(a);
 }
 
 int	set_adds   (Set *A, char *s) { return set_add   (A, s, strlen(s) + 1); }
@@ -370,133 +150,58 @@ bool	set_prefixs(Set *A, char *s) { return set_prefix(A, s, strlen(s)); }
 void *	set_querys (Set *A, char *s) { return set_query (A, s, strlen(s)); }
 
 int
-set_add(Set *A, void *data, size_t len)
+set_add(Set *a, void *src, size_t len)
 {
-	int err = ENOMEM;
-	size_t off = 0;
-	Elem *el = 0;
-	Node *new = 0;
-	Node *par = 0;
-	Reply *rep = 0;
+	int err = 0;
+	uint8_t *elem = 0x0;
+	struct context ctx = {0};
 
-	el = make_elem(data, len);
-	if (!el) goto fail;
-	
-	rep = traverse(A->root, el);
-	if (!rep) goto fail;
+	ctx.nod = a;
 
-	par = rep->nod;
-	off = rep->off;
-	vec_shift(&el, rep->ext);
+	err = vec_ctor(elem);
+	if (err) goto finally;
 
-	err = split(par, off);
-	if (err) goto fail;
+	err = vec_concat(&elem, src, len);
+	if (err) goto finally;
 
-	new = alloc_node();
-	if (!new) goto fail;
+	switch (set_traverse(&ctx, elem))
+	case SET_MATCH:
+		err = EEXIST;
+		goto finally;
+	case SET_SPLIT:
+		err = set_nod_split(ctx);
+		if (err) goto finally;
+		break;
+	case SET_EXTERN:
+		err = 
+	}
 
-	err = insert(new, el);
-	if (err) goto fail;
+finally:
+	vec_free(elem);
 
-	err = attach(par, new);
-	if (err) goto fail;
-
-	err = align(par);
-	if (err) goto fail;
-
-	free(rep);
-	vec_free(el);
-	return 0;
-
-fail:
-	vec_free(el);
-	free_node(new);
-	free(rep);
-	return err;
+	return -1;
 }
 
 int
 set_rm(Set *A, void *data, size_t len)
 {
-	Elem *el;
-	Node **res;
-
-	el = make_elem(data, len);
-	if (!el) return ENOMEM;
-
-	res = locate(A->root, el);
-	if (!res[1]) {
-		vec_free(el);
-		return ENOENT;
-	}
-
-	delete(res[1], res[0]);
-
-	free(res);
-	vec_free(el);
-	return 0;
+	return -1;
 }
 
 bool
 set_memb(Set *A, void *data, size_t len)
 {
-	bool ret;
-	Elem *el;
-	Node **res;
-
-	el = make_elem(data, len);
-	if (!el) return ENOMEM;
-
-	res = locate(A->root, el);
-	ret = !!res[1];
-
-	free(res);
-	vec_free(el);
-
-	return ret;
+	return -1;
 }
 
 bool
 set_prefix(Set *A, void *data, size_t len)
 {
-	bool ret;
-	Reply *rep;
-	Elem *el;
-
-	el = make_elem(data, len);
-
-	rep = traverse(A->root, el);
-	if (!rep) return false;
-
-	ret = rep->off == len(el);
-
-	vec_free(el);
-	free(rep);
-	return ret;
+	return -1;
 }
 
 void *
 set_query(Set *A, void *data, size_t len)
 {
-	Elem *el = 0x0;
-	Reply *rep = 0x0;
-	uint8_t **ret = 0x0;
-
-	el = make_elem(data, len);
-	if (!el) goto finally;
-
-	rep = traverse(A->root, el);
-	if (!rep) goto finally;
-	if (rep->ext != len(el)) {
-		vec_ctor(ret);
-		goto finally;
-	}
-	
-	vec_truncate(&el, rep->ext - rep->off);
-	ret = marshal(rep->nod, el);
-
-finally:
-	free(rep);
-	vec_free(el);
-	return ret;
+	return 0x0;
 }

@@ -5,7 +5,7 @@
 
 #include "vec.h"
 
-typedef struct Set Set;
+typedef struct internal Set;
 
 Set *set_alloc(void);
 void set_free(Set *);
