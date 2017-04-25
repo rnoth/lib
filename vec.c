@@ -2,7 +2,6 @@
 #include <errno.h>
 #include <limits.h>
 #include <stdio.h>
-#define _GNU_SOURCE
 #include <stdlib.h>
 #include <string.h>
 
@@ -10,16 +9,17 @@
 #include "vec.h"
 
 #define VECSIZ 8
-#define HEADER (2 * sizeof (size_t))
+#define HEADER (sizeof (size_t))
 
 #undef vec_check
-#define vec_check(vecv, size) do {                     \
-	vec_assert(*vecv != 0x0);                      \
-	vec_assert(len(*vecv) <= mem(*vecv));          \
-	vec_assert(size < mem(*vecv));                 \
-	vec_assert(len(*vecv) * size <= mem(*vecv));   \
+#define vec_check(vecv, size) do {                               \
+	vec_assert(*vecv != 0x0);                                \
+	vec_assert(vec_len(*vecv) <= vec_mem(*vecv, size));      \
+	vec_assert(vec_mem(*vecv, size) > size);                 \
+	vec_assert(vec_len(*vecv) * size <= vec_mem(*vecv, size));   \
 } while (0)
 
+#undef vec_mem
 
 #undef vec_append
 #undef vec_clone
@@ -37,19 +37,26 @@
 
 union vec {
 	void const *p;
-	char **v;
+	unsigned char **v;
 };
 
-static int vec_expand(char **, size_t, size_t);
-static size_t vec_mem(char *);
+static int vec_expand(unsigned char **, size_t, size_t);
 
-#if 0
+
 size_t
-vec_mem(char *vec, size_t size)
+vec_mem(void const *v, size_t size)
 {
-	return rawmemchr(vec + len(vec) * size, 0xff) - vec;
+	size_t off = len(v) * size;
+	union {
+		void const *v;
+		unsigned char const *y;
+	} vec = { .v = v };
+
+	while (vec.y[off] != 0xff) ++off;
+
+	return -~off;
 }
-#endif
+
 
 int
 vec_alloc(void *vecp, size_t size)
@@ -62,8 +69,8 @@ vec_alloc(void *vecp, size_t size)
 	if (mulz_overflows(VECSIZ, size)) return EOVERFLOW;
 	siz = VECSIZ * size;
 
-	if (addz_overflows(HEADER, siz)) return EOVERFLOW;
-	siz = HEADER + siz;
+	if (addz_overflows(HEADER + 1, siz)) return EOVERFLOW;
+	siz = HEADER + 1 + siz;
 
 	*vec.v = calloc(1, siz);
 	if (!*vec.v) return ENOMEM;
@@ -71,7 +78,7 @@ vec_alloc(void *vecp, size_t size)
 	*vec.v = *vec.v + HEADER;
 
 	len(*vec.v) = 0;
-	mem(*vec.v) = VECSIZ * size;
+	(*vec.v)[VECSIZ * size - 1] = 0xff;
 
 	return 0;
 }
@@ -155,14 +162,16 @@ vec_elim(void *vecp, size_t ind, size_t nmemb, size_t size)
 }
 
 int
-vec_expand(char **vecv, size_t size, size_t diff)
+vec_expand(unsigned char **vecv, size_t size, size_t diff)
 {
-	char *old = 0x0;
-	char *tmp = 0x0;
+	unsigned char *old = 0x0;
+	unsigned char *tmp = 0x0;
 
-	assert(mem(*vecv) != 0);
+	assert(vec_mem(*vecv, size) != 0);
 
 	old = *vecv - HEADER;
+
+	(*vecv)[vec_mem(*vecv, size) - 1] = 0;
 
 	tmp = calloc(1, diff + HEADER);
 	if (!tmp) return ENOMEM;
@@ -171,8 +180,7 @@ vec_expand(char **vecv, size_t size, size_t diff)
 
 	*vecv = tmp + HEADER;
 
-	mem(*vecv) = diff;
-
+	(*vecv)[diff - 1] = 0xff;
 	return 0;
 }
 
@@ -254,8 +262,8 @@ vec_splice(void *destp, size_t pos, void const *src, size_t nmemb, size_t size)
 	len = len(*dest.v) * size;
 	off = pos * size;
 
-	while (len + ext >= mem(*dest.v)) {
-		mem = mem(*dest.v);
+	while (len + ext >= vec_mem(*dest.v, size)) {
+		mem = vec_mem(*dest.v, size);
 		while (mem <= len + ext) mem *= 2;
 		err = vec_expand(dest.v, size, mem);
 		if (err) return err;

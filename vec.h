@@ -2,9 +2,9 @@
 #define _vector_
 #include <stddef.h>
 #include <stdlib.h>
+#include <string.h>
 
-#define len(vec) (((size_t *)(vec))[-1])
-#define mem(vec) (((size_t *)(vec))[-2])
+#define len(vec) (((size_t *)(vec))[-1]) // XXX
 
 #define vec_ctor(INST) vec_alloc(&(INST), sizeof *INST)
 
@@ -29,28 +29,43 @@
 
 #define vec_check(vecv) do {                                  \
 	vec_assert(*vecv != 0x0);                             \
-	vec_assert(len(*vecv) <= mem(*vecv));                 \
-	vec_assert(sizeof **vecv < mem(*vecv));               \
-	vec_assert(len(*vecv) * sizeof **vecv <= mem(*vecv)); \
+	vec_assert(vec_len(*vecv) <= vec_mem(*vecv));                 \
+	vec_assert(sizeof **vecv < vec_mem(*vecv));               \
+	vec_assert(vec_len(*vecv) * sizeof **vecv <= vec_mem(*vecv)); \
 } while (0)
 
-static inline size_t vec_len(void const *vec) { return (((size_t *)(vec))[-3]); }
+static inline
+size_t
+vec_len(void const *v)
+{
+	size_t ret;
+	union {
+		size_t const *z;
+		void const *v;
+	} vec = { .v = v };
+	memcpy(&ret, vec.z - 1, sizeof ret);
+	return ret;
+}
 
-int	vec_alloc(void *, size_t);
-int	vec_append(void *, void const *, size_t);
-void *	vec_clone(void const *, size_t);
-int	vec_concat(void *, void const *, size_t, size_t);
-int	vec_copy(void *, void *, size_t);
-void	vec_delete(void *, size_t, size_t);
-void	vec_elim(void *, size_t, size_t, size_t);
-int	vec_insert(void *, void const *, size_t, size_t);
-int	vec_join(void *, void const *, size_t);
-void	vec_free(void *);
-void	vec_shift(void *, size_t, size_t);
-void	vec_slice(void *, size_t, size_t, size_t);
-int	vec_splice(void *, size_t, void const *, size_t, size_t);
-int	vec_transfer(void *, void const *, size_t, size_t);
-void	vec_truncate(void *, size_t, size_t);
+size_t  vec_mem(void const *, size_t);
+
+int     vec_alloc(void *, size_t);
+int     vec_append(void *, void const *, size_t);
+void *  vec_clone(void const *, size_t);
+int     vec_concat(void *, void const *, size_t, size_t);
+int     vec_copy(void *, void *, size_t);
+void    vec_delete(void *, size_t, size_t);
+void    vec_elim(void *, size_t, size_t, size_t);
+int     vec_insert(void *, void const *, size_t, size_t);
+int     vec_join(void *, void const *, size_t);
+void    vec_free(void *);
+void    vec_shift(void *, size_t, size_t);
+void    vec_slice(void *, size_t, size_t, size_t);
+int     vec_splice(void *, size_t, void const *, size_t, size_t);
+int     vec_transfer(void *, void const *, size_t, size_t);
+void    vec_truncate(void *, size_t, size_t);
+
+#define vec_mem(vec) vec_mem(vec, sizeof *vec)
 
 #define vec_append(vec_ptr, it)                 vec_append(vec_ptr, it,                sizeof **vec_ptr)
 #define vec_clone(vec)                          vec_clone(vec,                         sizeof *vec)
