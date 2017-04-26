@@ -223,8 +223,7 @@ set_add(Set *a, void *src, size_t len)
 		break;
 
 	case SET_EXTERN:
-		err = !nod_match(&ctx, el); // XXX
-		switch (err) {
+		switch (nod_match(&ctx, el)) {
 		case SET_MATCH:
 			err = EEXIST;
 			goto finally;
