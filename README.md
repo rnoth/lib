@@ -1,6 +1,6 @@
 simple library implementing serveral generic datatypes for C programming
 
-##vec
+## vec
 
 The vec.h functions are built on top of ordinary C arrays.
 So, a vector of type `Type` would be declared as a normal array: `Type *myvec`.
@@ -16,9 +16,10 @@ This function returns `0` on succes, `ENOMEM` if the allocation fails, or EOVERF
 
 Free a vector with `vec_free(myvec)`
 
-###supported operations:
+### supported operations:
 
-**important**: all of these functions take pointers to vectors allocated with `vec_ctor()` (or `vec_alloc()`) as their first argument.
+**important**: every function that modifies its argument takes a pointer to a vector allocated with 
+`vec_ctor()` (or `vec_alloc()`) as their first argument.
 If you just pass the vector itself, your program might blow up.
 
 - `vec_append(void *vec_ptr, void *item)`
@@ -103,7 +104,7 @@ If you just pass the vector itself, your program might blow up.
 
 	- returns a copy of the vector, or the null pointer if allocation fails
 
-###fun
+### fun
 
 - `vec_foreach(variable, vector)` is a macro which loops over the elements of `vector`,
 assigning the address of each one to `varible` in sequence. e.g.
@@ -133,9 +134,10 @@ main()
 
 	- furthermore, `continue` and `break` behave as expected
 
-	- finally, `vec_foreach()` contains no double evaluatation. any correctly typed expression can be used as `vector` or `variable`;
+	- finally, `vec_foreach()` contains no double evaluatation.
+	any correctly typed expression can be used as `vector` or `variable`, even if it has side-effects
 
-##set
+## set
 
 declare a radix tree with `Set *instance`
 
@@ -147,7 +149,7 @@ free:
 
 - `set_free(instance)`
 
-###supported operations:
+### supported operations:
 
 - `set_add(Set *set, void *element, size_t length)`
 
@@ -155,15 +157,15 @@ free:
 
 - `set_memb(Set *set, void *element, size_t length)`
 
-	- return true iff element is in set
+	- return true iff `element` is in set
 
 - `set_prefix(Set *set, void *prefix, size_t length)`
 
-	- return true iff there are elements with the prefix prefix
+	- return true iff there are elements with the prefix `prefix`
 
 - `set_query(Set *set, void *prefix, size_t length)`
 
-	- returns a vector of elements with the prefix prefix
+	- returns a vector of elements with the prefix `prefix`
 
 every operation has a version design for use with cstrings, they are
 `set_adds()`, `set_rms()`, `set_membs()`, and `set_querys()`, respectively
