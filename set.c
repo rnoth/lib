@@ -12,8 +12,8 @@
 #define leaf(n) ((struct external *)(n))
 
 /* TODO
- * - implement set_nod_capture (turn external nodes into internal nodes)
- * = implement set_nod_split  (split an internal node)
+ * - implement nod_capture (turn external nodes into internal nodes)
+ * = implement nod_split  (split an internal node)
  * - ensure set_add() works correctly
  *
  * - reimplement the other set functions
@@ -31,9 +31,8 @@ enum set_ret {
 struct context {
 	struct internal *nod;
 	size_t           pos;
-	size_t           off;
+	uint8_t          off;
 	uint8_t          bit;
-	uint8_t          mask;
 };
 
 struct external {
@@ -48,19 +47,19 @@ struct internal {
 };
 
 struct external *
-set_extern_alloc(size_t len)
+nod_extern_alloc(size_t len)
 {
 	return calloc(1, sizeof (struct external) + len);
 }
 
 struct internal *
-set_intern_alloc(void)
+nod_intern_alloc(void)
 {
 	return calloc(1, sizeof (struct internal));
 }
 
 int
-set_match(struct context *ctx, uint8_t *key)
+nod_match(struct context *ctx, uint8_t *key)
 {
 	struct external *ex = 0x0;
 	ex = leaf(ctx->nod->chld[ctx->bit]);
@@ -73,31 +72,52 @@ set_match(struct context *ctx, uint8_t *key)
 }
 
 int
-set_nod_attach(struct context *ctx, uintptr_t new)
+nod_attach(struct context *ctx, uintptr_t new)
 {
 	return -1;
 }
 
 uintptr_t
-set_nod_create(struct context *ctx, uint8_t *ket)
+nod_create(struct context *ctx, uint8_t *ket)
 {
 	return 0x0;
 }
 
 int
-set_nod_capture(struct context *ctx)
+nod_capture(struct context *ctx)
 {
 	return -1;
 }
 
 int
-set_nod_split(struct context *ctx)
+nod_split(struct context *ctx)
 {
-	return -1;
+	struct internal *nod = 0x0;
+	struct internal *chld = 0x0;
+	uint8_t bit = 0;
+
+	nod  = ctx->nod;
+	chld = nod_intern_alloc();
+
+	if (!chld) return ENOMEM;
+
+	bit = nod->edge << ctx->off & 0x80;
+	chld->edge = nod->edge << ctx->off + 1;
+
+	if (ctx->off) nod->edge &= ~(uint32_t)0 << 32 - ctx->off;
+	else nod->edge = 0;
+
+	nod->crit = ctx->off;
+	memcpy(chld->chld, nod->chld, sizeof chld->chld);
+
+	nod->chld[ bit] = (uintptr_t)chld + 1;
+	nod->chld[!bit] = 0x0;
+
+	return 0;
 }
 
 int
-set_traverse(struct context *ctx, uint8_t *key)
+nod_traverse(struct context *ctx, uint8_t *key)
 {
 	uint8_t byte = 0;
 	uint8_t crit = 0;
@@ -123,15 +143,15 @@ set_traverse(struct context *ctx, uint8_t *key)
 				byte = key[++ctx->pos];
 			}
 
-			ctx->bit = byte & 1;
+			ctx->bit = byte & 0x80;
 
-			if (byte & 1 != edge & 1) {
+			if (byte & 0x80 != edge & 0x80) {
 				ctx->off = ctx->nod->crit - crit;
 				return SET_SPLIT;
 			}
 
-			edge >>= 1;
-			byte >>= 1;
+			edge <<= 1;
+			byte <<= 1;
 			--crit;
 			--rem;
 		}
@@ -139,42 +159,29 @@ set_traverse(struct context *ctx, uint8_t *key)
 		tmp = ctx->nod->chld[ctx->bit];
 		if (!tmp) return SET_SLOT;
 		if (isleaf(tmp)) return SET_EXTERN;
+
+		ctx->nod = nod(tmp);
 	}
 
 	return SET_PREFIX;
 }
 
 void
-set_tree_free(struct internal *nod)
+nod_tree_free(struct internal *nod)
 {
 	if (!nod) return;
 
 	for (uint8_t i = 0; i < 2; ++i) {
 		if (isleaf(nod->chld[i])) free(leaf(nod->chld[i]));
-		else set_tree_free(nod(nod->chld[i]));
+		else nod_tree_free(nod(nod->chld[i]));
 	}
 
 	memset(nod, 0, sizeof *nod);
 	free(nod);
 }
 
-struct internal *
-set_alloc(void)
-{
-	return set_intern_alloc();
-}
-
-void
-set_free(Set *a)
-{
-	set_tree_free(a);
-}
-
-int	set_adds   (Set *A, char *s) { return set_add   (A, s, strlen(s) + 1); }
-int	set_rms	   (Set *A, char *s) { return set_rm    (A, s, strlen(s) + 1); }
-bool	set_membs  (Set *A, char *s) { return set_memb  (A, s, strlen(s) + 1); }
-bool	set_prefixs(Set *A, char *s) { return set_prefix(A, s, strlen(s)); }
-void *	set_querys (Set *A, char *s) { return set_query (A, s, strlen(s)); }
+struct internal * set_alloc(void) { return nod_intern_alloc(); }
+void set_free(Set *a) { nod_tree_free(a); }
 
 int
 set_add(Set *a, void *src, size_t len)
@@ -195,7 +202,7 @@ set_add(Set *a, void *src, size_t len)
 	err = vec_concat(&el, src, len);
 	if (err) goto finally;
 
-	res = set_traverse(&ctx, el);
+	res = nod_traverse(&ctx, el);
 	vec_shift(&el, ctx.pos);
 	ctx.pos = 0;
 
@@ -211,12 +218,12 @@ set_add(Set *a, void *src, size_t len)
 		cpy = *ctx.nod;
 		restore = true;
 
-		err = set_nod_split(&ctx);
+		err = nod_split(&ctx);
 		if (err) goto finally;
 		break;
 
 	case SET_EXTERN:
-		err = !set_match(&ctx, el); // XXX
+		err = !nod_match(&ctx, el); // XXX
 		switch (err) {
 		case SET_MATCH:
 			err = EEXIST;
@@ -234,7 +241,7 @@ set_add(Set *a, void *src, size_t len)
 
 		cpy = *ctx.nod;
 		restore = true;
-		err = set_nod_capture(&ctx);
+		err = nod_capture(&ctx);
 		if (err) goto finally;
 		break;
 
@@ -247,10 +254,10 @@ set_add(Set *a, void *src, size_t len)
 	}
 
 
-	new = set_nod_create(&ctx, el);
+	new = nod_create(&ctx, el);
 	if (!new) goto finally;
 
-	set_nod_attach(&ctx, new);
+	nod_attach(&ctx, new);
 
 finally:
 	if (err && restore) *ctx.nod = cpy;
@@ -264,13 +271,13 @@ finally:
 }
 
 int
-set_rm(Set *A, void *data, size_t len)
+set_remove(Set *A, void *data, size_t len)
 {
 	return -1;
 }
 
 bool
-set_memb(Set *A, void *data, size_t len)
+set_contains(Set *A, void *data, size_t len)
 {
 	return -1;
 }
