@@ -1,4 +1,4 @@
-simple library implementing serveral generic datatypes for C programming
+simple library implementing several generic datatypes for C programming
 
 ## vec
 
