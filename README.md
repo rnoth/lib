@@ -120,7 +120,7 @@ main()
 
 	/* ... */
 
-	vec_map(int *each, foo) {
+	vec_foreach(int *each, foo) {
 		printf("%d * 2 == %d\n", *each, *each + *each);
 	}
 
@@ -129,7 +129,6 @@ main()
 	return 0;
 }
 ```
-
 	- as seen above, you can declare variables inside vec_foreach(), like a for loop initializer
 
 	- furthermore, `continue` and `break` behave as expected
