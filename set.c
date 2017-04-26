@@ -11,6 +11,14 @@
 #define nod(n) ((struct internal *)((n) - 1))
 #define leaf(n) ((struct external *)(n))
 
+/* TODO
+ * - implement set_nod_capture (turn external nodes into internal nodes)
+ * = implement set_nod_split  (split an internal node)
+ * - ensure set_add() works correctly
+ *
+ * - reimplement the other set functions
+ */
+
 enum set_ret {
 	SET_MATCH  = -0,
 	SET_SPLIT  = -1,
@@ -21,21 +29,21 @@ enum set_ret {
 
 
 struct context {
-	size_t  pos;
-	uint8_t off;
-	uint8_t bit;
-	uint8_t mask;
 	struct internal *nod;
+	size_t           pos;
+	size_t           off;
+	uint8_t          bit;
+	uint8_t          mask;
 };
 
 struct external {
-	size_t len;
+	size_t  len;
 	uint8_t bytes[];
 };
 
 struct internal {
-	uint8_t crit;
-	uint32_t edge;
+	uint8_t   crit;
+	uint32_t  edge;
 	uintptr_t chld[2];
 };
 
@@ -56,7 +64,12 @@ set_match(struct context *ctx, uint8_t *key)
 {
 	struct external *ex = 0x0;
 	ex = leaf(ctx->nod->chld[ctx->bit]);
-	return !!memcmp(ex->bytes, key, umin(ex->len, vec_len(key)));
+
+	for (ctx->pos = 0; ctx->pos < umin(ex->len, vec_len(key)); ++ctx->pos)
+		if (ex->bytes[ctx->pos] != key[ctx->pos])
+			return SET_SPLIT;
+
+	return ex->len == vec_len(key) ? SET_MATCH : SET_PREFIX;
 }
 
 int
@@ -113,7 +126,7 @@ set_traverse(struct context *ctx, uint8_t *key)
 			ctx->bit = byte & 1;
 
 			if (byte & 1 != edge & 1) {
-				ctx->off = 8 - rem;
+				ctx->off = ctx->nod->crit - crit;
 				return SET_SPLIT;
 			}
 
@@ -166,6 +179,7 @@ void *	set_querys (Set *A, char *s) { return set_query (A, s, strlen(s)); }
 int
 set_add(Set *a, void *src, size_t len)
 {
+	bool restore = 0;
 	int err = 0;
 	int res = 0;
 	uint8_t *el = 0x0;
@@ -185,8 +199,6 @@ set_add(Set *a, void *src, size_t len)
 	vec_shift(&el, ctx.pos);
 	ctx.pos = 0;
 
-	cpy = *ctx.nod;
-
 	switch (res) {
 	case SET_MATCH:
 		err = EEXIST;
@@ -196,18 +208,32 @@ set_add(Set *a, void *src, size_t len)
 		break;
 
 	case SET_SPLIT:
+		cpy = *ctx.nod;
+		restore = true;
+
 		err = set_nod_split(&ctx);
 		if (err) goto finally;
 		break;
 
 	case SET_EXTERN:
-		if (!set_match(&ctx, el)) {
+		err = !set_match(&ctx, el); // XXX
+		switch (err) {
+		case SET_MATCH:
 			err = EEXIST;
 			goto finally;
+
+		case SET_PREFIX:
+			err = EINVAL;
+			goto finally;
+
+		case SET_SPLIT:
+			break;
 		}
 
 		vec_shift(&el, ctx.pos);
 
+		cpy = *ctx.nod;
+		restore = true;
 		err = set_nod_capture(&ctx);
 		if (err) goto finally;
 		break;
@@ -227,11 +253,9 @@ set_add(Set *a, void *src, size_t len)
 	set_nod_attach(&ctx, new);
 
 finally:
-	if (err) *ctx.nod = cpy;
-	else {
-		if (res == SET_EXTERN) {
-			free(leaf(ctx.nod->chld[ctx.bit]));
-		}
+	if (err && restore) *ctx.nod = cpy;
+	if (!err) {
+		if (res == SET_EXTERN) free(leaf(ctx.nod->chld[ctx.bit]));
 		free(ctx.nod);
 		ctx.nod = 0x0;
 	}
