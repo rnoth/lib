@@ -16,11 +16,14 @@ enum set_ret {
 	SET_SPLIT  = -1,
 	SET_SLOT   = -2,
 	SET_EXTERN = -3,
+	SET_PREFIX = -4,
 };
 
 
 struct context {
+	size_t  pos;
 	uint8_t off;
+	uint8_t bit;
 	uint8_t mask;
 	struct internal *nod;
 };
@@ -36,11 +39,6 @@ struct internal {
 	uintptr_t chld[2];
 };
 
-union edge {
-	uint32_t *w;
-	uint8_t *y;
-};
-
 struct external *
 set_extern_alloc(size_t len)
 {
@@ -54,13 +52,33 @@ set_intern_alloc(void)
 }
 
 int
-set_attach(struct context *ctx, struct internal *nod)
+set_match(struct context *ctx, uint8_t *key)
+{
+	struct external *ex = 0x0;
+	ex = leaf(ctx->nod->chld[ctx->bit]);
+	return !!memcmp(ex->bytes, key, umin(ex->len, vec_len(key)));
+}
+
+int
+set_nod_attach(struct context *ctx, uintptr_t new)
+{
+	return -1;
+}
+
+uintptr_t
+set_nod_create(struct context *ctx, uint8_t *ket)
+{
+	return 0x0;
+}
+
+int
+set_nod_capture(struct context *ctx)
 {
 	return -1;
 }
 
 int
-set_split(struct context *ctx)
+set_nod_split(struct context *ctx)
 {
 	return -1;
 }
@@ -68,53 +86,49 @@ set_split(struct context *ctx)
 int
 set_traverse(struct context *ctx, uint8_t *key)
 {
-	union edge ed = { .w = &ctx->nod->edge };
-	size_t off = 0;
-	uint8_t bit = 0;
 	uint8_t byte = 0;
-	uint8_t crit = ctx->nod->crit;
-	uint8_t i = 0;
-	uintptr_t tmp;
+	uint8_t crit = 0;
+	uint8_t rem  = 0;
+	uint32_t edge = 0;
+	uintptr_t tmp = 0;
 
-	while (vec_len(key)) {
-		byte = key[off];
-		if (ctx->mask) byte &= ctx->mask;
-		
-		for (i = 0; i < 4; ++i) {
-			if (crit < 7) byte &= ~0 << crit;
-			if (byte != ed.y[i]) goto split;
+	if (!vec_len(key)) return EINVAL;
 
-			if (++off >= vec_len(key)) goto done;
-			if (crit < 8) break;
+	rem = 7;
+	byte = key[0];
 
-			byte = key[off];
-			crit -= 8;
-			ctx->off += 8;
+	while (ctx->pos >= vec_len(key)) {
+
+		crit = ctx->nod->crit;
+		edge = ctx->nod->edge;
+
+		while (crit) {
+
+			if (!rem) {
+				rem = 7;
+				if (ctx->pos + 1 >= vec_len(key)) return SET_SPLIT;
+				byte = key[++ctx->pos];
+			}
+
+			ctx->bit = byte & 1;
+
+			if (byte & 1 != edge & 1) {
+				ctx->off = 8 - rem;
+				return SET_SPLIT;
+			}
+
+			edge >>= 1;
+			byte >>= 1;
+			--crit;
+			--rem;
 		}
 
-		ctx->off = 0;
-		if (crit < 7) ctx->mask = ~0 >> crit;
-
-		bit = (key[off] >> -~crit) & 1;
-
-		tmp = ctx->nod->chld[bit];
-		if (!tmp) goto slot;
-		if (isleaf(tmp)) goto ext;
-
-		ctx->nod = nod(tmp);
+		tmp = ctx->nod->chld[ctx->bit];
+		if (!tmp) return SET_SLOT;
+		if (isleaf(tmp)) return SET_EXTERN;
 	}
 
-done:
-	if (ctx->nod->crit != ctx->off) goto split;
-
-	return SET_MATCH;
-split:
-	return SET_SPLIT;
-slot:
-	return SET_SLOT;
-ext:
-	return SET_EXTERN;
-
+	return SET_PREFIX;
 }
 
 void
@@ -153,33 +167,76 @@ int
 set_add(Set *a, void *src, size_t len)
 {
 	int err = 0;
-	uint8_t *elem = 0x0;
+	int res = 0;
+	uint8_t *el = 0x0;
 	struct context ctx = {0};
+	struct internal cpy = {0};
+	uintptr_t new = 0;
 
 	ctx.nod = a;
 
-	err = vec_ctor(elem);
+	err = vec_ctor(el);
 	if (err) goto finally;
 
-	err = vec_concat(&elem, src, len);
+	err = vec_concat(&el, src, len);
 	if (err) goto finally;
 
-	switch (set_traverse(&ctx, elem))
+	res = set_traverse(&ctx, el);
+	vec_shift(&el, ctx.pos);
+	ctx.pos = 0;
+
+	cpy = *ctx.nod;
+
+	switch (res) {
 	case SET_MATCH:
 		err = EEXIST;
 		goto finally;
+
+	case SET_SLOT:
+		break;
+
 	case SET_SPLIT:
-		err = set_nod_split(ctx);
+		err = set_nod_split(&ctx);
 		if (err) goto finally;
 		break;
+
 	case SET_EXTERN:
-		err = 
+		if (!set_match(&ctx, el)) {
+			err = EEXIST;
+			goto finally;
+		}
+
+		vec_shift(&el, ctx.pos);
+
+		err = set_nod_capture(&ctx);
+		if (err) goto finally;
+		break;
+
+	case SET_PREFIX:
+		err = EINVAL;
+		goto finally;
+
+	default:
+		goto finally;
 	}
 
-finally:
-	vec_free(elem);
 
-	return -1;
+	new = set_nod_create(&ctx, el);
+	if (!new) goto finally;
+
+	set_nod_attach(&ctx, new);
+
+finally:
+	if (err) *ctx.nod = cpy;
+	else {
+		if (res == SET_EXTERN) {
+			free(leaf(ctx.nod->chld[ctx.bit]));
+		}
+		free(ctx.nod);
+		ctx.nod = 0x0;
+	}
+	vec_free(el);
+	return err;
 }
 
 int
