@@ -2,6 +2,7 @@
 #define _set_
 #include <stdbool.h>
 #include <stddef.h>
+#include <stdint.h>
 
 #include "vec.h"
 
@@ -11,11 +12,11 @@ typedef struct internal Set;
 Set *set_alloc(void);
 void set_free(Set *);
 
-int    set_add      (Set *, void *, size_t);
-int    set_remove   (Set *, void *, size_t);
-bool   set_contains (Set *, void *, size_t);
-bool   set_prefix   (Set *, void *, size_t);
-void * set_query    (Set *, void *, size_t);
+int    set_add      (Set *, uint8_t *, size_t);
+int    set_remove   (Set *, uint8_t *, size_t);
+bool   set_contains (Set *, uint8_t *, size_t);
+bool   set_prefix   (Set *, uint8_t *, size_t);
+void * set_query    (Set *, uint8_t *, size_t);
 
 inline static int   set_add_string      (Set *t, char *s){return set_add      (t,(void *)s,strlen(s)+1);}
 inline static bool  set_contains_string (Set *t, char *s){return set_contains (t,(void *)s,strlen(s)+1);}

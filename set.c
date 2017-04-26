@@ -5,7 +5,6 @@
 
 #include "set.h"
 #include "util.h"
-#include "vec.h"
 
 #define isleaf(n) (!((n) & 1))
 #define nod(n) ((struct internal *)((n) - 1))
@@ -59,16 +58,16 @@ nod_intern_alloc(void)
 }
 
 int
-nod_match(struct context *ctx, uint8_t *key)
+nod_match(struct context *ctx, uint8_t *key, size_t len)
 {
 	struct external *ex = 0x0;
 	ex = leaf(ctx->nod->chld[ctx->bit]);
 
-	for (ctx->pos = 0; ctx->pos < umin(ex->len, vec_len(key)); ++ctx->pos)
+	for (ctx->pos = 0; ctx->pos < umin(ex->len, len); ++ctx->pos)
 		if (ex->bytes[ctx->pos] != key[ctx->pos])
 			return SET_SPLIT;
 
-	return ex->len == vec_len(key) ? SET_MATCH : SET_PREFIX;
+	return ex->len == len ? SET_MATCH : SET_PREFIX;
 }
 
 int
@@ -78,7 +77,7 @@ nod_attach(struct context *ctx, uintptr_t new)
 }
 
 uintptr_t
-nod_create(struct context *ctx, uint8_t *ket)
+nod_create(struct context *ctx, uint8_t *key, size_t len)
 {
 	return 0x0;
 }
@@ -117,7 +116,7 @@ nod_split(struct context *ctx)
 }
 
 int
-nod_traverse(struct context *ctx, uint8_t *key)
+nod_traverse(struct context *ctx, uint8_t *key, size_t len)
 {
 	uint8_t byte = 0;
 	uint8_t crit = 0;
@@ -125,12 +124,12 @@ nod_traverse(struct context *ctx, uint8_t *key)
 	uint32_t edge = 0;
 	uintptr_t tmp = 0;
 
-	if (!vec_len(key)) return EINVAL;
+	if (!len) return EINVAL;
 
 	rem = 7;
 	byte = key[0];
 
-	while (ctx->pos >= vec_len(key)) {
+	while (ctx->pos >= len) {
 
 		crit = ctx->nod->crit;
 		edge = ctx->nod->edge;
@@ -139,7 +138,7 @@ nod_traverse(struct context *ctx, uint8_t *key)
 
 			if (!rem) {
 				rem = 7;
-				if (ctx->pos + 1 >= vec_len(key)) return SET_SPLIT;
+				if (ctx->pos + 1 >= len) return SET_SPLIT;
 				byte = key[++ctx->pos];
 			}
 
@@ -184,26 +183,18 @@ struct internal * set_alloc(void) { return nod_intern_alloc(); }
 void set_free(Set *a) { nod_tree_free(a); }
 
 int
-set_add(Set *a, void *src, size_t len)
+set_add(Set *a, uint8_t *src, size_t len)
 {
 	bool restore = 0;
 	int err = 0;
 	int res = 0;
-	uint8_t *el = 0x0;
 	struct context ctx = {0};
 	struct internal cpy = {0};
 	uintptr_t new = 0;
 
 	ctx.nod = a;
 
-	err = vec_ctor(el);
-	if (err) goto finally;
-
-	err = vec_concat(&el, src, len);
-	if (err) goto finally;
-
-	res = nod_traverse(&ctx, el);
-	vec_shift(&el, ctx.pos);
+	res = nod_traverse(&ctx, src, len);
 	ctx.pos = 0;
 
 	switch (res) {
@@ -223,7 +214,7 @@ set_add(Set *a, void *src, size_t len)
 		break;
 
 	case SET_EXTERN:
-		switch (nod_match(&ctx, el)) {
+		switch (nod_match(&ctx, src, len)) {
 		case SET_MATCH:
 			err = EEXIST;
 			goto finally;
@@ -235,8 +226,6 @@ set_add(Set *a, void *src, size_t len)
 		case SET_SPLIT:
 			break;
 		}
-
-		vec_shift(&el, ctx.pos);
 
 		cpy = *ctx.nod;
 		restore = true;
@@ -253,42 +242,41 @@ set_add(Set *a, void *src, size_t len)
 	}
 
 
-	new = nod_create(&ctx, el);
+	new = nod_create(&ctx, src, len);
 	if (!new) goto finally;
 
 	nod_attach(&ctx, new);
 
 finally:
-	if (err && restore) *ctx.nod = cpy;
+	if (err && restore) *ctx.nod = cpy; // XXX
 	if (!err) {
 		if (res == SET_EXTERN) free(leaf(ctx.nod->chld[ctx.bit]));
 		free(ctx.nod);
 		ctx.nod = 0x0;
 	}
-	vec_free(el);
 	return err;
 }
 
 int
-set_remove(Set *A, void *data, size_t len)
+set_remove(Set *A, uint8_t *data, size_t len)
 {
 	return -1;
 }
 
 bool
-set_contains(Set *A, void *data, size_t len)
+set_contains(Set *A, uint8_t *data, size_t len)
 {
 	return -1;
 }
 
 bool
-set_prefix(Set *A, void *data, size_t len)
+set_prefix(Set *A, uint8_t *data, size_t len)
 {
 	return -1;
 }
 
 void *
-set_query(Set *A, void *data, size_t len)
+set_query(Set *A, uint8_t *data, size_t len)
 {
 	return 0x0;
 }
