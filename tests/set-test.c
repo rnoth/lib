@@ -9,26 +9,26 @@
 int
 main()
 {
-	Set *A;
+	Set *t;
 	char **reply;
 
 	printf("testing set.c\n");
 	
 	printf("\tallocating a set...");
-	A = set_alloc();
-	ok(A);
+	t = set_alloc();
+	ok(t);
 	printf("done\n");
 
 	printf("\tinserting a string...");
-	set_adds(A, "foobar");
+	ok(!set_add_string(t, "foobar"));
 	printf("done\n");
 
 	printf("\tconfirming the addition...");
-	ok(set_membs(A, "foobar"));
+	ok(set_contains_string(t, "foobar"));
 	printf("done\n");
 
 	printf("\tsearching the set...");
-	reply = set_querys(A, "foo");
+	reply = set_query_string(t, "foo");
 	ok(reply);
 	ok(len(reply) == 1);
 	ok(reply[0]);
@@ -38,37 +38,37 @@ main()
 	printf("done\n");
 
 	printf("\tremoving the string...");
-	set_rms(A, "foobar");
+	ok(!set_remove_string(t, "foobar"));
 	printf("done\n");
 
 	printf("\tconfirming the removal...");
-	ok(!set_membs(A, "foobar"));
-	reply = set_querys(A, "foo");
+	ok(!set_contains_string(t, "foobar"));
+	reply = set_query_string(t, "foo");
 	ok(!len(reply));
 	vec_foreach(void **each, reply) vec_free(*each);
 	vec_free(reply);
 	printf("done\n");
 
 	printf("\tadding more strings...");
-	set_adds(A, "foo");
-	set_adds(A, "bar");
-	set_adds(A, "baz");
-	set_adds(A, "quux");
+	ok(!set_add_string(t, "foo"));
+	ok(!set_add_string(t, "bar"));
+	ok(!set_add_string(t, "baz"));
+	ok(!set_add_string(t, "quux"));
 	printf("done\n");
 
 	printf("\tchecking for the strings...");
-	ok(set_membs(A, "foo"));
-	ok(set_membs(A, "bar"));
-	ok(set_membs(A, "baz"));
-	ok(set_membs(A, "quux"));
+	ok(set_contains_string(t, "foo"));
+	ok(set_contains_string(t, "bar"));
+	ok(set_contains_string(t, "baz"));
+	ok(set_contains_string(t, "quux"));
 
-	reply = set_querys(A, "f");
+	reply = set_query_string(t, "f");
 	ok(len(reply) == 1)
 	ok(!strcmp(reply[0], "foo"));
 	vec_foreach(void **each, reply) vec_free(*each);
 	vec_free(reply);
 
-	reply = set_querys(A, "b");
+	reply = set_query_string(t, "b");
 	ok(len(reply) == 2)
 	ok(reply[0]);
 	ok(!strcmp(reply[0], "bar"));
@@ -78,17 +78,17 @@ main()
 	printf("done\n");
 
 	printf("\tadding a prefix conflict...");
-	set_adds(A, "barber");
-	ok(set_membs(A, "barber"));
+	set_add_string(t, "barber");
+	ok(set_contains_string(t, "barber"));
 	printf("done\n");
 
 	printf("\ttesting new prefix check...");
-	ok(set_prefixs(A, "f"));
-	ok(set_prefixs(A, "q"));
+	ok(set_prefix_string(t, "f"));
+	ok(set_prefix_string(t, "q"));
 	printf("done\n");
 
 	printf("\tfreeing the set...");
-	set_free(A);
+	set_free(t);
 	printf("done\n");
 
 	printf("test successful (set.c)\n");
