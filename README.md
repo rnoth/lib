@@ -96,7 +96,7 @@ If you just pass the vector itself, your program might blow up.
 
 	- _join_ two vectors
 
-	- behaves equivalently to `vec_concat()`, assuming `src_ptr` points to a valid vector
+	- behaves equivalently to `vec_concat()`, assuming `src` is a valid vector
 
 	- returns `0` on success, `ENOMEM` when out of memory, `EOVERFLOW` if something overflows
 
