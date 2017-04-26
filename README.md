@@ -84,7 +84,7 @@ If you just pass the vector itself, your program might blow up.
 
 	- returns `0` on succes, `ENOMEM` when out of memory, `EOVERFLOW` if something overflows.
 
-- `vec_copy(void *dest_ptr, void *src_ptr)`
+- `vec_copy(void *dest_ptr, void *src)`
 - `vec_transfer(void *dest_ptr, void *src, size_t nmemb)`
 	- copy elements to a vector from a source vector (`vec_copy()`) or a source array (`vec_transfer()`)
 
@@ -92,7 +92,7 @@ If you just pass the vector itself, your program might blow up.
 
 	- **note** the functionality of `vec_transfer()` is likely to be completely changed in the near future
 
-- `vec_join(void *dest_ptr, void *src_ptr)`
+- `vec_join(void *dest_ptr, void *src)`
 
 	- _join_ two vectors
 
@@ -100,7 +100,7 @@ If you just pass the vector itself, your program might blow up.
 
 	- returns `0` on success, `ENOMEM` when out of memory, `EOVERFLOW` if something overflows
 
-- `vec_clone(void *vec_ptr)`
+- `vec_clone(void *vec)`
 
 	- returns a copy of the vector, or the null pointer if allocation fails
 
