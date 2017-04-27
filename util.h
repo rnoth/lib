@@ -36,10 +36,17 @@ do {						\
 } while (0)
 
 static inline
-size_t
-umin(size_t a, size_t b)
+unsigned long
+umin(unsigned long a, unsigned long b)
 {
 	return a < b ? a : b;
+}
+
+static inline
+unsigned long
+umax(unsigned long a, unsigned long b)
+{
+	return a > b ? a : b;
 }
 
 static inline
