@@ -1,7 +1,7 @@
 CC	?= cc
 CFLAGS	+= -pipe -std=c99 -pedantic -Wall -Wextra \
 	   -Wno-missing-field-initializers -Wno-unused-parameter \
-	   -Warray-bounds -Wno-parentheses \
+	   -Warray-bounds -Wno-parentheses -Wno-switch \
 	   -fstrict-aliasing -fstrict-overflow -fomit-frame-pointer \
 	   -fdata-sections -ffunction-sections -fno-exceptions \
 	   -fno-unwind-tables -fno-asynchronous-unwind-tables \
