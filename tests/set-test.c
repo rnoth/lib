@@ -27,6 +27,7 @@ main()
 	ok(set_contains_string(t, "foobar"));
 	printf("done\n");
 
+#if 0
 	printf("\tsearching the set...");
 	reply = set_query_string(t, "foo");
 	ok(reply);
@@ -36,6 +37,7 @@ main()
 	vec_foreach(void **each, reply) vec_free(*each);
 	vec_free(reply);
 	printf("done\n");
+#endif
 
 	printf("\tremoving the string...");
 	ok(!set_remove_string(t, "foobar"));
