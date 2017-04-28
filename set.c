@@ -6,11 +6,6 @@
 #include "set.h"
 #include "util.h"
 
-static inline bool isleaf(uintptr_t n) { return n ? n ^ 1 : false; }
-static inline bool isnod(uintptr_t n) { return n ? n & 1 : false; }
-static inline struct internal *nod(uintptr_t n) { return (void *)(n - 1); }
-static inline struct external *leaf(uintptr_t n) { return (void *)n; }
-
 /* TODO
  * - implement nod_capture (turn external nodes into internal nodes)
  * - reimplement the other set functions
@@ -45,6 +40,29 @@ struct internal {
 
 static enum set_ret nod_walk(struct context *, uint8_t *, size_t);
 static void nod_tree_free(struct internal *);
+static int nod_join(struct context *, struct internal *);
+
+static inline bool isleaf(uintptr_t n) { return n ? n ^ 1 : false; }
+static inline bool isnod(uintptr_t n) { return n ? n & 1 : false; }
+static inline struct internal *nod(uintptr_t n) { return (void *)(n - 1); }
+static inline struct external *leaf(uintptr_t n) { return (void *)n; }
+
+static inline
+uint8_t
+bit_pop(struct internal *in)
+{
+	uint8_t ret = in->edge & 1 << 31;
+	in->edge <<= 1;
+	--in->crit;
+	return ret;
+}
+
+static inline
+void
+bit_push(struct internal *in, uint8_t y)
+{
+	in->edge |= y << in->crit++;
+}
 
 struct external *
 nod_extern_alloc(size_t len)
@@ -65,21 +83,27 @@ nod_attach(struct context *ctx, struct external *new)
 }
 
 void
-nod_align_internal(struct context *ctx, struct internal *anc, struct internal *rem)
-{
+nod_align_internal(struct context *ctx, struct internal *br)
+{ 
+	while (br->chld[0] && br->chld[1])
+		if (nod_join(ctx, br))
+			br = nod(br->chld[0] + br->chld[1]);
 }
 
 void
-nod_align_external(struct context *ctx, struct internal *anc, struct external *rem)
+nod_align_external(struct context *ctx, struct internal *br)
 {
+	while (isnod(br->chld[0] + br->chld[1]))
+		if (nod_join(ctx, br))
+			br = nod(br->chld[0] + br->chld[1]);
 }
 
 void
 nod_realign(struct context *ctx, struct internal *anc, uintptr_t rem)
 {
-	if (isnod(rem)) nod_align_internal(ctx, anc, nod(rem));
-	else if (isleaf(rem)) nod_align_external(ctx, anc, leaf(rem));
-}	
+	if (isnod(rem)) nod_align_internal(ctx, anc);
+	else if (isleaf(rem)) nod_align_external(ctx, anc);
+}
 
 int
 nod_capture(struct context *ctx)
@@ -90,8 +114,46 @@ nod_capture(struct context *ctx)
 void
 nod_init(struct external *new, struct context *ctx, uint8_t *key, size_t len)
 {
-	memcpy(new->bytes, key + ctx->pos, len - ctx->pos);
+	new->bytes[0] = key[ctx->pos] << ctx->shft;
+	memcpy(new->bytes + 1, key + ctx->pos + 1, len - ctx->pos);
 	new->len = len - ctx->pos;
+}
+
+int
+nod_join(struct context *ctx, struct internal *in)
+{
+	uint8_t bit  = 0;
+	struct internal *chld = nod(in->chld[0] + in->chld[1]);
+
+	if (in->crit == 31) return -1;
+
+	bit = !!in->chld[1];
+	bit_push(in, bit);
+
+	while (umin(31 - in->crit, chld->crit)) {
+
+		bit = bit_pop(chld);
+		if (!chld->crit) break;
+
+		bit_push(in, bit);
+		++ctx->shft;
+
+	}
+
+	if (chld->crit) {
+
+		bit = bit_pop(chld);
+		in->chld[bit]  = (uintptr_t)chld + 1;
+		in->chld[!bit] = 0x0;
+		return -1;
+
+	} else {
+
+		memcpy(in->chld, chld->chld, sizeof in->chld);
+		free(chld);
+
+		return 0;
+	}
 }
 
 enum set_ret
@@ -104,8 +166,7 @@ nod_match(struct context *ctx, uint8_t *key, size_t len)
 	for (ctx->pos = 0; ctx->pos < umin(ex->len, len); ++ctx->pos, ++ind) {
 		for (tmp = ex->bytes[ind] ^ key[ctx->pos], ctx->off = 0;
 		     tmp;
-		     tmp >>= 1, ++ctx->off)
-			;
+		     tmp >>= 1, ++ctx->off) ;
 		if (ctx->off) return SET_SPLIT;
 	}
 
@@ -203,7 +264,7 @@ nod_walk(struct context *ctx, uint8_t *key, size_t len)
 		}
 	}
 
-	ctx->shft = umin(rem - 1, 7);
+	ctx->shft = 8 - rem;
 
 	return 0;
 }
