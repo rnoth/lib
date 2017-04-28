@@ -45,10 +45,12 @@ main()
 
 	printf("\tconfirming the removal...");
 	ok(!set_contains_string(t, "foobar"));
+#if 0
 	reply = set_query_string(t, "foo");
 	ok(!len(reply));
 	vec_foreach(void **each, reply) vec_free(*each);
 	vec_free(reply);
+#endif
 	printf("done\n");
 
 	printf("\tadding more strings...");
