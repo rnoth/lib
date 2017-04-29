@@ -6,11 +6,6 @@
 #include "set.h"
 #include "util.h"
 
-/* TODO
- * - implement nod_capture (turn external nodes into internal nodes)
- * - reimplement the other set functions
- */
-
 enum set_ret {
 	SET_MATCH  = -0,
 	SET_SPLIT  = -1,
@@ -20,11 +15,9 @@ enum set_ret {
 };
 
 struct context {
-	uintptr_t nod;
+	uintptr_t cur;
 	size_t    pos;
 	uint8_t   off  : 5;
-	uint8_t   shft : 3;
-	uint8_t   bit  : 1;
 };
 
 struct external {
@@ -38,70 +31,133 @@ struct internal {
 	uintptr_t chld[2];
 };
 
-static enum set_ret nod_walk(struct context *, uint8_t *, size_t);
-static void nod_tree_free(struct internal *);
-static int nod_join(struct context *, struct internal *);
+struct key {
+	uint8_t const *src;
+	size_t const   len;
+	size_t         pos;
+	uint8_t       shft:3;
+};
 
-static inline bool isleaf(uintptr_t n) { return n ? n ^ 1 : false; }
-static inline bool isnod(uintptr_t n) { return n ? n & 1 : false; }
-static inline struct internal *nod(uintptr_t n) { return (void *)(n - 1); }
-static inline struct external *leaf(uintptr_t n) { return (void *)n; }
+static int          nod_join(struct context *, struct internal *);
+static void         nod_pushbit(struct internal *, uint8_t);
+static uint8_t      nod_popbit(struct internal *);
+static void         nod_release(struct context *, struct internal *);
+static void         nod_tree_free(struct internal *);
+static enum set_ret nod_walk(struct context *, struct key *);
 
-static inline
-uint8_t
-bit_pop(struct internal *in)
+static inline bool              isleaf(uintptr_t n);
+static inline bool              isnode(uintptr_t n);
+static inline bool              key_eol(struct key *);
+static inline uint8_t           key_curbyte(struct key *);
+static inline struct internal * to_node(uintptr_t n);
+static inline struct external * to_leaf(uintptr_t n);
+
+bool
+isleaf(uintptr_t n)
 {
-	uint8_t ret = in->edge & 1 << 31;
-	in->edge <<= 1;
-	--in->crit;
-	return ret;
+	return n ? n ^ 1 : false;
 }
 
-static inline
-void
-bit_push(struct internal *in, uint8_t y)
+bool
+isnode(uintptr_t n)
 {
-	in->edge |= y << in->crit++;
-}
-
-struct external *
-nod_extern_alloc(size_t len)
-{
-	return calloc(1, sizeof (struct external) + len);
+	return n ? n & 1 : false;
 }
 
 struct internal *
-nod_intern_alloc(void)
+to_node(uintptr_t n)
 {
-	return calloc(1, sizeof (struct internal));
+	return (void *)(n - 1);
+}
+
+struct external *
+to_leaf(uintptr_t n)
+{
+	return (void *)n;
+}
+
+uintptr_t
+ctx_chld(struct context *ctx, struct key *key)
+{
+	return to_node(ctx->cur)->chld[key_curbyte(key) & 0x80];
+}
+
+void
+ctx_focus(struct context *ctx, uintptr_t tmp)
+{
+	ctx->cur = tmp;
+	ctx->off = 0;
+	ctx->pos = 0;
+}
+
+uint8_t
+key_curbyte(struct key *key)
+{
+	return key->src[key->pos];
+}
+
+bool
+key_eol(struct key *key)
+{
+	return key->pos < key->len || key->shft != 7;
+}
+
+uint8_t
+key_step(struct key *key)
+{
+	++key->shft;
+	if (!key->shft) ++key->pos;
+	return key_curbyte(key) & 0x80;
+}
+
+uint8_t
+nod_popbit(struct internal *nod)
+{
+	uint8_t ret = nod->edge & 1 << 31;
+	nod->edge <<= 1;
+	--nod->crit;
+	return ret;
+}
+
+void
+nod_pushbit(struct internal *nod, uint8_t bit)
+{
+	nod->edge |= bit << nod->crit++;
 }
 
 void
 nod_attach(struct context *ctx, struct external *new)
 {
-	nod(ctx->nod)->chld[ctx->bit] = (uintptr_t)new;
+	uint8_t bit = !!to_node(ctx->cur)->chld[1];
+	to_node(ctx->cur)->chld[!bit] = (uintptr_t)new;
 }
 
 void
 nod_align_internal(struct context *ctx, struct internal *br)
 { 
-	while (br->chld[0] && br->chld[1])
-		if (nod_join(ctx, br))
-			br = nod(br->chld[0] + br->chld[1]);
+	while (!br->chld[0] != !br->chld[1]) {
+		if (nod_join(ctx, br)) {
+			br = to_node(br->chld[0] + br->chld[1]);
+		}
+	}
 }
 
 void
 nod_align_external(struct context *ctx, struct internal *br)
 {
-	while (isnod(br->chld[0] + br->chld[1]))
-		if (nod_join(ctx, br))
-			br = nod(br->chld[0] + br->chld[1]);
+	while (isnode(br->chld[0] + br->chld[1])) {
+		if (nod_join(ctx, br)) {
+			br = to_node(br->chld[0] + br->chld[1]);
+		}
+	}
+
+	nod_release(ctx, br);
 }
 
 void
 nod_realign(struct context *ctx, struct internal *anc, uintptr_t rem)
 {
-	if (isnod(rem)) nod_align_internal(ctx, anc);
+	if (isnode(rem)) nod_align_internal(ctx, anc);
 	else if (isleaf(rem)) nod_align_external(ctx, anc);
 }
 
@@ -112,44 +168,43 @@ nod_capture(struct context *ctx)
 }
 
 void
-nod_init(struct external *new, struct context *ctx, uint8_t *key, size_t len)
+nod_init(struct external *new, struct context *ctx, struct key *key)
 {
-	new->bytes[0] = key[ctx->pos] << ctx->shft;
-	memcpy(new->bytes + 1, key + ctx->pos + 1, len - ctx->pos);
-	new->len = len - ctx->pos;
+	new->bytes[0] = key_curbyte(key);
+	memcpy(new->bytes + 1, key + ctx->pos + 1, key->len - ctx->pos - 1);
+	new->len = key->len - ctx->pos;
 }
 
 int
-nod_join(struct context *ctx, struct internal *in)
+nod_join(struct context *ctx, struct internal *nod)
 {
 	uint8_t bit  = 0;
-	struct internal *chld = nod(in->chld[0] + in->chld[1]);
+	struct internal *chld = to_node(nod->chld[0] + nod->chld[1]);
 
-	if (in->crit == 31) return -1;
+	if (nod->crit == 31) return -1;
 
-	bit = !!in->chld[1];
-	bit_push(in, bit);
+	bit = !!nod->chld[1];
+	nod_pushbit(nod, bit);
 
-	while (umin(31 - in->crit, chld->crit)) {
+	while (umin(31 - nod->crit, chld->crit)) {
 
-		bit = bit_pop(chld);
+		bit = nod_popbit(chld);
 		if (!chld->crit) break;
 
-		bit_push(in, bit);
-		++ctx->shft;
-
+		nod_pushbit(nod, bit);
+		++ctx->off;
 	}
 
 	if (chld->crit) {
 
-		bit = bit_pop(chld);
-		in->chld[bit]  = (uintptr_t)chld + 1;
-		in->chld[!bit] = 0x0;
+		bit = nod_popbit(chld);
+		nod->chld[ bit] = (uintptr_t)chld + 1;
+		nod->chld[!bit] = 0x0;
 		return -1;
 
 	} else {
 
-		memcpy(in->chld, chld->chld, sizeof in->chld);
+		memcpy(nod->chld, chld->chld, sizeof nod->chld);
 		free(chld);
 
 		return 0;
@@ -157,64 +212,72 @@ nod_join(struct context *ctx, struct internal *in)
 }
 
 enum set_ret
-nod_match(struct context *ctx, uint8_t *key, size_t len)
+nod_match(struct context *ctx, struct key *key)
 {
-	uint8_t tmp = 0;
+	uint8_t diff = 0;
 	size_t ind = 0;
-	struct external *ex = leaf(ctx->nod);
+	struct external *ex = to_leaf(ctx->cur);
 
-	for (ctx->pos = 0; ctx->pos < umin(ex->len, len); ++ctx->pos, ++ind) {
-		for (tmp = ex->bytes[ind] ^ key[ctx->pos], ctx->off = 0;
-		     tmp;
-		     tmp >>= 1, ++ctx->off) ;
+	while (ctx->pos < ex->len && !key_eol(key)) {
+		for (diff = ex->bytes[ind] ^ key_curbyte(key);
+		     diff;
+		     diff >>= 1, ++ctx->off) ;
 		if (ctx->off) return SET_SPLIT;
+
+		++ctx->pos, ++key->pos;
 	}
 
-	return ex->len == len ? SET_MATCH : SET_PREFIX;
+	return ex->len == key->len ? SET_MATCH : SET_PREFIX;
 }
-
+ 
+void
+nod_release(struct context *ctx, struct internal *nod)
+{
+}
 int
 nod_split(struct context *ctx)
 {
-	struct internal *in = 0x0;
+	struct internal *par = 0x0;
 	struct internal *chld = 0x0;
 	uint8_t bit = 0;
 
-	in   = nod(ctx->nod);
-	chld = nod_intern_alloc();
+	par   = to_node(ctx->cur);
+	chld = calloc(1, sizeof *chld);
 
 	if (!chld) return ENOMEM;
 
-	bit = in->edge << ctx->off & 0x80;
-	chld->edge = in->edge << ctx->off + 1;
+	bit = par->edge << ctx->off & 0x80;
+	chld->edge = par->edge << ctx->off + 1;
 
-	if (ctx->off) in->edge &= ~(uint32_t)0 << 32 - ctx->off;
-	else in->edge = 0;
+	if (ctx->off) par->edge &= ~0 << 32 - ctx->off;
+	else par->edge = 0;
 
-	in->crit = ctx->off;
-	memcpy(chld->chld, in->chld, sizeof chld->chld);
+	par->crit = ctx->off;
+	memcpy(chld->chld, par->chld, sizeof chld->chld);
 
-	in->chld[ bit] = (uintptr_t)chld + 1;
-	in->chld[!bit] = 0x0;
+	par->chld[ bit] = (uintptr_t)chld + 1;
+	par->chld[!bit] = 0x0;
 
 	return 0;
 }
 
 enum set_ret
-nod_traverse(struct context *ctx, uint8_t *key, size_t len)
+nod_traverse(struct context *ctx, struct key *key)
 {
 	int res = 0;
 	uintptr_t tmp = 0;
 
-	while (ctx->pos <= len) {
+	while (!key_eol(key)) {
 
-		res = nod_walk(ctx, key, len);
+		res = nod_walk(ctx, key);
 		if (res) return res;
 
-		tmp = nod(ctx->nod)->chld[ctx->bit];
+		tmp = ctx_chld(ctx, key);
 		if (!tmp) return SET_SLOT;
 
-		ctx->nod = tmp;
+		key_step(key);
+
+		ctx_focus(ctx, tmp);
 		if (isleaf(tmp)) return SET_EXTERN;
 	}
 
@@ -222,49 +285,41 @@ nod_traverse(struct context *ctx, uint8_t *key, size_t len)
 }
 
 void
-nod_tree_free(struct internal *n)
+nod_tree_free(struct internal *nod)
 {
-	if (!n) return;
+	uint8_t i = 0;
 
-	for (uint8_t i = 0; i < 2; ++i) {
-		if (isleaf(n->chld[i])) free(leaf(n->chld[i]));
-		else nod_tree_free(nod(n->chld[i]));
+	if (!nod) return;
+
+	for (i = 0; i < 2; ++i) {
+		if (isleaf(nod->chld[i])) free(to_leaf(nod->chld[i]));
+		else nod_tree_free(to_node(nod->chld[i]));
 	}
 
-	memset(n, 0, sizeof *n);
-	free(n);
+	memset(nod, 0, sizeof *nod);
+	free(nod);
 }
 
 enum set_ret
-nod_walk(struct context *ctx, uint8_t *key, size_t len)
+nod_walk(struct context *ctx, struct key *key)
 {
-	uint8_t  byte = key[ctx->pos];
-	uint8_t  rem = 0;
-	struct internal *in = nod(ctx->nod);
-	uint8_t  crit = in->crit;
-	uint32_t edge = in->edge;
+	uint8_t  crit = 0;
+	uint32_t edge = 0;
+	struct internal *nod = to_node(ctx->cur);
 
-	ctx->bit = byte & 0x80;
+	edge = nod->edge;
 
-	for (; crit; --crit, edge <<= 1) {
+	while (ctx->off < nod->crit) {
 
-		if (!rem--) {
+		if (key_eol(key)) return SET_PREFIX;
 
-			rem = 7;
-			if (ctx->pos + 1 > len) return SET_PREFIX;
-			byte = key[++ctx->pos];
-
-		} else byte <<= 1;
-
-		ctx->bit = byte & 0x80;
-
-		if (byte & 0x80 != edge & 0x80) {
-			ctx->off = in->crit - crit + 1;
+		if (key_curbyte(key) & 0x80 != edge & 0x80) {
+			ctx->off = nod->crit - crit + 1;
 			return SET_SPLIT;
 		}
-	}
 
-	ctx->shft = 8 - rem;
+		key_step(key), ++ctx->off, edge <<= 1;
+	}
 
 	return 0;
 }
@@ -273,7 +328,7 @@ struct internal *
 set_alloc(void)
 {
 	struct internal *ret;
-	ret = nod_intern_alloc();
+	ret = calloc(1, sizeof *ret);
 	ret = (void *)((char *)ret + 1);
 	return ret;
 }
@@ -281,49 +336,51 @@ set_alloc(void)
 void
 set_free(Set *t)
 {
-	nod_tree_free(nod((uintptr_t)t));
+	nod_tree_free(to_node((uintptr_t)t));
 }
 
 int
 set_add(Set *t, uint8_t *src, size_t len)
 {
 	int err = 0;
-	enum set_ret res = 0;
-	struct context ctx = {0};
 	struct external *new = 0x0;
+	struct context ctx = {0};
+	struct key key = { .src = src, .len = len };
 
-	if (!len) return EINVAL;
-	if (!src) return EFAULT;
 	if (!t)   return EFAULT;
+	if (!src) return EFAULT;
+	if (!len) return EINVAL;
 
-	new = nod_extern_alloc(len);
+	new = calloc(1, sizeof *new + len);
 	if (!new) goto finally;
 
-	ctx.nod = (uintptr_t)t;
+	ctx.cur = (uintptr_t)t;
 
-	res = nod_traverse(&ctx, src, len);
-	switch (res) {
-	case SET_PREFIX: err = EILSEQ; goto finally;
-	case SET_SLOT:   break;
-	case SET_EXTERN: break;
-	case SET_SPLIT:
-		err = nod_split(&ctx);
-		if (err) goto finally;
+	switch (nod_traverse(&ctx, &key)) {
+	case SET_PREFIX:
+		err = EILSEQ;
+		goto finally;
+
+	case SET_SLOT:
 		break;
-	}
 
-	if (res == SET_EXTERN) {
-		res = nod_match(&ctx, src, len);
-		switch (res) {
+	case SET_EXTERN: break;
+		switch (nod_match(&ctx, &key)) {
 		case SET_MATCH:  return EEXIST;
 		case SET_PREFIX: return EILSEQ;
 		case SET_SPLIT:
 			err = nod_capture(&ctx);
 			if (err) goto finally;
 		}
+		break;
+
+	case SET_SPLIT:
+		err = nod_split(&ctx);
+		if (err) goto finally;
+		break;
 	}
 
-	nod_init(new, &ctx, src, len);
+	nod_init(new, &ctx, &key);
 	nod_attach(&ctx, new);
 
 finally:
@@ -332,55 +389,57 @@ finally:
 }
 
 int
-set_remove(Set *t, uint8_t *key, size_t len)
+set_remove(Set *t, uint8_t *src, size_t len)
 {
-	struct internal *anc = 0x0;
-	struct internal *in  = 0x0;
+	//struct internal *anc = 0x0;
+	struct internal *nod = 0x0;
 	struct context ctx = {0};
 	struct context cpy = {0};
+	struct key key = { .src = src, .len = len };
 
 	if (!t)   return EFAULT;
-	if (!key) return EFAULT;
+	if (!src) return EFAULT;
 	if (!len) return EINVAL;
 
-	ctx.nod = (uintptr_t)t;
+	ctx.cur = (uintptr_t)t;
 
 	do {
-		if (nod_walk(&ctx, key, len)) return ENOENT;
+		if (nod_walk(&ctx, &key)) return ENOENT;
 
-		in = nod(ctx.nod);
-		ctx.nod = in->chld[ctx.bit];
-		if (!ctx.nod) return ENOENT;
+		nod = to_node(ctx.cur);
+		ctx.cur = ctx_chld(&ctx, &key);
+		if (!ctx.cur) return ENOENT;
 
-		if (isnod(ctx.nod) && in->chld[0] && in->chld[1]) cpy = ctx;
+		if (isnode(ctx.cur) && nod->chld[0] && nod->chld[1]) cpy = ctx;
 
-	} while (isnod(ctx.nod));
+	} while (isnode(ctx.cur));
 
-	if (nod_match(&ctx, key, len)) return ENOENT;
+	if (nod_match(&ctx, &key)) return ENOENT;
 
-	free(leaf(ctx.nod));
-	in->chld[ctx.bit] = 0x0;
+	free(to_leaf(ctx.cur));
+	//nod->chld[ctx.bit] = 0x0;
 
 	ctx = cpy;
-	nod_realign(&ctx, anc, in->chld[!ctx.bit]);
+	//nod_realign(&ctx, anc, nod->chld[!ctx.bit]);
 
 	return 0;
 }
 
 bool
-set_contains(Set *t, uint8_t *key, size_t len)
+set_contains(Set *t, uint8_t *src, size_t len)
 {
 	struct context ctx = {0};
+	struct key key = { .src = src, .len = len };
 
-	if (!len) return false;
 	if (!t)   return -1;
-	if (!key) return -1;
+	if (!src) return -1;
+	if (!len) return false;
 
-	ctx.nod = (uintptr_t)t;
+	ctx.cur = (uintptr_t)t;
 
-	if (nod_traverse(&ctx, key, len) != SET_EXTERN)
+	if (nod_traverse(&ctx, &key) != SET_EXTERN)
 		return false;
-	if (nod_match(&ctx, key, len) != SET_MATCH)
+	if (nod_match(&ctx, &key) != SET_MATCH)
 		return false;
 
 	return true;
