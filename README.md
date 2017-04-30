@@ -168,11 +168,11 @@ All of them have equivalent behavior, what differs is how length is calculated.
 
 	- return `0` if succesful,
 `ENOMEM` if out of memory,
-`EEXIST` if `elem` was already in `set`
-`EILSEQ` if `elem` is a prefix of an item already in `set`
-`EOVERFLOW` if `elem` is too large to be added
-`EFAULT` if given the null pointer as an argument
-`EINVAL` if the length of `elem` is zero
+`EEXIST` if `elem` was already in `set`,
+`EILSEQ` if `elem` is a prefix of an item already in `set`,
+`EOVERFLOW` if `elem` is too large to be added,
+`EFAULT` if given the null pointer as an argument,
+`EINVAL` if the length of `elem` is zero,
 
 
 - `set_remove_bytes(set_t *set, void *elem, size_t length)`
@@ -184,8 +184,8 @@ All of them have equivalent behavior, what differs is how length is calculated.
 	- *remove* `elem` from `set`
 
 	- return `0` if successful
-`ENOENT` if the `elem` is not in `set`
-`EFAULT` if given the null pointer as an argument
+`ENOENT` if the `elem` is not in `set`,
+`EFAULT` if given the null pointer as an argument,
 
 - `set_contains_bytes(set_t *set, void *elem, size_t length)`
 
