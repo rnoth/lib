@@ -1,7 +1,7 @@
 CC	?= cc
 CFLAGS	+= -pipe -std=c99 -pedantic -Wall -Wextra \
 	   -Wno-missing-field-initializers -Wno-unused-parameter \
-	   -Warray-bounds -Wno-parentheses -Wno-switch \
+	   -Warray-bounds -Wno-switch -Wmissing-prototypes \
 	   -fstrict-aliasing -fstrict-overflow -fomit-frame-pointer \
 	   -fdata-sections -ffunction-sections -fno-exceptions \
 	   -fno-unwind-tables -fno-asynchronous-unwind-tables \
@@ -30,7 +30,7 @@ deps.mk: $(SRC) $(TESTS)
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 tests/%-test: tests/%-test.c %.c $(OBJ)
-	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $< $(OBJ)
+	$(CC) $(filter-out -Wmissing-prototypes, $(CFLAGS)) $(LDFLAGS) -o $@ $< $(OBJ)
 
 clean:
 	rm -f *.o $(NAME) tests/*-test core vgcore.*
