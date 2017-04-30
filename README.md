@@ -138,7 +138,7 @@ main()
 
 ## set
 
-declare a radix tree with `Set *instance`
+declare a crit-bit tree with `set_t *instance`
 
 alloc & initialize:
 
@@ -150,21 +150,75 @@ free:
 
 ### supported operations:
 
-- `set_add(Set *set, void *element, size_t length)`
+note that all of these functions have three variations ----
+one takes a byte buffer and a length,
+one takes a null-terminated c-string,
+and the last takes a vector.
+All of them have equivalent behavior, what differs is how length is calculated.
 
-- `set_rm(Set *set, void *element, size_t length)`
+**adding members:**
 
-- `set_memb(Set *set, void *element, size_t length)`
+- `set_add_bytes(set_t *set, void *elem, size_t length)`
 
-	- return true iff `element` is in set
+- `set_add_string(set_t *set, char *elem)`
 
-- `set_prefix(Set *set, void *prefix, size_t length)`
+- `set_add_vector(set_t *set, void *elem)`
 
-	- return true iff there are elements with the prefix `prefix`
+	- *insert* `elem` into `set`
 
-- `set_query(Set *set, void *prefix, size_t length)`
+	- return `0` if succesful,
+`ENOMEM` if out of memory,
+`EEXIST` if `elem` was already in `set`
+`EILSEQ` if `elem` is a prefix of an item already in `set`
+`EOVERFLOW` if `elem` is too large to be added
+`EFAULT` if given the null pointer as an argument
+`EINVAL` if the length of `elem` is zero
 
-	- returns a vector of elements with the prefix `prefix`
 
-every operation has a version design for use with cstrings, they are
-`set_adds()`, `set_rms()`, `set_membs()`, and `set_querys()`, respectively
+- `set_remove_bytes(set_t *set, void *elem, size_t length)`
+
+- `set_remove_string(set_t *set, char *elem)`
+
+- `set_remove_vector(set_t *set, void *elem)`
+
+	- *remove* `elem` from `set`
+
+	- return `0` if successful
+`ENOENT` if the `elem` is not in `set`
+`EFAULT` if given the null pointer as an argument
+
+- `set_contains_bytes(set_t *set, void *elem, size_t length)`
+
+- `set_contains_string(set_t *set, char *elem, size_t length)`
+
+- `set_contains_vector(set_t *set, void *element, size_t length)`
+
+	- check if `elem` is contained in `set`
+
+	- return `true` iff `elem` is in `set`, `false` otherwise
+
+- `set_prefix_bytes(set_t *set, void *prefix, size_t length)`
+
+- `set_prefix_string(set_t *set, char *prefix)`
+
+- `set_prefix_vector(set_t *set, void *prefix)`
+
+	- check if any elements of `set` have the prefix `prefix`
+
+	- return `true` iff so, `false` otherwise
+
+- `set_query_bytes(void ***out, size_t nmemb, Set *set, void *prefix, size_t length)`
+
+- `set_query_string(void ***out, size_t nmemb, Set *set, char *prefix)`
+
+- `set_query_vector(void ***out, size_t nmemb, Set *set, void *prefix)`
+
+	- return the number of elements in `set` with the prefix `prefix` (note: it doesn't actually do this)
+
+	- if `out` is not the null pointer,
+the array of `nmemb` elements it points to will be filled with the elements containing the prefix,
+potentially truncated if `nmemb` is less than the total number of elements with that prefix
+
+	- as a special case, if `out` points to the null pointer,
+a sufficiently large array will be allocated
+and the pointer pointed to by `out` will be mutated to be the allocated array
