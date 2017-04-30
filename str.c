@@ -5,7 +5,7 @@
 #include "util.h"
 
 void
-chomp(char *s)
+str_chomp(char *s)
 {
 	char *nl = 0;
 	do if (*s == '\n') nl = s; while (*s++);
