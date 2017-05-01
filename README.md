@@ -213,7 +213,7 @@ All of them have equivalent behavior, what differs is how length is calculated.
 
 - `set_query_vector(void ***out, size_t nmemb, Set *set, void *prefix)`
 
-	- return the number of elements in `set` with the prefix `prefix` (note: it doesn't actually do this)
+	- return the number of elements in `set` with the prefix `prefix`
 
 	- if `out` is not the null pointer,
 the array of `nmemb` elements it points to will be filled with the elements containing the prefix,
