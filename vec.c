@@ -216,8 +216,11 @@ vec_shift(void *vecp, size_t off, size_t size)
 }
 
 void
-vec_slice(void *vecp, size_t beg, size_t ext, size_t size)
+vec_slice(void *vecp, size_t beg, size_t nmemb, size_t size)
 {
+	size_t ext = 0;
+	size_t off = 0;
+	size_t len = 0;
 	size_t min = 0;
 	union vec vec = {.p = vecp};
 
@@ -228,15 +231,15 @@ vec_slice(void *vecp, size_t beg, size_t ext, size_t size)
 		return;
 	}
 
-	min = umin(ext, len(*vec.v) - beg);
+	min = umin(nmemb, len(*vec.v) - beg);
 
-	memmove(*vec.v,
-		*vec.v + beg * size,
-		min * size);
+	ext = min * size;
+	off = beg * size;
+	len = len(*vec.v) * size;
 
-	memset(*vec.v + (beg + min) * size,
-		0,
-		(len(*vec.v) - min - beg) * size);
+
+	memmove(*vec.v, *vec.v + off, ext);
+	memset(*vec.v + ext, 0, len - ext);
 
 	len(*vec.v) = min;
 }
