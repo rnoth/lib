@@ -15,7 +15,7 @@ TESTS	!= find tests -name "*.c"
 all:: deps.mk $(NAME) $(TESTS:.c=)
 
 ifndef NDEBUG
-CFLAGS += -O0 -ggdb -g3 -Werror
+CFLAGS += -O0 -g -Werror
 else
 LDFLAGS += -Wl,--gc-section
 CFLAGS += -O3 -flto
