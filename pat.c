@@ -407,7 +407,7 @@ patfork(struct patthread *th)
 
 	ret.ins = th->ins;
 	ret.pos = th->pos;
-	ret.mat = vec_clone(&th->mat);
+	ret.mat = vec_clone(th->mat);
 
 	return ret;
 }
