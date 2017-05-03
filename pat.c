@@ -7,6 +7,15 @@
 #include "util.h"
 #include "vec.h"
 
+#define HALT (patdohalt)
+#define CHAR (patdochar)
+#define FORK (patdofork)
+#define JUMP (patdojump)
+#define MARK (patdomark)
+#define SAVE (patdosave)
+#define CLSS (patdoclss)
+//#define REFR (patdorefr)
+
 enum patclass {
 	ANY = 0x0,
 	NOTNL = 0x1,
@@ -15,17 +24,6 @@ enum patclass {
 	LOWER = 0x4,
 	DIGIT = 0x5,
 	SPACE = 0x6,
-};
-
-enum patop {
-	HALT = 0x0,
-	CHAR = 0x1,
-	FORK = 0x2,
-	JUMP = 0x3,
-	MARK = 0x4,
-	SAVE = 0x5,
-	CLSS = 0x6,
-	REFR = 0x7,
 };
 
 enum pattype {
@@ -53,11 +51,6 @@ struct patcontext {
 	struct patthread *thr;
 };
 
-struct patins {
-	enum	 patop	op;
-	uint64_t	arg;
-};
-
 struct patthread {
 	struct patmatch *mat;
 	struct patins 	*ins;
@@ -69,6 +62,13 @@ struct pattok {
 	enum pattype	 type;
 	wchar_t		 wc;
 };
+
+struct patins {
+        int      (*op)(struct patcontext *, struct patthread *, char const *);
+	uint64_t  arg;
+};
+
+static inline struct patins *ip(struct patthread *);
 
 static int pataddalt(struct pattern *, struct pattok *, struct patins **);
 static int pataddbol(struct pattern *, struct pattok *, struct patins **);
@@ -85,16 +85,14 @@ static int patdohalt(struct patcontext *, struct patthread *, char const *);
 static int patdojump(struct patcontext *, struct patthread *, char const *);
 static int patdomark(struct patcontext *, struct patthread *, char const *);
 static int patdosave(struct patcontext *, struct patthread *, char const *);
-static int patdorefr(struct patcontext *, struct patthread *, char const *);
+//static int patdorefr(struct patcontext *, struct patthread *, char const *);
 
 static int pataddinit(struct pattern *);
 static int pataddfini(struct pattern *, struct patins **);
 
-//static int patgetnext(char * restrict, void **);
 static size_t patlex(struct pattok *, char const *, size_t);
 static int patmatch(struct patmatch **, struct patcontext *, char const *);
 static int patstep(struct patthread **, struct patcontext *, char const *);
-static int patstepthread(struct patcontext *, char const *, struct patthread *);
 static struct patthread patfork(struct patthread *);
 
 static int (* const patadd[])(struct pattern *, struct pattok *, struct patins **) = {
@@ -109,18 +107,13 @@ static int (* const patadd[])(struct pattern *, struct pattok *, struct patins *
 	[RPAR]	= pataddrpar,
 };
 
-static int (* const patdo[])() = {
-	[HALT] = patdohalt,
-	[CHAR] = patdochar,
-	[FORK] = patdofork,
-	[JUMP] = patdojump,
-	[MARK] = patdomark,
-	[SAVE] = patdosave,
-	[CLSS] = patdoclss,
-	[REFR] = patdorefr,
-};
+struct patins *
+ip(struct patthread *th)
+{
+	return th->ins + th->pos;
+}
 
-int
+int // XXX
 pataddalt(struct pattern *pat, struct pattok *tok, struct patins **bufp)
 {
 	int err = 0;
@@ -176,7 +169,7 @@ int
 pataddinit(struct pattern *pat)
 {
 	struct patins insv[] = {
-		[0] = { .op = JUMP, .arg = 1 },
+		[0] = { .op = JUMP, .arg = 2 },
 		[1] = { .op = CLSS, .arg = 0 },
 		[2] = { .op = FORK, .arg = 1 },
 		[3] = { .op = MARK, .arg = 0 },
@@ -189,14 +182,17 @@ int
 pataddfini(struct pattern *pat, struct patins **bufp)
 {
 	int err = 0;
-	struct patins ins = { .op = SAVE, .arg = 0 };
+	struct patins insv[] = {
+		[0] = { .op = SAVE, .arg = 0 },
+		[1] = { .op = HALT, .arg = 0 },
+	};
 
 	err = vec_join(&pat->prog, *bufp);
 	if (err) return err;
 
 	vec_truncate(bufp, 0);
 
-	return vec_append(&pat->prog, &ins);
+	return vec_concat(&pat->prog, &insv, sizeof insv/ sizeof *insv);
 }
 
 int
@@ -314,47 +310,60 @@ patdochar(struct patcontext *ctx, struct patthread *th, char const *str)
 {
 	int len = 0;
 	wchar_t wc = 0;
-	struct patins *ins = th->ins + th->pos;
 
 	len = mbtowc(&wc, str, strlen(str));
 	if (len < 0) return errno;
 
-	if ((wchar_t)ins->arg != wc) return MISMATCH;
+	if ((wchar_t)ip(th)->arg != wc) return MISMATCH;
+
+	++th->pos;
 	return STEP;
 }
 
 int
 patdojump(struct patcontext *ctx, struct patthread *th, char const *str)
 {
-	struct patins *ins = th->ins + th->pos;
-
-	th->pos = ins->arg;
-	return 0;
+	th->pos = ip(th)->arg;
+	return ip(th)->op(ctx, th, str);
 }
 
 int
 patdofork(struct patcontext *ctx, struct patthread *th, char const *str)
 {
-	struct patins *ins = th->ins + th->pos;
+	int err = 0;
 	struct patthread new = {0};
 
 	new = patfork(th);
 	if (!new.mat) return ENOMEM;
 
-	new.pos = ins->arg;
+	new.pos = ip(th)->arg;
 
-	return vec_insert(&ctx->thr, &new, th - ctx->thr + 1);
+	err = vec_insert(&ctx->thr, &new, th - ctx->thr + 1);
+	if (err) goto fail;
+
+	++th->pos;
+	return ip(th)->op(ctx, th, str);
+
+fail:
+	vec_free(th->mat);
+	free(th);
+	return err;
 }
 
 int
 patdomark(struct patcontext *ctx, struct patthread *th, char const *str)
 {
+	int err = 0;
 	struct patmatch mat = {0};
 
 	mat.off = ctx->pos;
 	mat.ext = -1;
 
-	return vec_append(&th->mat, &mat);
+	err = vec_append(&th->mat, &mat);
+	if (err) return err;
+
+	++th->pos;
+	return ip(th)->op(ctx, th, str);
 }
 
 int
@@ -362,7 +371,8 @@ patdosave(struct patcontext *ctx, struct patthread *th, char const *str)
 {
 	struct patins *ins = th->ins + th->pos;
 	th->mat[ins->arg].ext = ctx->pos - th->mat[ins->arg].off;
-	return 0;
+	++th->pos;
+	return ins->op(ctx, th, str);
 }
 
 int
@@ -373,6 +383,8 @@ patdoclss(struct patcontext *ctx, struct patthread *th, char const *str)
 
 	len = mbtowc(&wc, str, strlen(str));
 	if (len == -1) return errno;
+
+	++th->pos;
 
 	switch (th->ins[th->pos].arg) {
 	case ANY:
@@ -394,11 +406,13 @@ patdoclss(struct patcontext *ctx, struct patthread *th, char const *str)
 	}
 }
 
+#if 0
 int
 patdorefr(struct patcontext *ctx, struct patthread *th, char const *str)
 {
 	return 0;
 }
+#endif
 
 struct patthread
 patfork(struct patthread *th)
@@ -539,10 +553,9 @@ patstep(struct patthread **fin, struct patcontext *ctx, char const *str)
 	size_t i = 0;
 
 	for (i = 0; i < len(ctx->thr); ++i) {
-		err = patstepthread(ctx, str, ctx->thr + i);
-
+		err = ip(ctx->thr + i)->op(ctx, ctx->thr + i, str);
 		switch (err) {
-		case 0: break;
+		case 0:    break;
 		case STEP: break;
 		case MISMATCH:
 			vec_free(ctx->thr[i].mat);
@@ -561,21 +574,6 @@ patstep(struct patthread **fin, struct patcontext *ctx, char const *str)
 	}
 
 	return len(ctx->thr) ? 0 : -1;
-}
-
-int
-patstepthread(struct patcontext *ctx, char const *str, struct patthread *th)
-{
-	int err = 0;
-	enum patop ind = 0;
-
-again:
-	ind = th->ins[th->pos].op;
-	err = patdo[ind](ctx, th, str);
-	++th->pos;
-	if (err > 0) return err;
-	if (err == 0) goto again;
-	return err;
 }
 
 int
