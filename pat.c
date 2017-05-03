@@ -406,14 +406,6 @@ patdoclss(struct patcontext *ctx, struct patthread *th, char const *str)
 	}
 }
 
-#if 0
-int
-patdorefr(struct patcontext *ctx, struct patthread *th, char const *str)
-{
-	return 0;
-}
-#endif
-
 struct patthread
 patfork(struct patthread *th)
 {
@@ -425,23 +417,6 @@ patfork(struct patthread *th)
 
 	return ret;
 }
-
-#if 0
-int
-patgetnext(char * restrict dest, void **vp)
-{
-	union { char **p; void **v; } str = { .v = vp };
-	int len = mbtowc(0x0, *str.p, strlen(*str.p));
-	if (len == -1) return errno;
-
-	memcpy(dest, *str.p, len);
-	dest[len] = 0;
-
-	*str.p += len;
-
-	return 0;
-}
-#endif
 
 size_t
 patlex(struct pattok *tok, char const *src, size_t off)
