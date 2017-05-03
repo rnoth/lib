@@ -27,6 +27,7 @@ enum patclass {
 };
 
 enum pattype {
+	CONCAT,
 	LITER,
 	DOT,
 	QMARK,
@@ -55,6 +56,15 @@ struct patins {
         int      (*op)(struct patcontext *, struct patthread *, wchar_t);
 	uint64_t  arg;
 };
+
+struct patnode {
+	enum pattype type;
+	union {
+		struct patnode *i;
+		struct patins  *e;
+	} chld;
+};
+
 
 struct patthread {
 	struct patmatch *mat;
@@ -93,6 +103,8 @@ static int pataddfini(struct pattern *, struct patins **);
 
 static size_t patlex(struct pattok *, char const *, size_t);
 static int patmatch(struct patmatch **, struct patcontext *, char const *);
+static int patmarshal(struct pattern *, struct patnode *);
+static int patparse(struct patnode *, char const *);
 static int patstep(struct patthread **, struct patcontext *, char const *);
 static struct patthread patfork(struct patthread *);
 
@@ -511,6 +523,18 @@ finally:
 }
 
 int
+patmarshal(struct pattern *dest, struct patnode *ast)
+{
+	return -1;
+}
+
+int
+patparse(struct patnode *par, char const *src)
+{
+	return -1;
+}
+
+int
 patstep(struct patthread **fin, struct patcontext *ctx, char const *str)
 {
 	int err = 0;
@@ -549,9 +573,8 @@ int
 patcomp(struct pattern *dest, char const *src)
 {
 	int err = 0;
-	size_t off = 0;
-	struct pattok tok = {0};
 	struct patins *buf = 0x0;
+	struct patnode root;
 
 	vec_ctor(buf);
 	if (!buf) return ENOMEM;
@@ -559,15 +582,11 @@ patcomp(struct pattern *dest, char const *src)
 	vec_ctor(dest->prog);
 	if (!dest->prog) goto finally;
 
-	pataddinit(dest);
+	err = patparse(&root, src);
+	if (err) goto finally;
 
-	while (src[off]) {
-		off += patlex(&tok, src, off);
-		err = patadd[tok.type](dest, &tok, &buf);
-		if (err) goto finally;
-	}
-
-	pataddfini(dest, &buf);
+	err = patmarshal(dest, &root);
+	if (err) goto finally;
 
 finally:
 	vec_free(buf);
