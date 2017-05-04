@@ -1,6 +1,7 @@
 #ifndef _test_
 #define _test_
 #include <signal.h>
+#include <stdio.h>
 
 #define ok(test) do {				\
 	if (test) break;			\
