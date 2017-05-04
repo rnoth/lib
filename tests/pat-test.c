@@ -11,22 +11,22 @@ test_compfree(void)
 	printf("\tcompiling some patterns...");
 	fflush(stdout);
 	// note: you should examine these in a debugger to ensure sanity
-	ok(!patcomp(pat, "foo"));
-	ok(!patcomp(pat + 1, "foo?"));
-	ok(!patcomp(pat + 2, "f?o?o?"));
-	ok(!patcomp(pat + 3, "f*o+oo+"));
-	ok(!patcomp(pat + 4, "(foo)"));
-	ok(!patcomp(pat + 5, "(f|o|o)"));
-	ok(!patcomp(pat + 6, "(f*|o|(o+))"));
-	ok(!patcomp(pat + 7, "^foo$"));
-	ok(!patcomp(pat + 8, "^fo(o$|oo)"));
-	ok(!patcomp(pat + 9, "\\^f\\*o\\(\\(\\$"));
+	ok(!pat_compile(pat, "foo"));
+	ok(!pat_compile(pat + 1, "foo?"));
+	ok(!pat_compile(pat + 2, "f?o?o?"));
+	ok(!pat_compile(pat + 3, "f*o+oo+"));
+	ok(!pat_compile(pat + 4, "(foo)"));
+	ok(!pat_compile(pat + 5, "(f|o|o)"));
+	ok(!pat_compile(pat + 6, "(f*|o|(o+))"));
+	ok(!pat_compile(pat + 7, "^foo$"));
+	ok(!pat_compile(pat + 8, "^fo(o$|oo)"));
+	ok(!pat_compile(pat + 9, "\\^f\\*o\\(\\(\\$"));
 	printf("done\n");
 
 	printf("\tfreeing the patterns...");
 	fflush(stdout);
 	for (i = 0; i < sizeof pat / sizeof *pat; ++i)
-		patfree(pat + i);
+		pat_free(pat + i);
 	printf("done\n");
 }
 
@@ -36,37 +36,37 @@ test_qmark(void)
 	struct pattern pat = {0};
 	struct patmatch *mat = 0x0;
 
-	ok(!patcomp(&pat, "foo?"));
+	ok(!pat_compile(&pat, "foo?"));
 	ok(!vec_ctor(mat));
 
 	printf("\ttesting the ? operator...\n");
 	printf("\t\tmatching over a minimal text...");
 	fflush(stdout);
 
-	ok(!patexec(&mat, "foo", &pat));
+	ok(!pat_match(&mat, "foo", &pat));
 	ok(mat->off == 0);
 	ok(mat->ext == 3);
 	printf("done\n");
 
 	printf("\t\tmatching within a text...");
 	fflush(stdout);
-	ok(!patexec(&mat, "blah blah foo", &pat));
+	ok(!pat_match(&mat, "blah blah foo", &pat));
 	ok(mat->off == 10);
 	ok(mat->ext == 3);
 
-	ok(!patexec(&mat, "fe fi fo fum", &pat));
+	ok(!pat_match(&mat, "fe fi fo fum", &pat));
 	ok(mat->off == 6);
 	ok(mat->ext == 2);
 	printf("done\n");
 
 	printf("\t\ttesting non-matches...");
 	fflush(stdout);
-	ok(patexec(&mat, "it's not here", &pat) == -1);
-	ok(patexec(&mat, "ffffff", &pat) == -1);
+	ok(pat_match(&mat, "it's not here", &pat) == -1);
+	ok(pat_match(&mat, "ffffff", &pat) == -1);
 	printf("done\n");
 	printf("\tdone\n");
 
-	patfree(&pat);
+	pat_free(&pat);
 	vec_free(mat);
 }
 

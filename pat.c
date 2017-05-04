@@ -552,7 +552,7 @@ patstep(struct patthread **fin, struct patcontext *ctx, char const *str)
 }
 
 int
-patcomp(struct pattern *dest, char const *src)
+pat_compile(struct pattern *dest, char const *src)
 {
 	int err = 0;
 	size_t off = 0;
@@ -582,7 +582,7 @@ finally:
 }
 
 int
-patexec(struct patmatch **matv, char const *str, struct pattern const *pat)
+pat_match(struct patmatch **matv, char const *str, struct pattern const *pat)
 {
 	int err = 0;
 	struct patcontext ctx = {0};
@@ -610,7 +610,7 @@ finally:
 }
 
 void
-patfree(struct pattern *pat)
+pat_free(struct pattern *pat)
 {
 	vec_free(pat->prog);
 }
