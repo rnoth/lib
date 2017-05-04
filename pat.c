@@ -14,29 +14,28 @@
 #define MARK (patdomark)
 #define SAVE (patdosave)
 #define CLSS (patdoclss)
-//#define REFR (patdorefr)
 
-enum patclass {
-	ANY = 0x0,
-	NOTNL = 0x1,
-	ALPHA = 0x2,
-	UPPER = 0x3,
-	LOWER = 0x4,
-	DIGIT = 0x5,
-	SPACE = 0x6,
+enum pat_char_class {
+	pat_cl_any   = 0x0,
+	pat_cl_dot   = 0x1,
+	pat_cl_alpha = 0x2,
+	pat_cl_upper = 0x3,
+	pat_cl_lower = 0x4,
+	pat_cl_digit = 0x5,
+	pat_cl_space = 0x6,
 };
 
-enum pattype {
-	LITER,
-	DOT,
-	QMARK,
-	STAR,
-	PLUS,
-	ALTER,
-	BOL,
-	EOL,
-	LPAR,
-	RPAR,
+enum pat_sym {
+	pat_sym_literal,
+	pat_sym_dot,
+	pat_sym_qmark,
+	pat_sym_star,
+	pat_sym_plus,
+	pat_sym_pipe,
+	pat_sym_carrot,
+	pat_sym_dollar,
+	pat_sym_lparen,
+	pat_sym_rparen,
 };
 
 enum patret {
@@ -59,7 +58,7 @@ struct patthread {
 
 struct pattok {
 	size_t		 len;
-	enum pattype	 type;
+	enum pat_sym	 type;
 	wchar_t		 wc;
 };
 
@@ -96,15 +95,15 @@ static int patstep(struct patthread **, struct patcontext *, char const *);
 static struct patthread patfork(struct patthread *);
 
 static int (* const patadd[])(struct pattern *, struct pattok *, struct patins **) = {
-	[LITER]	= pataddlit,
-	[QMARK]	= pataddrep,
-	[STAR]	= pataddrep,
-	[PLUS]	= pataddrep,
-	[ALTER] = pataddalt,
-	[BOL]	= pataddbol,
-	[EOL]	= pataddeol,
-	[LPAR]	= pataddlpar,
-	[RPAR]	= pataddrpar,
+	[pat_sym_literal] = pataddlit,
+	[pat_sym_qmark]	  = pataddrep,
+	[pat_sym_star]	  = pataddrep,
+	[pat_sym_plus]	  = pataddrep,
+	[pat_sym_pipe]    = pataddalt,
+	[pat_sym_carrot]  = pataddbol,
+	[pat_sym_dollar]  = pataddeol,
+	[pat_sym_lparen]  = pataddlpar,
+	[pat_sym_rparen]  = pataddrpar,
 };
 
 struct patins *
@@ -222,7 +221,7 @@ pataddrep(struct pattern *pat, struct pattok *tok, struct patins **bufp)
 	int err = 0;
 	struct patins ins = {0};
 	size_t again = vec_len(pat->prog);
-	size_t offset = tok->type != QMARK ? 3 : 2;
+	size_t offset = tok->type != pat_sym_qmark ? 3 : 2;
 
 	if (!vec_len(*bufp)) return 0;
 
@@ -232,7 +231,7 @@ pataddrep(struct pattern *pat, struct pattok *tok, struct patins **bufp)
 	err = vec_concat(&pat->prog, *bufp, vec_len(*bufp) - 1);
 	if (err) return err;
 
-	if (tok->type != PLUS) {
+	if (tok->type != pat_sym_plus) {
 		ins.op = FORK;
 		ins.arg = vec_len(pat->prog) + offset;
 
@@ -247,7 +246,7 @@ pataddrep(struct pattern *pat, struct pattok *tok, struct patins **bufp)
 	err = vec_append(&pat->prog, &ins);
 	if (err) return err;
 
-	if (tok->type != QMARK) {
+	if (tok->type != pat_sym_qmark) {
 		ins.op = FORK;
 		ins.arg = again;
 
@@ -387,19 +386,19 @@ patdoclss(struct patcontext *ctx, struct patthread *th, char const *str)
 	++th->pos;
 
 	switch (th->ins[th->pos].arg) {
-	case ANY:
+	case pat_cl_any:
 		return STEP;
-	case NOTNL:
+	case pat_cl_dot:
 		return *str || *str != '\n' ? STEP : MISMATCH;
-	case ALPHA:
+	case pat_cl_alpha:
 		return iswalpha(wc) ? STEP : MISMATCH;
-	case UPPER:
+	case pat_cl_upper:
 		return iswupper(wc) ? STEP : MISMATCH;
-	case LOWER:
+	case pat_cl_lower:
 		return iswlower(wc) ? STEP : MISMATCH;
-	case SPACE:
+	case pat_cl_space:
 		return iswspace(wc) ? STEP : MISMATCH;
-	case DIGIT:
+	case pat_cl_digit:
 		return iswdigit(wc) ? STEP : MISMATCH;
 	default:
 		return EINVAL;
@@ -427,38 +426,38 @@ patlex(struct pattok *tok, char const *src, size_t off)
 	ret = tok->len = 1;
 	switch (src[off]) {
 	case '.':
-		tok->type = DOT;
+		tok->type = pat_sym_dot;
 		break;
 	case '?':
-		tok->type = QMARK;
+		tok->type = pat_sym_qmark;
 		break;
 	case '*':
-		tok->type = STAR;
+		tok->type = pat_sym_star;
 		break;
 	case '+':
-		tok->type = PLUS;
+		tok->type = pat_sym_plus;
 		break;
 	case '(':
-		tok->type = LPAR;
+		tok->type = pat_sym_lparen;
 		break;
 	case ')':
-		tok->type = RPAR;
+		tok->type = pat_sym_rparen;
 		break;
 	case '|':
-		tok->type = ALTER;
+		tok->type = pat_sym_pipe;
 		break;
 	case '^':
 		if (off) goto literal;
-		tok->type = BOL;
+		tok->type = pat_sym_carrot;
 		break;
 	case '$':
-		tok->type = EOL;
+		tok->type = pat_sym_dollar;
 		break;
 	case '\\':
 		goto esc;
 	default:
 	literal:
-		tok->type = LITER;
+		tok->type = pat_sym_literal;
 		ret = tok->len = mbtowc(&tok->wc, src + off, strlen(src + off));
 	}
 
@@ -467,7 +466,7 @@ patlex(struct pattok *tok, char const *src, size_t off)
 esc:
 	switch (src[1]) {
 	default:
-		tok->type = LITER;
+		tok->type = pat_sym_literal;
 		len = mbtowc(&tok->wc, src, strlen(src + ret));
 		if (len == -1) abort();
 		ret = tok->len += len;
