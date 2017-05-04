@@ -1,11 +1,12 @@
 #include "test.h"
+#include "../vec.h"
 #include "../pat.h"
 
 void
 test_compfree(void)
 {
 	size_t i = 0;
-	pattern_t pat[11] = {{0}};
+	struct pattern pat[11] = {{0}};
 
 	printf("\tcompiling some patterns...");
 	fflush(stdout);
@@ -32,8 +33,8 @@ test_compfree(void)
 void
 test_qmark(void)
 {
-	pattern_t pat = {0};
-	patmatch_t *mat = 0x0;
+	struct pattern pat = {0};
+	struct patmatch *mat = 0x0;
 
 	ok(!patcomp(&pat, "foo?"));
 	ok(!vec_ctor(mat));

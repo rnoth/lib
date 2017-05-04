@@ -582,13 +582,7 @@ finally:
 }
 
 int
-pateval(patmatch_t **matv, char const *str, char const *pat, long opts)
-{
-	return -1;
-}
-
-int
-patexec(patmatch_t **matv, char const *str, pattern_t const *pat)
+patexec(struct patmatch **matv, char const *str, struct pattern const *pat)
 {
 	int err = 0;
 	struct patcontext ctx = {0};
@@ -616,7 +610,7 @@ finally:
 }
 
 void
-patfree(pattern_t *pat)
+patfree(struct pattern *pat)
 {
 	vec_free(pat->prog);
 }
