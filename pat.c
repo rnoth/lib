@@ -8,8 +8,6 @@
 #include "util.h"
 #include "vec.h"
 
-// TODO: rework thr_next to exec ind, instead of ind + 1, fixing the thread skip bug
-
 #define HALT (patdohalt)
 #define CHAR (patdochar)
 #define FORK (patdofork)
