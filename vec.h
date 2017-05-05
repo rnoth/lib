@@ -68,13 +68,13 @@ void    vec_truncate(void *, size_t, size_t);
 
 #define vec_mem(vec) vec_mem(vec, sizeof *vec)
 
-#define vec_append(vec_ptr, it)                 vec_append(vec_ptr, it,                sizeof **vec_ptr)
+#define vec_append(vec_ptr, src)                vec_append(vec_ptr, src,                sizeof **vec_ptr)
 #define vec_clone(vec)                          vec_clone(vec,                         sizeof *vec)
 #define vec_concat(dest_ptr, src, len)          vec_concat(dest_ptr, src, len,         sizeof **dest_ptr)
 #define vec_copy(dest_ptr, src)                 vec_copy(dest_ptr, src,                sizeof **dest_ptr)
 #define vec_delete(vec_ptr, ind)                vec_delete(vec_ptr, ind,               sizeof **vec_ptr)
 #define vec_elim(vec_ptr, ind, nmemb)           vec_elim(vec_ptr, ind, nmemb,          sizeof **vec_ptr)
-#define vec_insert(dest_ptr, it, ind)            vec_insert(dest_ptr, it, ind,          sizeof **dest_ptr)
+#define vec_insert(dest_ptr, src, ind)          vec_insert(dest_ptr, src, ind,          sizeof **dest_ptr)
 #define vec_join(dest_ptr, src)                 vec_join(dest_ptr, src,                 sizeof **dest_ptr)
 #define vec_shift(vec_ptr, off)                 vec_shift(vec_ptr, off,                sizeof **vec_ptr)
 #define vec_slice(vec_ptr, off, nmemb)          vec_slice(vec_ptr, off, nmemb,         sizeof **vec_ptr)
