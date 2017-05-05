@@ -51,7 +51,7 @@ struct thread {
 	size_t		 pos;
 };
 
-struct pattok {
+struct token {
 	size_t		 len;
 	enum pat_sym	 type;
 	wchar_t		 wc;
@@ -73,13 +73,13 @@ static struct thread thr_fork(struct thread *);
 static int  thr_start(struct context *, wchar_t const);
 static void thr_remove(struct context *, size_t);
 
-static int pataddalt(struct pattern *, struct pattok *, struct patins **);
-static int pataddbol(struct pattern *, struct pattok *, struct patins **);
-static int pataddeol(struct pattern *, struct pattok *, struct patins **);
-static int pataddlit(struct pattern *, struct pattok *, struct patins **);
-static int pataddlpar(struct pattern *, struct pattok *, struct patins **);
-static int pataddrpar(struct pattern *, struct pattok *, struct patins **);
-static int pataddrep(struct pattern *, struct pattok *, struct patins **);
+static int pataddalt(struct pattern *, struct token *, struct patins **);
+static int pataddbol(struct pattern *, struct token *, struct patins **);
+static int pataddeol(struct pattern *, struct token *, struct patins **);
+static int pataddlit(struct pattern *, struct token *, struct patins **);
+static int pataddlpar(struct pattern *, struct token *, struct patins **);
+static int pataddrpar(struct pattern *, struct token *, struct patins **);
+static int pataddrep(struct pattern *, struct token *, struct patins **);
 
 static int pat_ins_char(struct context *, struct thread *, wchar_t const);
 static int pat_ins_clss(struct context *, struct thread *, wchar_t const);
@@ -92,10 +92,10 @@ static int pat_ins_save(struct context *, struct thread *, wchar_t const);
 static int pataddinit(struct pattern *);
 static int pataddfini(struct pattern *, struct patins **);
 
-static size_t patlex(struct pattok *, char const *, size_t);
+static size_t patlex(struct token *, char const *, size_t);
 static int    pat_do_match(struct patmatch **, struct context *, char const *);
 
-static int (* const patadd[])(struct pattern *, struct pattok *, struct patins **) = {
+static int (* const patadd[])(struct pattern *, struct token *, struct patins **) = {
 	[pat_sym_literal] = pataddlit,
 	[pat_sym_qmark]	  = pataddrep,
 	[pat_sym_star]	  = pataddrep,
@@ -187,7 +187,7 @@ thr_remove(struct context *ctx, size_t ind)
 }
 
 int // XXX
-pataddalt(struct pattern *pat, struct pattok *tok, struct patins **bufp)
+pataddalt(struct pattern *pat, struct token *tok, struct patins **bufp)
 {
 	int err = 0;
 	size_t offset = 0;
@@ -221,14 +221,14 @@ pataddalt(struct pattern *pat, struct pattok *tok, struct patins **bufp)
 }
 
 int
-pataddbol(struct pattern *pat, struct pattok *tok, struct patins **bufp)
+pataddbol(struct pattern *pat, struct token *tok, struct patins **bufp)
 {
 	vec_shift(&pat->prog, 3);
 	return 0;
 }
 
 int
-pataddeol(struct pattern *pat, struct pattok *tok, struct patins **bufp)
+pataddeol(struct pattern *pat, struct token *tok, struct patins **bufp)
 {
 	int err;
 	struct patins ins = { .op = CHAR, .arg = 0 };
@@ -269,14 +269,14 @@ pataddfini(struct pattern *pat, struct patins **bufp)
 }
 
 int
-pataddlit(struct pattern *pat, struct pattok *tok, struct patins **bufp)
+pataddlit(struct pattern *pat, struct token *tok, struct patins **bufp)
 {
 	struct patins ins = { .op = CHAR, .arg = tok->wc };
 	return vec_append(bufp, &ins);
 }
 
 int
-pataddlpar(struct pattern *pat, struct pattok *tok, struct patins **bufp)
+pataddlpar(struct pattern *pat, struct token *tok, struct patins **bufp)
 {
 	int err = 0;
 	struct patins ins = { .op = JUMP, .arg = -2 };
@@ -290,7 +290,7 @@ pataddlpar(struct pattern *pat, struct pattok *tok, struct patins **bufp)
 }
 
 int
-pataddrep(struct pattern *pat, struct pattok *tok, struct patins **bufp)
+pataddrep(struct pattern *pat, struct token *tok, struct patins **bufp)
 {
 	int err = 0;
 	struct patins ins = {0};
@@ -334,7 +334,7 @@ pataddrep(struct pattern *pat, struct pattok *tok, struct patins **bufp)
 }
 
 int
-pataddrpar(struct pattern *pat, struct pattok *tok, struct patins **bufp)
+pataddrpar(struct pattern *pat, struct token *tok, struct patins **bufp)
 {
 	int err = 0;
 	size_t i = 0;
@@ -477,7 +477,7 @@ pat_ins_save(struct context *ctx, struct thread *th, wchar_t const wc)
 }
 
 size_t
-patlex(struct pattok *tok, char const *src, size_t off)
+patlex(struct token *tok, char const *src, size_t off)
 {
 	size_t ret = 0;
 	int len = 0;
@@ -579,7 +579,7 @@ pat_compile(struct pattern *dest, char const *src)
 {
 	int err = 0;
 	size_t off = 0;
-	struct pattok tok = {0};
+	struct token tok = {0};
 	struct patins *buf = 0x0;
 
 	vec_ctor(buf);
