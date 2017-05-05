@@ -69,7 +69,7 @@ static void ctx_fini(struct context *);
 
 static int  thr_next(struct context *, size_t, wchar_t const);
 static int  thr_finish(struct context *, size_t);
-static struct thread thr_fork(struct thread *);
+static int  thr_fork(struct thread *, struct thread *);
 static int  thr_start(struct context *, wchar_t const);
 static void thr_remove(struct context *, size_t);
 
@@ -148,16 +148,14 @@ thr_finish(struct context *ctx, size_t ind)
 	return 0;
 }
 
-struct thread
-thr_fork(struct thread *th)
+int
+thr_fork(struct thread *dst, struct thread *src)
 {
-	struct thread ret = {0};
+	dst->ins = src->ins;
+	dst->pos = src->pos;
+	dst->mat = vec_clone(src->mat);
 
-	ret.ins = th->ins;
-	ret.pos = th->pos;
-	ret.mat = vec_clone(th->mat);
-
-	return ret;
+	return dst->mat ? 0 : ENOMEM;
 }
 
 struct patins *
@@ -413,8 +411,8 @@ pat_ins_fork(struct context *ctx, struct thread *th, wchar_t const wc)
 	int err = 0;
 	struct thread new = {0};
 
-	new = thr_fork(th);
-	if (!new.mat) return ENOMEM; // XXX
+	err = thr_fork(&new, th);
+	if (err) goto fail;
 
 	new.pos = ip(th)->arg;
 
