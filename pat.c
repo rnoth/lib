@@ -8,13 +8,13 @@
 #include "util.h"
 #include "vec.h"
 
-#define HALT (patdohalt)
-#define CHAR (patdochar)
-#define FORK (patdofork)
-#define JUMP (patdojump)
-#define MARK (patdomark)
-#define SAVE (patdosave)
-#define CLSS (patdoclss)
+#define HALT (pat_ins_halt)
+#define CHAR (pat_ins_char)
+#define FORK (pat_ins_fork)
+#define JUMP (pat_ins_jump)
+#define MARK (pat_ins_mark)
+#define SAVE (pat_ins_save)
+#define CLSS (pat_ins_clss)
 
 enum pat_char_class {
 	pat_cl_any   = 0x0,
@@ -81,13 +81,13 @@ static int pataddlpar(struct pattern *, struct pattok *, struct patins **);
 static int pataddrpar(struct pattern *, struct pattok *, struct patins **);
 static int pataddrep(struct pattern *, struct pattok *, struct patins **);
 
-static int patdochar(struct context *, struct thread *, wchar_t const);
-static int patdoclss(struct context *, struct thread *, wchar_t const);
-static int patdofork(struct context *, struct thread *, wchar_t const);
-static int patdohalt(struct context *, struct thread *, wchar_t const);
-static int patdojump(struct context *, struct thread *, wchar_t const);
-static int patdomark(struct context *, struct thread *, wchar_t const);
-static int patdosave(struct context *, struct thread *, wchar_t const);
+static int pat_ins_char(struct context *, struct thread *, wchar_t const);
+static int pat_ins_clss(struct context *, struct thread *, wchar_t const);
+static int pat_ins_fork(struct context *, struct thread *, wchar_t const);
+static int pat_ins_halt(struct context *, struct thread *, wchar_t const);
+static int pat_ins_jump(struct context *, struct thread *, wchar_t const);
+static int pat_ins_mark(struct context *, struct thread *, wchar_t const);
+static int pat_ins_save(struct context *, struct thread *, wchar_t const);
 
 static int pataddinit(struct pattern *);
 static int pataddfini(struct pattern *, struct patins **);
@@ -373,7 +373,7 @@ pataddrpar(struct pattern *pat, struct pattok *tok, struct patins **bufp)
 }
 
 int
-patdochar(struct context *ctx, struct thread *th, wchar_t const wc)
+pat_ins_char(struct context *ctx, struct thread *th, wchar_t const wc)
 {
 	size_t ind = th - ctx->thr;
 
@@ -384,7 +384,7 @@ patdochar(struct context *ctx, struct thread *th, wchar_t const wc)
 }
 
 int
-patdoclss(struct context *ctx, struct thread *th, wchar_t const wc)
+pat_ins_clss(struct context *ctx, struct thread *th, wchar_t const wc)
 {
 	size_t ind = th - ctx->thr;
 	bool res;
@@ -408,7 +408,7 @@ patdoclss(struct context *ctx, struct thread *th, wchar_t const wc)
 }
 
 int
-patdofork(struct context *ctx, struct thread *th, wchar_t const wc)
+pat_ins_fork(struct context *ctx, struct thread *th, wchar_t const wc)
 {
 	int err = 0;
 	struct thread new = {0};
@@ -431,7 +431,7 @@ fail:
 }
 
 int
-patdohalt(struct context *ctx, struct thread *th, wchar_t const wc)
+pat_ins_halt(struct context *ctx, struct thread *th, wchar_t const wc)
 {
 	int err = 0;
 	size_t ind = th - ctx->thr;
@@ -443,14 +443,14 @@ patdohalt(struct context *ctx, struct thread *th, wchar_t const wc)
 }
 
 int
-patdojump(struct context *ctx, struct thread *th, wchar_t const wc)
+pat_ins_jump(struct context *ctx, struct thread *th, wchar_t const wc)
 {
 	th->pos = ip(th)->arg;
 	return ip(th)->op(ctx, th, wc);
 }
 
 int
-patdomark(struct context *ctx, struct thread *th, wchar_t const wc)
+pat_ins_mark(struct context *ctx, struct thread *th, wchar_t const wc)
 {
 	int err = 0;
 	struct patmatch mat = {0};
@@ -466,7 +466,7 @@ patdomark(struct context *ctx, struct thread *th, wchar_t const wc)
 }
 
 int
-patdosave(struct context *ctx, struct thread *th, wchar_t const wc)
+pat_ins_save(struct context *ctx, struct thread *th, wchar_t const wc)
 {
 	struct patins *ins = th->ins + th->pos;
 
