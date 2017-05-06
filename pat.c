@@ -132,6 +132,7 @@ ctx_fini(struct context *ctx)
 	struct thread *tmp;
 
 	vec_foreach(tmp, ctx->thr) vec_free(tmp->mat);
+	vec_foreach(tmp, ctx->mat) vec_free(tmp->mat);
 	vec_free(ctx->thr);
 	vec_free(ctx->mat);
 }
