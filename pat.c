@@ -543,7 +543,7 @@ pat_do_match(struct patmatch **res, struct context *ctx, char const *str)
 	struct thread *it;
 	wchar_t wc = 0;
 
-	while (str[ctx->pos]) {
+	while (str[ctx->pos] && vec_len(ctx->thr)) {
 
 		ctx->pos += len;
 
