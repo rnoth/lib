@@ -388,7 +388,7 @@ pat_ins_clss(struct context *ctx, struct thread *th, wchar_t const wc)
 	bool res;
 
 	switch (ip(th)->arg) {
-	case pat_cl_any: res = true;
+	case pat_cl_any: res = true; break;
 	case pat_cl_dot: res = wc != L'\n' && wc != L'\0'; break;
 	case pat_cl_alpha: res = iswalpha(wc); break;
 	case pat_cl_upper: res = iswupper(wc); break;
