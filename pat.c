@@ -8,13 +8,13 @@
 #include "util.h"
 #include "vec.h"
 
-#define HALT (pat_ins_halt)
-#define CHAR (pat_ins_char)
-#define FORK (pat_ins_fork)
-#define JUMP (pat_ins_jump)
-#define MARK (pat_ins_mark)
-#define SAVE (pat_ins_save)
-#define CLSS (pat_ins_clss)
+#define HALT (ins_halt)
+#define CHAR (ins_char)
+#define FORK (ins_fork)
+#define JUMP (ins_jump)
+#define MARK (ins_mark)
+#define SAVE (ins_save)
+#define CLSS (ins_clss)
 
 enum pat_char_class {
 	pat_cl_any   = 0x0,
@@ -67,6 +67,14 @@ static inline struct patins *ip(struct thread *);
 static int  ctx_init(struct context *);
 static void ctx_fini(struct context *);
 
+static int ins_char(struct context *, struct thread *, wchar_t const);
+static int ins_clss(struct context *, struct thread *, wchar_t const);
+static int ins_fork(struct context *, struct thread *, wchar_t const);
+static int ins_halt(struct context *, struct thread *, wchar_t const);
+static int ins_jump(struct context *, struct thread *, wchar_t const);
+static int ins_mark(struct context *, struct thread *, wchar_t const);
+static int ins_save(struct context *, struct thread *, wchar_t const);
+
 static int  thr_next(struct context *, size_t, wchar_t const);
 static int  thr_finish(struct context *, size_t);
 static int  thr_fork(struct thread *, struct thread *);
@@ -80,14 +88,6 @@ static int pataddlit(struct pattern *, struct token *, struct patins **);
 static int pataddlpar(struct pattern *, struct token *, struct patins **);
 static int pataddrpar(struct pattern *, struct token *, struct patins **);
 static int pataddrep(struct pattern *, struct token *, struct patins **);
-
-static int pat_ins_char(struct context *, struct thread *, wchar_t const);
-static int pat_ins_clss(struct context *, struct thread *, wchar_t const);
-static int pat_ins_fork(struct context *, struct thread *, wchar_t const);
-static int pat_ins_halt(struct context *, struct thread *, wchar_t const);
-static int pat_ins_jump(struct context *, struct thread *, wchar_t const);
-static int pat_ins_mark(struct context *, struct thread *, wchar_t const);
-static int pat_ins_save(struct context *, struct thread *, wchar_t const);
 
 static int pataddinit(struct pattern *);
 static int pataddfini(struct pattern *, struct patins **);
@@ -134,6 +134,110 @@ ctx_fini(struct context *ctx)
 	vec_foreach(tmp, ctx->thr) vec_free(tmp->mat);
 	vec_free(ctx->thr);
 	vec_free(ctx->mat);
+}
+
+int
+ins_char(struct context *ctx, struct thread *th, wchar_t const wc)
+{
+	size_t ind = th - ctx->thr;
+
+	if ((wchar_t)ip(th)->arg != wc) thr_remove(ctx, th - ctx->thr), --ind;
+	else ++th->pos;
+
+	return thr_next(ctx, ind + 1, wc);
+}
+
+int
+ins_clss(struct context *ctx, struct thread *th, wchar_t const wc)
+{
+	size_t ind = th - ctx->thr;
+	bool res;
+
+	switch (ip(th)->arg) {
+	case pat_cl_any: res = true; break;
+	case pat_cl_dot: res = wc != L'\n' && wc != L'\0'; break;
+	case pat_cl_alpha: res = iswalpha(wc); break;
+	case pat_cl_upper: res = iswupper(wc); break;
+	case pat_cl_lower: res = iswlower(wc); break;
+	case pat_cl_space: res = iswspace(wc); break;
+	case pat_cl_digit: res = iswdigit(wc); break;
+	default:
+		assert(!"invalid argument to character class instruction");
+	}
+
+	if (!res) thr_remove(ctx, ind), --ind;
+	else ++th->pos;
+
+	return thr_next(ctx, ind + 1, wc);
+}
+
+int
+ins_fork(struct context *ctx, struct thread *th, wchar_t const wc)
+{
+	int err = 0;
+	struct thread new = {0};
+
+	err = thr_fork(&new, th);
+	if (err) goto fail;
+
+	new.pos = ip(th)->arg;
+
+	err = vec_insert(&ctx->thr, &new, th - ctx->thr + 1);
+	if (err) goto fail;
+
+	++th->pos;
+	return ip(th)->op(ctx, th, wc);
+
+fail:
+	vec_free(th->mat);
+	free(th);
+	return err;
+}
+
+int
+ins_halt(struct context *ctx, struct thread *th, wchar_t const wc)
+{
+	int err = 0;
+	size_t ind = th - ctx->thr;
+
+	err = thr_finish(ctx, ind);
+	if (err) return err;
+
+	return thr_next(ctx, ind + 1, wc);
+}
+
+int
+ins_jump(struct context *ctx, struct thread *th, wchar_t const wc)
+{
+	th->pos = ip(th)->arg;
+	return ip(th)->op(ctx, th, wc);
+}
+
+int
+ins_mark(struct context *ctx, struct thread *th, wchar_t const wc)
+{
+	int err = 0;
+	struct patmatch mat = {0};
+
+	mat.off = ctx->pos;
+	mat.ext = -1;
+
+	err = vec_append(&th->mat, &mat);
+	if (err) return err;
+
+	++th->pos;
+	return ip(th)->op(ctx, th, wc);
+}
+
+int
+ins_save(struct context *ctx, struct thread *th, wchar_t const wc)
+{
+	struct patins *ins = th->ins + th->pos;
+
+	th->mat[ins->arg].ext = ctx->pos - th->mat[ins->arg].off;
+	++th->pos;
+
+	return ins->op(ctx, th, wc);
 }
 
 int
@@ -368,110 +472,6 @@ pataddrpar(struct pattern *pat, struct token *tok, struct patins **bufp)
 	if (err) return err;
 
 	return 0;
-}
-
-int
-pat_ins_char(struct context *ctx, struct thread *th, wchar_t const wc)
-{
-	size_t ind = th - ctx->thr;
-
-	if ((wchar_t)ip(th)->arg != wc) thr_remove(ctx, th - ctx->thr), --ind;
-	else ++th->pos;
-
-	return thr_next(ctx, ind + 1, wc);
-}
-
-int
-pat_ins_clss(struct context *ctx, struct thread *th, wchar_t const wc)
-{
-	size_t ind = th - ctx->thr;
-	bool res;
-
-	switch (ip(th)->arg) {
-	case pat_cl_any: res = true; break;
-	case pat_cl_dot: res = wc != L'\n' && wc != L'\0'; break;
-	case pat_cl_alpha: res = iswalpha(wc); break;
-	case pat_cl_upper: res = iswupper(wc); break;
-	case pat_cl_lower: res = iswlower(wc); break;
-	case pat_cl_space: res = iswspace(wc); break;
-	case pat_cl_digit: res = iswdigit(wc); break;
-	default:
-		assert(!"invalid argument to character class instruction");
-	}
-
-	if (!res) thr_remove(ctx, ind), --ind;
-	else ++th->pos;
-
-	return thr_next(ctx, ind + 1, wc);
-}
-
-int
-pat_ins_fork(struct context *ctx, struct thread *th, wchar_t const wc)
-{
-	int err = 0;
-	struct thread new = {0};
-
-	err = thr_fork(&new, th);
-	if (err) goto fail;
-
-	new.pos = ip(th)->arg;
-
-	err = vec_insert(&ctx->thr, &new, th - ctx->thr + 1);
-	if (err) goto fail;
-
-	++th->pos;
-	return ip(th)->op(ctx, th, wc);
-
-fail:
-	vec_free(th->mat);
-	free(th);
-	return err;
-}
-
-int
-pat_ins_halt(struct context *ctx, struct thread *th, wchar_t const wc)
-{
-	int err = 0;
-	size_t ind = th - ctx->thr;
-
-	err = thr_finish(ctx, ind);
-	if (err) return err;
-
-	return thr_next(ctx, ind + 1, wc);
-}
-
-int
-pat_ins_jump(struct context *ctx, struct thread *th, wchar_t const wc)
-{
-	th->pos = ip(th)->arg;
-	return ip(th)->op(ctx, th, wc);
-}
-
-int
-pat_ins_mark(struct context *ctx, struct thread *th, wchar_t const wc)
-{
-	int err = 0;
-	struct patmatch mat = {0};
-
-	mat.off = ctx->pos;
-	mat.ext = -1;
-
-	err = vec_append(&th->mat, &mat);
-	if (err) return err;
-
-	++th->pos;
-	return ip(th)->op(ctx, th, wc);
-}
-
-int
-pat_ins_save(struct context *ctx, struct thread *th, wchar_t const wc)
-{
-	struct patins *ins = th->ins + th->pos;
-
-	th->mat[ins->arg].ext = ctx->pos - th->mat[ins->arg].off;
-	++th->pos;
-
-	return ins->op(ctx, th, wc);
 }
 
 size_t
