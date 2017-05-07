@@ -9,6 +9,7 @@
 int
 main()
 {
+	init_test();
 	set_t *t;
 	char **reply = 0x0;
 	char **arr = calloc(3, sizeof *arr);
