@@ -10,10 +10,11 @@
 #define ok(TEST) do {                                       \
 	volatile char paren[64];                            \
 	int sig = sigsetjmp(env, 1);                        \
-	bool res = (TEST);                                  \
+	bool res = -1;                                      \
+	if (!sig) res = (TEST);                             \
 	if (!sig && res) break;                             \
 	if (!sig) paren[0] = 0;                             \
-	else snprintf((char*)paren, 64, "-- %s",            \
+	else snprintf((char*)paren, 64, "-- %s ",           \
 		      sigtostr(sig));                       \
 	test_failed(#TEST, (char*)paren, __LINE__);         \
 	raise(SIGTRAP);                                     \
@@ -35,6 +36,7 @@
 
 static sigjmp_buf env;
 static size_t failures;
+static size_t total_failures;
 
 static
 char *
@@ -62,6 +64,7 @@ expect_failed(char *expr, int expected, char *got, int lineno)
 	}
 
 	++failures;
+	++total_failures;
 }
 
 static
@@ -82,6 +85,7 @@ test_failed(char *expr, char *sigmsg, int lineno)
 	}
 
 	++failures;
+	++total_failures;
 }
 
 static
