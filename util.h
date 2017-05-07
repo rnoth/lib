@@ -4,16 +4,12 @@
 #include <stdlib.h>
 #include <wchar.h>
 
-/* unsafe macros */
-#define MAX(X,Y)	((X) > (Y) ? (X) : (Y))
-#define MIN(X,Y)	((X) < (Y) ? (X) : (Y))
-
 /* safe macros */
-#define bit(off)	(1UL << (off))
-#define copy(dest,src)	(memcpy((dest), (src), sizeof *(dest)))
-#define die(blame) do { perror(blame); abort(); } while (0);
+#define bit(off)        (1UL << (off))
+#define cpy(dest,src)   (memcpy((dest), (src), sizeof *(dest)))
+#define die(blame)      do { perror(blame); abort(); } while (0);
 
-/* deprecated */
+/* deprecated  -- don't use */
 #define eat(ret, buf, expr)			\
 do {						\
         char *_buf = buf;			\
