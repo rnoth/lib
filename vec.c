@@ -146,7 +146,7 @@ vec_elim(void *vecp, size_t ind, size_t nmemb, size_t size)
 
 	if (ind > vec_len(*vec.v)) return;
 
-	len = len(*vec.v) * size;
+	len = vec_len(*vec.v) * size;
 	off = ind * size;
 	ext = umin(nmemb * size, len - off);
 
