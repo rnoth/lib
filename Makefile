@@ -1,5 +1,5 @@
 CC	?= cc
-CFLAGS	+= -pipe -std=c99 -pedantic -Wall -Wextra \
+CFLAGS	+= -pipe -D_POSIX_C_SOURCE -std=c99 -pedantic -Wall -Wextra \
 	   -Wno-missing-field-initializers -Wno-unused-parameter \
 	   -Warray-bounds -Wno-switch -Wmissing-prototypes \
 	   -fstrict-aliasing -fstrict-overflow -fomit-frame-pointer \
@@ -29,8 +29,8 @@ deps.mk: $(SRC) $(TESTS)
 %.c.o: %.c
 	$(CC) $(CFLAGS) -c -o $@ $<
 
-tests/%-test: tests/%-test.c %.c $(OBJ)
-	$(CC) $(filter-out -Wmissing-prototypes, $(CFLAGS)) $(LDFLAGS) -o $@ $< $(OBJ)
+tests/%-test: tests/%-test.c %.c $(OBJ) tests/test.h
+	$(CC) $(CFLAGS) -Wno-missing-prototypes -Wno-unused-variable -Wno-unused-function -Wno-missing-prototype $(LDFLAGS) -o $@ $< $(OBJ)
 
 clean:
 	rm -f *.o $(NAME) tests/*-test core vgcore.*
