@@ -144,7 +144,7 @@ vec_elim(void *vecp, size_t ind, size_t nmemb, size_t size)
 	size_t off = 0;
 	union vec vec = {.p = vecp};
 
-	if (ind > len(*vec.v)) return;
+	if (ind > vec_len(*vec.v)) return;
 
 	ext = umin(nmemb, len(*vec.v) - ind) * size;
 	len = len(*vec.v) * size;
@@ -156,9 +156,7 @@ vec_elim(void *vecp, size_t ind, size_t nmemb, size_t size)
 
 	len(*vec.v) -= nmemb;
 
-	memset(*vec.v + len,
-	       0,
-	       ext);
+	memset(*vec.v + len, 0, ext);
 }
 
 int
