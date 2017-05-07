@@ -21,6 +21,12 @@ LDFLAGS += -Wl,--gc-section
 CFLAGS += -O3 -flto
 endif
 
+ifdef VALGRIND
+WRAPPER := valgrind -q
+else
+WRAPPER :=
+endif
+
 -include deps.mk
 
 deps.mk: $(SRC) $(TESTS)
@@ -31,7 +37,7 @@ deps.mk: $(SRC) $(TESTS)
 
 tests/%-test: tests/%-test.c %.c $(OBJ) tests/test.h
 	$(CC) $(CFLAGS) -Wno-missing-prototypes -Wno-unused-variable -Wno-unused-function $(LDFLAGS) -o $@ $< $(OBJ)
-	@valgrind -q $@ || true
+	@$(WRAPPER) $@ || true
 
 test:
 	@for test in tests/*-test; do "$$test"; read; done;
