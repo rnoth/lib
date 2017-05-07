@@ -21,7 +21,7 @@ LDFLAGS += -Wl,--gc-section
 CFLAGS += -O3 -flto
 endif
 
-ifdef VALGRIND
+ifdef $(shell type valgrind)
 WRAPPER := valgrind -q
 else
 WRAPPER :=
