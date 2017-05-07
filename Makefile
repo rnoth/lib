@@ -30,7 +30,7 @@ deps.mk: $(SRC) $(TESTS)
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 tests/%-test: tests/%-test.c %.c $(OBJ) tests/test.h
-	$(CC) $(CFLAGS) -Wno-missing-prototypes -Wno-unused-variable -Wno-unused-function -Wno-missing-prototype $(LDFLAGS) -o $@ $< $(OBJ)
+	$(CC) $(CFLAGS) -Wno-missing-prototypes -Wno-unused-variable -Wno-unused-function $(LDFLAGS) -o $@ $< $(OBJ)
 
 clean:
 	rm -f *.o $(NAME) tests/*-test core vgcore.*
