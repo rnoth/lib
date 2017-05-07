@@ -7,25 +7,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#define safely(EXPR) do {                                   \
-	switch (sigsetjmp(env, 1)) {                        \
-	case SIGSEGV:                                       \
-		snprintf(paren, 64, "segfault");            \
-		break;                                      \
-	case SIGBUS:                                        \
-		snprintf(paren, 64, "bus error");           \
-		break;                                      \
-	case SIGABRT:                                       \
-		snprintf(paren, 64, "aborted");             \
-		break;                                      \
-	case 0:                                             \
-		if (TEST) {                                 \
-			printf(".");                        \
-			continue;                           \
-		}                                           \
-		snprintf(paren, 64, "@%d", __LINE__);       \
-	}                                                   \
-
 #define ok(TEST) do {                                       \
 	volatile char paren[64];                            \
 	int sig = sigsetjmp(env, 1);                        \
@@ -38,18 +19,22 @@
 	raise(SIGTRAP);                                     \
 } while (0)
 
-#define try(ACT) do { ok((ACT, 1)); printf("."); } while (0)
+#define try(ACT) ok((ACT, 1))
 #define expect(VAL, TEST) do {                              \
 	volatile char expected[64] = "";                    \
 	int sig = sigsetjmp(env, 1);                        \
 	int res = (TEST);                                   \
-	if (!sig && res == (VAL)) { printf("."); break; }   \
+	int hope = (VAL);                                   \
+	if (!sig && res == hope) break;                     \
 	if (!sig) snprintf((char*)expected, 64, "%d", res); \
 	else snprintf((char*)expected, 64, "%s",            \
 			sigtostr(sig));                     \
-	expect_failed(#TEST,#VAL,(char*)expected, __LINE__);\
+	expect_failed(#TEST,hope,(char*)expected, __LINE__);\
 	raise(SIGTRAP);                                     \
 } while (0)
+
+static sigjmp_buf env;
+static size_t failures;
 
 static
 char *
@@ -66,14 +51,17 @@ sigtostr(int src)
 
 static
 void
-expect_failed(char *expr, char *expected, char *got, int lineno)
+expect_failed(char *expr, int expected, char *got, int lineno)
 {
 	int err = 0;
-	err = printf("\r\033[K!!! expect failed: ``%s'' expected %s, got %s (#%d)\n", expr, expected, got, lineno);
+	err = printf("\r\033[K!!! expect failed: ``%s'' expected %d, got %s (#%d)\n",
+			expr, expected, got, lineno);
 	if (err < 0) {
 		perror("printf");
 		exit(1);
 	}
+
+	++failures;
 }
 
 static
@@ -92,9 +80,9 @@ test_failed(char *expr, char *sigmsg, int lineno)
 		perror("fflush");
 		exit(1);
 	}
-}
 
-static sigjmp_buf env;
+	++failures;
+}
 
 static
 void
