@@ -81,5 +81,6 @@ void    vec_truncate(void *, size_t, size_t);
 #define vec_splice(dest_ptr, ind, src, nmemb)   vec_splice(dest_ptr, ind, src, nmemb,  sizeof **dest_ptr)
 #define vec_transfer(vec_ptr, src, nmemb)       vec_transfer(dest_ptr, src, nmemb,     sizeof **dest_ptr)
 #define vec_truncate(vec_ptr, off)              vec_truncate(vec_ptr, off,             sizeof **vec_ptr)
+#define vec_truncat(vec_ptr, off )              vec_truncate(vec_ptr, off)
 
 #endif
