@@ -146,15 +146,15 @@ vec_elim(void *vecp, size_t ind, size_t nmemb, size_t size)
 
 	if (ind > vec_len(*vec.v)) return;
 
-	ext = umin(nmemb, len(*vec.v) - ind) * size;
 	len = len(*vec.v) * size;
 	off = ind * size;
+	ext = umin(nmemb * size, len - off);
 
 	memmove(*vec.v + off,
 		*vec.v + off + ext,
 		len - off - ext);
 
-	len(*vec.v) -= nmemb;
+	len(*vec.v) -= umin(nmemb, len(*vec.v));
 
 	memset(*vec.v + len, 0, ext);
 }
