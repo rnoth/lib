@@ -70,13 +70,48 @@ test_qmark(void)
 	vec_free(mat);
 }
 
+void
+test_star(void)
+{
+	struct pattern pat = {0};
+	struct patmatch *mat = 0x0;
+
+	ok(!vec_ctor(mat));
+	ok(!pat_compile(&pat, "b*a*r*"));
+
+	printf("\ttesting the * operator...\n");
+
+	printf("\t\tmatching over a simple texts.");
+
+	expect(0, pat_match(&mat, "bar", &pat));
+	ok(mat->off == 0);
+	ok(mat->ext == 3);
+
+	expect(0, pat_match(&mat, "bbaaa", &pat));
+	ok(mat->off == 0);
+	ok(mat->ext == 5);
+
+	expect(0, pat_match(&mat, "r", &pat));
+	ok(mat->off == 0);
+	ok(mat->ext == 1);
+
+	expect(0, pat_match(&mat, "", &pat));
+	ok(mat->off == 0);
+	ok(mat->ext == 1);
+
+	printf("done\n");
+}
+
 int
 main()
 {
+	init_test();
+
 	printf("testing pat.c\n");
 
 	test_compfree();
 	test_qmark();
+	test_star();
 
 	printf("testing complete (pat.c)\n");
 
