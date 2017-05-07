@@ -151,12 +151,12 @@ vec_elim(void *vecp, size_t ind, size_t nmemb, size_t size)
 	ext = umin(nmemb * size, len - off);
 
 	memmove(*vec.v + off,
-		*vec.v + off + ext,
-		len - off - ext);
+	        *vec.v + off + ext,
+	        len - off - ext);
 
 	len(*vec.v) -= umin(nmemb, len(*vec.v));
 
-	memset(*vec.v + len, 0, ext);
+	memset(*vec.v + vec_len(*vec.v) * size, 0, ext);
 }
 
 int
