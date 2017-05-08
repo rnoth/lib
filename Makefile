@@ -30,20 +30,24 @@ endif
 -include deps.mk
 
 deps.mk: $(SRC) $(TESTS)
-	$(CC) -M $+ | sed -e 's/\.o/.c.o/' -e 's/\(.*\)-test.c.o/\1-test/' > deps.mk
+	@$(CC) -M $+ | sed -e 's/\.o/.c.o/' -e 's/\(.*\)-test.c.o/\1-test/' > deps.mk
+	@echo making deps.mk
 
 %.c.o: %.c
-	$(CC) $(CFLAGS) -c -o $@ $<
+	@$(CC) $(CFLAGS) -c -o $@ $<
+	@echo CC $<
 
 tests/%-test: tests/%-test.c %.c $(OBJ) tests/test.h
-	$(CC) $(CFLAGS) -Wno-missing-prototypes -Wno-clobbered -Wno-unused-variable -Wno-unused-function $(LDFLAGS) -o $@ $< $(OBJ)
+	@$(CC) $(CFLAGS) -Wno-missing-prototypes -Wno-clobbered -Wno-unused-variable -Wno-unused-function $(LDFLAGS) -o $@ $< $(OBJ)
+	@echo CCLD -o $@
 	@$(WRAPPER) $@ || true
 
 test:
 	@for test in tests/*-test; do "$$test"; read; done;
 
 clean:
-	rm -f *.o $(NAME) tests/*-test core vgcore.*
+	@rm -f *.o $(NAME) tests/*-test core vgcore.*
+	@echo cleaning
 
 .PHONY: clean test
 .SECONDARY: $(OBJ)
