@@ -18,6 +18,7 @@
 		      sigtostr(sig));                       \
 	test_failed(#TEST, (char*)paren, __LINE__);         \
 	raise(SIGTRAP);                                     \
+	if (checkpoint) siglongjmp(*checkpoint, 1);         \
 } while (0)
 
 #define try(ACT) ok((ACT, 1))
@@ -34,9 +35,17 @@
 	raise(SIGTRAP);                                     \
 } while (0)
 
+#define on_failure if (sigsetjmp(cp, 1) || (checkpoint = &cp, 0))
+
 static sigjmp_buf env;
-static size_t failures;
+static sigjmp_buf *checkpoint, cp;
 static size_t total_failures;
+
+void
+do_expect(int expected, int got, int lineno, char *expr)
+{
+	int sig = sigsetjmp(env, 1);
+}
 
 static
 char *
@@ -56,14 +65,13 @@ void
 expect_failed(char *expr, int expected, char *got, int lineno)
 {
 	int err = 0;
-	err = printf("\r\033[K!!! expect failed: ``%s'' expected %d, got %s (#%d)\n",
+	err = printf("\r\033[K!!! test failed: ``%s'' expected %d, got %s (#%d)\n",
 			expr, expected, got, lineno);
 	if (err < 0) {
 		perror("printf");
 		exit(1);
 	}
 
-	++failures;
 	++total_failures;
 }
 
@@ -84,7 +92,6 @@ test_failed(char *expr, char *sigmsg, int lineno)
 		exit(1);
 	}
 
-	++failures;
 	++total_failures;
 }
 
@@ -104,8 +111,8 @@ init_test(void)
 	// enable x86 alignment check
 	// commented out as it causes most stdlibs to crash
 	//__asm__("pushf\n"  
-	//          "orl $0x40000, (%rsp)\n"  
-	//          "popf"); 
+	//        "orl $0x40000, (%rsp)\n"  
+	//        "popf"); 
 
 	sa.sa_handler = fault;
 
