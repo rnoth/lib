@@ -36,7 +36,7 @@ deps.mk: $(SRC) $(TESTS)
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 tests/%-test: tests/%-test.c %.c $(OBJ) tests/test.h
-	$(CC) $(CFLAGS) -Wno-missing-prototypes -Wno-unused-variable -Wno-unused-function $(LDFLAGS) -o $@ $< $(OBJ)
+	$(CC) $(CFLAGS) -Wno-missing-prototypes -Wno-clobbered -Wno-unused-variable -Wno-unused-function $(LDFLAGS) -o $@ $< $(OBJ)
 	@$(WRAPPER) $@ || true
 
 test:
