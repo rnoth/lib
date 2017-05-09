@@ -65,7 +65,7 @@ void
 expect_failed(char *expr, int expected, char *got, int lineno)
 {
 	int err = 0;
-	err = printf("\r\033[K!!! test failed: ``%s'' expected %d, got %s (#%d)\n",
+	err = printf("\r\033[K!!! test failed: ``%s''; expected %d, got %s (#%d)\n",
 			expr, expected, got, lineno);
 	if (err < 0) {
 		perror("printf");
