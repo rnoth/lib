@@ -38,7 +38,7 @@ deps.mk: $(SRC) $(TESTS)
 	@echo CC $<
 
 tests/%-test: tests/%-test.c %.c $(OBJ) tests/test.h
-	@$(CC) $(CFLAGS) -Wno-missing-prototypes -Wno-clobbered -Wno-unused-variable -Wno-unused-function $(LDFLAGS) -o $@ $< $(OBJ)
+	@$(CC) $(CFLAGS) -Wno-missing-prototypes -Wno-unused-variable -Wno-unused-function $(LDFLAGS) -o $@ $< $(OBJ)
 	@echo CCLD -o $@
 	@$(WRAPPER) $@ || true
 
