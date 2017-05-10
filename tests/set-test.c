@@ -21,7 +21,7 @@ void test_prefix(void);
 
 struct test tests[] = {
 	{ 0x0,         test_alloc,     "allocating a set", },
-	{ 0x0,         test_add,       "isnerting a string", },
+	{ 0x0,         test_add,       "inserting a string", },
 	{ test_add,    test_query,     "querying the set", },
 	{ test_add,    test_remove,    "removing an element", },
 	{ test_add,    test_fixed,     "querying with a fixed-size buffer", },
