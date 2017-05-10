@@ -3,107 +3,114 @@
 #include <assert.h>
 #include <stdlib.h>
 
-#include "test.h"
+#include "../unit.h"
 #include "../set.h"
+#include "../util.h"
 
-int
-main()
+char filename[] = "set.c";
+
+set_t *set;
+char **reply = 0x0;
+
+void test_alloc(void);
+void test_add(void);
+void test_query(void);
+void test_remove(void);
+void test_fixed(void);
+void test_prefix(void);
+
+struct test tests[] = {
+	{ 0x0,         test_alloc,     "allocating a set", },
+	{ 0x0,         test_add,       "isnerting a string", },
+	{ test_add,    test_query,     "querying the set", },
+	{ test_add,    test_remove,    "removing an element", },
+	{ test_add,    test_fixed,     "querying with a fixed-size buffer", },
+	{ test_add,    test_prefix,    "testing the prefix check", },
+};
+
+size_t const tests_len = arr_len(tests);
+
+char *strings[] = { "foo", "bar", "baz", "quux", };
+
+void
+cleanup(void)
 {
-	init_test();
-	set_t *t;
-	char **reply = 0x0;
-	char **arr = calloc(3, sizeof *arr);
+	set_free(set), set = 0x0;
+	free(reply), reply = 0;
+}
 
-	printf("testing set.c\n");
-	
-	printf("\tallocating a set...");
-	t = set_alloc();
-	ok(t);
-	printf("done\n");
+void
+test_alloc(void)
+{
+	set = set_alloc();
+	ok(set != 0x0);
+}
 
-	printf("\tinserting a string...");
-	ok(!set_add_string(t, "foobar"));
-	printf("done\n");
+void
+test_add(void)
+{
+	size_t i = 0;
 
-	printf("\tconfirming the addition...");
-	ok(set_contains_string(t, "foobar"));
-	printf("done\n");
+	set = set_alloc();
 
-	printf("\tsearching the set...");
-	ok(set_query_string(0x0, 0, t, "foo") == 1);
+	for (i = 0; i < arr_len(strings); ++i) {
+		expect(0, set_add_string(set, strings[i]));
+		expect(true, set_contains_string(set, strings[i]));
+	}
+}
 
-	set_query_string(&reply, 0, t, "f");
+void
+test_query(void)
+{
+	expect(4, set_query_string(0, 0, set, ""));
+	expect(1, set_query_string(0x0, 0, set, "foo"));
 
-	ok(reply);
-	ok(reply[0]);
-	ok(!strcmp(reply[0], "foobar"));
+	set_query_string(&reply, 0, set, "f");
+
+	ok(reply != 0x0);
+	ok(reply[0] != 0x0);
+	ok(!strcmp(reply[0], "foo"));
 	ok(!reply[1]);
 
-	free(reply);
-	reply = 0x0;
+	free(reply), reply = 0;
 
-	printf("done\n");
+	expect(2, set_query_string(&reply, 0, set, "ba"));
 
-	printf("\tremoving the string...");
-	ok(!set_remove_string(t, "foobar"));
-	printf("done\n");
-
-	printf("\tconfirming the removal...");
-	ok(!set_contains_string(t, "foobar"));
-	ok(set_query_string(0x0, 0, t, "f") == 0);
-	printf("done\n");
-
-	printf("\tadding more strings...");
-	ok(!set_add_string(t, "foo"));
-	ok(!set_add_string(t, "bar"));
-	ok(!set_add_string(t, "baz"));
-	ok(!set_add_string(t, "quux"));
-	printf("done\n");
-
-	printf("\tchecking for the strings...");
-
-	ok(set_contains_string(t, "foo"));
-	ok(set_contains_string(t, "bar"));
-	ok(set_contains_string(t, "baz"));
-	ok(set_contains_string(t, "quux"));
-
-	ok(set_query_string(0, 0, t, "") == 4);
-
-	ok(set_query_string(&reply, 0, t, "b") == 2);
-	ok(reply[0]);
-	ok(reply[1]);
-	ok(!reply[2]);
+	ok(reply[0] != 0x0);
+	ok(reply[1] != 0x0);
+	ok(reply[2] == 0x0);
 	ok(!strcmp(reply[0], "bar"));
 	ok(!strcmp(reply[1], "baz"));
-	free(reply);
-	reply = 0x0;
+}
 
-	printf("done\n");
+void
+test_remove(void)
+{
+	size_t i = 0;
 
-	printf("\tquerying with a fixed-size buffer");
+	for (i = 0; i < arr_len(strings); ++i) {
+		expect(0, set_remove_string(set, strings[i]));
+		expect(false, set_contains_string(set, strings[i]));
+		expect(0, set_query_string(0x0, 0, set, strings[i]));
+	}
+}
 
-	ok(set_query_string(&arr, 3, t, "") == 4);
-	ok(arr[0]);
-	ok(arr[1]);
-	ok(!arr[2]);
+void
+test_fixed(void)
+{
+	char *arr[3];
+	expect(4, set_query_string(arr, 3, set, ""));
+	ok(arr[0] != 0x0);
+	ok(arr[1] != 0x0);
+	ok(arr[2] == 0x0);
 	ok(!strcmp(arr[0], "bar"));
 	ok(!strcmp(arr[1], "baz"));
+}
 
-	printf("done\n");
-
-	printf("\ttesting new prefix check...");
-	ok(set_prefix_string(t, "f"));
-	ok(set_prefix_string(t, "q"));
-	ok(set_prefix_string(t, "b"));
-	printf("done\n");
-
-	printf("\tfreeing the set...");
-	set_free(t);
-	printf("done\n");
-
-	printf("test successful (set.c)\n");
-
-	free(arr);
-
-	return 0;
+void
+test_prefix(void)
+{
+	ok(set_prefix_string(set, "f"));
+	ok(set_prefix_string(set, "q"));
+	ok(set_prefix_string(set, "b"));
 }

@@ -1,24 +1,11 @@
-#include <stddef.h>
-#include "test.h"
+#include "../unit.h"
 #include "../vec.h"
 #include "../util.h"
 
-// some functions here leak memory if tests fail.
-// this shouldn't be a problem because you should
-// fix logic errors before plugging leaks
+char filename[] = "vec.c";
 
-#define test(VAR, EXPR) do { \
-	int *VAR = intvec;        \
-	EXPR;                     \
-} while (0)
+void cleanup(void);
 
-struct test {
-	void (*setup)(void);
-	void (*do_it)(void);
-	char  *msg;
-};
-
- 
 static void test_alloc(void);
 static void test_clone(void);
 static void test_concat(void);
@@ -33,7 +20,6 @@ static void test_slice(void);
 static void test_splice(void);
 static void test_transfer(void);
 static void test_truncat(void);
-static void cleanup(void);
 
 struct test tests[] = {
 	{ 0x0,                test_alloc,         "allocating & freeing a vector", },
@@ -51,9 +37,9 @@ struct test tests[] = {
 	{ test_large_insert,  test_splice,        "splicing a vector with an array", },
 };
 
-static size_t const tests_len = sizeof tests / sizeof *tests;
+size_t const tests_len = arr_len(tests);
+
 static int *intvec;
-static int *intvec2;
 
 void
 cleanup(void)
@@ -94,21 +80,21 @@ test_clone(void)
 void
 test_concat(void)
 {
-#	define arr_len 100
-	int arr[arr_len];
+#	define ARR_LEN 100
+	int arr[ARR_LEN];
 	int i;
 
 	for (i = 1; i < 10 * 100; i *= 10) {
 		arr[i/10] = i;
 	}
 
-	expect(0, vec_concat(&intvec, arr, arr_len));
+	expect(0, vec_concat(&intvec, arr, ARR_LEN));
 	ok(vec_len(intvec) == 1100);
 
 	for (i = 1; i < 10 * 100; i *= 10) {
 		expect(i, intvec[1000 + i/10]);
 	}
-
+#	undef ARR_LEN
 }
 
 void
@@ -260,35 +246,35 @@ test_slice(void)
 void
 test_splice(void)
 {
-#	define arr_len 100
+#	define ARR_LEN 100
 	int i;
-	int arr[arr_len];
+	int arr[ARR_LEN];
 
 	for (i = 0; i < 100; ++i) arr[i] = intvec[i + 600];
 
-	expect(0, vec_splice(&intvec, 400, arr, arr_len));
+	expect(0, vec_splice(&intvec, 400, arr, ARR_LEN));
 	expect(1100, vec_len(intvec));
 
 	for (i = 0; i < 400; ++i) expect(i, intvec[i]);
-	ok(!memcmp(intvec + 400, arr, arr_len));
+	ok(!memcmp(intvec + 400, arr, ARR_LEN));
 	for (i = 0; i < 600; ++i) expect(i + 400, intvec[i + 500]);
-
+#	undef ARR_LEn
 }
 
 void
 test_transfer(void)
 {
-#	define arr_len 100
-	int arr[arr_len];
+#	define ARR_LEN 100
+	int arr[ARR_LEN];
 	int i;
 
 	for (i = 0; i < 100; ++i) arr[i] = intvec[i + 600];
 
-	expect(0, vec_transfer(&intvec, arr, arr_len));
+	expect(0, vec_transfer(&intvec, arr, ARR_LEN));
 	expect(100, vec_len(intvec));
 
 	ok(!memcmp(intvec, arr, 1000 * sizeof *intvec));
-
+#	undef ARR_LEN
 }
 
 void
@@ -299,31 +285,4 @@ test_truncat(void)
 
 	try(vec_truncat(&intvec, 0));
 	ok(vec_len(intvec) == 0);
-}
-
-int
-main()
-{
-	size_t i;
-
-	init_test();
-
-	printf("testing vec.c\n");
-
-	for (i = 0; i < tests_len; ++i) {
-		on_failure {
-			cleanup();
-			continue;
-		}
-
-		if (tests[i].setup) tests[i].setup();
-		printf("\t%s...\n", tests[i].msg);
-		if (tests[i].do_it) tests[i].do_it();
-
-		cleanup();
-	}
-
-	printf("testing finished (vec.c) -- %zu failed tests\n", total_failures);
-
-	return 0;
 }
