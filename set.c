@@ -186,6 +186,8 @@ nod_freetree(uintptr_t cur)
 {
 	struct internal *nod;
 
+	if (!cur) return;
+
 	nod = node(cur);
 
 	if (isleaf(nod->chld[0])) free((void *)nod->chld[0]);
