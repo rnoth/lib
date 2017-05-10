@@ -10,7 +10,7 @@ LDFLAGS += -lc -Wl,--sort-section=alignment -Wl,--sort-common
 
 SRC	!= find . -maxdepth 1 -name "*.c"
 OBJ	:= $(SRC:.c=.c.o)
-TESTS	!= find tests -name "*.c"
+TESTS	!= find tests -name "*-test.c"
 
 all:: deps.mk $(NAME) $(TESTS:.c=)
 
@@ -21,6 +21,7 @@ LDFLAGS += -Wl,--gc-section
 CFLAGS += -O3 -flto
 endif
 
+# note this doesn't actually work
 ifdef $(shell which valgrind)
 WRAPPER := valgrind -q
 else
@@ -30,16 +31,20 @@ endif
 -include deps.mk
 
 deps.mk: $(SRC) $(TESTS)
-	@$(CC) -M $+ | sed -e 's/\.o/.c.o/' -e 's/\(.*\)-test.c.o/\1-test/' > deps.mk
 	@echo making deps.mk
+	@$(CC) -M $+ | sed -e 's/\.o/.c.o/' -e 's/\(.*\)-test.c.o/\1-test/' > deps.mk
 
 %.c.o: %.c
-	@$(CC) $(CFLAGS) -c -o $@ $<
 	@echo CC $<
+	@$(CC) $(CFLAGS) -c -o $@ $<
 
-tests/%-test: tests/%-test.c %.c $(OBJ) tests/test.h
-	@$(CC) $(CFLAGS) -Wno-missing-prototypes -Wno-unused-variable -Wno-unused-function $(LDFLAGS) -o $@ $< $(OBJ)
+tests/_skel.o: tests/_skel.c
+	@echo CC $<
+	@$(CC) $(CFLAGS) -c -o $@ $<
+
+tests/%-test: tests/%-test.c %.c $(OBJ) unit.h tests/_skel.o 
 	@echo CCLD -o $@
+	@$(CC) $(CFLAGS) -Wno-missing-prototypes -Wno-unused-variable -Wno-unused-function $(LDFLAGS) -o $@ $< $(OBJ) tests/_skel.o
 	@$(WRAPPER) $@ || true
 
 test:
@@ -50,4 +55,4 @@ clean:
 	@echo cleaning
 
 .PHONY: clean test
-.SECONDARY: $(OBJ)
+.SECONDARY: $(OBJ) $(TESTS)
