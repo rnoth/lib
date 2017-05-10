@@ -21,13 +21,6 @@ LDFLAGS += -Wl,--gc-section
 CFLAGS += -O3 -flto
 endif
 
-# note this doesn't actually work
-ifdef $(shell which valgrind)
-WRAPPER := valgrind -q
-else
-WRAPPER :=
-endif
-
 -include deps.mk
 
 deps.mk: $(SRC) $(TESTS)
@@ -38,14 +31,11 @@ deps.mk: $(SRC) $(TESTS)
 	@echo CC $<
 	@$(CC) $(CFLAGS) -c -o $@ $<
 
-tests/_skel.o: tests/_skel.c
-	@echo CC $<
-	@$(CC) $(CFLAGS) -c -o $@ $<
-
-tests/%-test: tests/%-test.c %.c $(OBJ) unit.h tests/_skel.o 
+tests/%-test: tests/%-test.c %.c $(OBJ) unit.h
 	@echo CCLD -o $@
-	@$(CC) $(CFLAGS) -Wno-missing-prototypes -Wno-unused-variable -Wno-unused-function $(LDFLAGS) -o $@ $< $(OBJ) tests/_skel.o
-	@$(WRAPPER) $@ || true
+	@$(CC) $(CFLAGS) -Wno-missing-prototypes -Wno-unused-variable -Wno-unused-function $(LDFLAGS) -o $@ $< $(OBJ)
+	@echo
+	@$@ || true
 
 test:
 	@for test in tests/*-test; do "$$test"; read; done;
