@@ -2,7 +2,7 @@ CC	?= cc
 CFLAGS	+= -pipe -D_POSIX_C_SOURCE -std=c99 -pedantic -Wall -Wextra \
 	   -Wno-missing-field-initializers -Wno-unused-parameter \
 	   -Warray-bounds -Wno-switch -Wmissing-prototypes \
-	   -fstrict-aliasing -fstrict-overflow -fomit-frame-pointer \
+	   -fstrict-aliasing -fstrict-overflow \
 	   -fdata-sections -ffunction-sections -fno-exceptions \
 	   -fno-unwind-tables -fno-asynchronous-unwind-tables \
 	   -fno-stack-protector
