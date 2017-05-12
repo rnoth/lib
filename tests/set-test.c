@@ -98,13 +98,14 @@ test_remove(void)
 void
 test_fixed(void)
 {
-	char *arr[3];
-	expect(4, set_query_string(arr, 3, set, ""));
+	char **arr = calloc(3, sizeof *arr);
+	expect(4, set_query_string(&arr, 3, set, ""));
 	ok(arr[0] != 0x0);
 	ok(arr[1] != 0x0);
 	ok(arr[2] == 0x0);
 	ok(!strcmp(arr[0], "bar"));
 	ok(!strcmp(arr[1], "baz"));
+	free(arr);
 }
 
 void
