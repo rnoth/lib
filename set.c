@@ -205,13 +205,15 @@ nod_locate(uintptr_t *prev, struct key *key)
 	int8_t bit = 0;
 	struct internal *nod = 0x0;
 	uintptr_t cur = *prev;
+	uintptr_t next = cur;
 
-	if (isnode(*prev)) do {
+	while (isnode(next)) {
 		*prev = cur;
-		if (nod) cur = nod->chld[bit];
-		nod = node(cur);
-		bit = key_index(key, nod->crit);
-	} while (isnode(nod->chld[bit]));
+		 cur  = next;
+		 nod  = node(cur);
+		 bit  = key_index(key, nod->crit);
+		 next = nod->chld[bit];
+	}
 
 	return cur;
 }
@@ -385,36 +387,39 @@ set_remove(set_t *t, uint8_t *src, size_t len)
 }
 
 int
-set_do_remove(uintptr_t *dest, struct key *key)
+set_do_remove(uintptr_t *dst, struct key *key)
 {
 	struct internal *nod = 0x0;
 	struct external *ex = 0x0;
 	uintptr_t loc = 0;
+	uintptr_t src = 0;
 	uint8_t bit = 0;
 
-	loc = nod_locate(dest, key);
+	loc = nod_locate(dst, key);
 
-	if (isleaf(*dest)) ex = leaf(*dest);
-	else nod = node(*dest);
+	if (isleaf(*dst)) ex = leaf(*dst);
+	else nod = node(*dst);
 
 	if (isnode(loc)) nod = node(loc);
 
-	if (!ex) ex = leaf(nod->chld[ key_index(key, nod->crit) ]);
+	if (!ex) ex = leaf(nod->chld[key_index(key, nod->crit)]);
 
 	if (!key_match(key, ex)) return ENOENT;
 
-	if (!nod) {
-		free(ex);
-		*dest = 0x0;
-		return 0;
+	if (!nod) *dst = 0x0;
+	else if (*dst == loc) {
+		 bit = nod->chld[1] == tag_leaf(ex);
+		*dst = nod->chld[!bit];
+	} else {
+		bit = nod->chld[1] == tag_leaf(ex);
+		src = nod->chld[!bit];
+		bit = node(*dst)->chld[1] == loc;
+		node(*dst)->chld[bit] = src;
 	}
 
-	if (nod) {
-		bit = nod->chld[1] == tag_leaf(ex);
-		*dest = nod->chld[!bit];
-	}
 	free(ex);
 	free(nod);
+
 	return 0;
 }
 
@@ -487,7 +492,8 @@ set_do_query(void ***res, size_t *ind, size_t nmemb, uintptr_t cur, struct key *
 	uint8_t i;
 	struct internal *nod;
 
-	if (isleaf(cur) && key_prefix(key, leaf(cur))) {
+	if (isleaf(cur)) {
+		if (!key_prefix(key, leaf(cur))) return;
 		++*ind;
 		if (*ind >= nmemb) return;
 		if (res) (*res)[*ind - 1] = leaf(cur)->elem;
