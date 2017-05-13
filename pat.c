@@ -207,7 +207,7 @@ ins_halt(struct context *ctx, struct thread *th, wchar_t const wc)
 	err = thr_finish(ctx, ind);
 	if (err) return err;
 
-	return thr_next(ctx, ind + 1, wc);
+	return thr_next(ctx, ind, wc);
 }
 
 int
