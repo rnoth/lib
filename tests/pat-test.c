@@ -112,20 +112,17 @@ loop(void)
 	struct a *a = 0x0;
 	struct b *b = 0x0;
 	struct pattern pat = {0};
-	struct patmatch *mat;
-
-	expect(0, vec_ctor(mat));
 
 	for (a = cur; a->pat; ++a) {
 		expect(0, pat_compile(&pat, a->pat));
 
 		for (b = a->accept; b->txt; ++b) {
-			expect(0, pat_match(&mat, b->txt, &pat));
-			expect(b->off, mat->off);
-			expect(b->ext, mat->ext);
+			expect(0, pat_match(&pat, b->txt));
+			expect(b->off, pat.mat->off);
+			expect(b->ext, pat.mat->ext);
 		}
 
 		for (b = a->reject; b->txt; ++b)
-			expect(-1, pat_match(&mat, b->txt, &pat));
+			expect(-1, pat_match(&pat, b->txt));
 	}
 }

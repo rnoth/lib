@@ -108,7 +108,7 @@ static int pataddinit(struct pattern *);
 static int pataddfini(struct pattern *, struct patins **);
 
 static size_t patlex(struct token *, char const *, size_t);
-static int    pat_do_match(struct patmatch **, struct context *);
+static int    pat_do_match(struct pattern *, struct context *);
 static int    pat_exec(struct context *);
 
 static int (* const patadd[])(struct pattern *, struct token *, struct patins **) = {
@@ -574,7 +574,7 @@ esc:
 }
 
 int
-pat_do_match(struct patmatch **res, struct context *ctx)
+pat_do_match(struct pattern *pat, struct context *ctx)
 {
 	int err = 0;
 	size_t max = 0;
@@ -590,7 +590,7 @@ pat_do_match(struct patmatch **res, struct context *ctx)
 		}
 	}
 
-	return vec_copy(res, ctx->mat[max].mat);
+	return vec_copy(&pat->mat, ctx->mat[max].mat);
 }
 
 int
@@ -637,8 +637,11 @@ pat_compile(struct pattern *dest, char const *src)
 	vec_ctor(buf);
 	if (!buf) return ENOMEM;
 
-	vec_ctor(dest->prog);
-	if (!dest->prog) goto finally;
+	err = vec_ctor(dest->prog);
+	if (err) goto finally;
+
+	err = vec_ctor(dest->mat);
+	if (err) goto finally;
 
 	pataddinit(dest);
 
@@ -653,25 +656,22 @@ pat_compile(struct pattern *dest, char const *src)
 finally:
 	vec_free(buf);
 	if (err) vec_free(dest->prog);
+	if (err) vec_free(dest->mat);
 	return err;
 }
 
 int
-pat_match(struct patmatch **matv, char const *str, struct pattern const *pat)
+pat_match(struct pattern *pat, char const *str)
 {
-	return pat_match_callback(matv, pat, get_char,
-                                  (struct pos []){{.n=strlen(str)+1,.v=str}});
+	return pat_match_callback(pat, get_char, (struct pos[]){{.n=strlen(str)+1,.v=str}});
 }
 
 int
-pat_match_callback(struct patmatch **matv, struct pattern const *pat,
-                   int (*cb)(char *, void *), void *x)
+pat_match_callback(struct pattern *pat, int (*cb)(char *, void *), void *x)
 {
 	int err = 0;
 	struct context ctx = {.cb = cb, .ctx = x};
 	struct thread th = { .ins = pat->prog };
-
-	if (matv) vec_check(matv);
 
 	err = ctx_init(&ctx);
 	if (err) goto finally;
@@ -682,7 +682,7 @@ pat_match_callback(struct patmatch **matv, struct pattern const *pat,
 	err = vec_append(&ctx.thr, &th);
 	if (err) goto finally;
 
-	err = pat_do_match(matv, &ctx);
+	err = pat_do_match(pat, &ctx);
 	if (err) goto finally;
 
 finally:
