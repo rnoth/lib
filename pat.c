@@ -241,7 +241,7 @@ ins_save(struct context *ctx, struct thread *th, wchar_t const wc)
 	th->mat[ins->arg].ext = ctx->pos - th->mat[ins->arg].off;
 	++th->pos;
 
-	return ins->op(ctx, th, wc);
+	return ip(th)->op(ctx, th, wc);
 }
 
 int
