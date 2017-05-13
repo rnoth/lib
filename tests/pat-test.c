@@ -3,47 +3,22 @@
 #include "../util.h"
 #include "../vec.h"
 
-
 char filename[] = "pat.c";
 
-// TODO: better organization
-
-void test_compfree(void);
-void test_qmark(void);
-void test_star(void);
+static void test_qmark(void);
+static void test_star1(void);
+static void test_star2(void);
 
 struct test tests[] = {
-	{ 0x0, test_compfree, "compiling some patterns", },
 	{ 0x0, test_qmark,    "testing the ? operator", },
-	{ 0x0, test_star,     "testing the * operator", },
+	{ 0x0, 0x0,           "testing the * operator", },
+	{ 0x0, test_star1,    "\tmatching over a simple text", },
+	{ 0x0, test_star2,    "\ttesting a more complex pattern", },
 };
 
 size_t const tests_len = arr_len(tests);
 
 void cleanup() {}
-
-void
-test_compfree(void)
-{
-	size_t i = 0;
-	struct pattern pat[11] = {{0}};
-
-	// note: you should examine these in a debugger to ensure sanity
-	ok(!pat_compile(pat, "foo"));
-	ok(!pat_compile(pat + 1, "foo?"));
-	ok(!pat_compile(pat + 2, "f?o?o?"));
-	ok(!pat_compile(pat + 3, "f*o+oo+"));
-	ok(!pat_compile(pat + 4, "(foo)"));
-	ok(!pat_compile(pat + 5, "(f|o|o)"));
-	ok(!pat_compile(pat + 6, "(f*|o|(o+))"));
-	ok(!pat_compile(pat + 7, "^foo$"));
-	ok(!pat_compile(pat + 8, "^fo(o$|oo)"));
-	ok(!pat_compile(pat + 9, "\\^f\\*o\\(\\(\\$"));
-
-	printf("\tfreeing the patterns...\n");
-	for (i = 0; i < sizeof pat / sizeof *pat; ++i)
-		pat_free(pat + i);
-}
 
 void
 test_qmark(void)
@@ -80,15 +55,13 @@ test_qmark(void)
 }
 
 void
-test_star(void)
+test_star1(void)
 {
 	struct pattern pat = {0};
 	struct patmatch *mat = 0x0;
 
-	ok(!vec_ctor(mat));
+	expect(0, vec_ctor(mat));
 	expect(0, pat_compile(&pat, "bleh*"));
-
-	printf("\t\tmatching over a simple text...\n");
 
 	expect(0, pat_match(&mat, "ble", &pat));
 	expect(0, mat->off);
@@ -105,8 +78,15 @@ test_star(void)
 	expect(0, pat_match(&mat, "blah blah blehh blah", &pat));
 	expect(10, mat->off);
 	expect(5,  mat->ext);
+}
 
-	printf("testing a more complex patterns...\n");
+void
+test_star2(void)
+{
+	struct pattern pat = {0};
+	struct patmatch *mat = 0x0;
+
+	expect(0, vec_ctor(mat));
 	ok(!pat_compile(&pat, "b*a*r*"));
 
 	expect(0, pat_match(&mat, "bar", &pat));
