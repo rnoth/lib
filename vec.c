@@ -260,7 +260,7 @@ vec_splice(void *destp, size_t pos, void const *src, size_t nmemb, size_t size)
 		return EOVERFLOW;
 
 	ext = nmemb * size;
-	len = len(*dest.v) * size;
+	len = vec_len(*dest.v) * size;
 	off = pos * size;
 
 	while (len + ext >= vec_mem(*dest.v, size)) {
