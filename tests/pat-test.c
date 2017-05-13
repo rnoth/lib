@@ -5,15 +5,24 @@
 
 char filename[] = "pat.c";
 
-static void test_qmark(void);
+// TODO: there is a simpler way to implement these tests
+
+static void test_qmark1(void);
+static void test_qmark2(void);
+static void test_qmark3(void);
 static void test_star1(void);
 static void test_star2(void);
+static void test_star3(void);
 
 struct test tests[] = {
-	{ 0x0, test_qmark,    "testing the ? operator", },
+	{ 0x0, 0x0,           "testing the ? operator", },
+	{ 0x0, test_qmark1,   "\tmatching over a minimal text", },
+	{ 0x0, test_qmark2,   "\tmatching within a text", },
+	{ 0x0, test_qmark3,   "\ttesting non-matches", },
 	{ 0x0, 0x0,           "testing the * operator", },
 	{ 0x0, test_star1,    "\tmatching over a simple text", },
 	{ 0x0, test_star2,    "\ttesting a more complex pattern", },
+	{ 0x0, test_star3,    "\ttesting non-matches" },
 };
 
 size_t const tests_len = arr_len(tests);
@@ -21,21 +30,31 @@ size_t const tests_len = arr_len(tests);
 void cleanup() {}
 
 void
-test_qmark(void)
+test_qmark1(void)
 {
 	struct pattern pat = {0};
 	struct patmatch *mat = 0x0;
 
-	ok(!pat_compile(&pat, "foo?"));
 	ok(!vec_ctor(mat));
+	ok(!pat_compile(&pat, "foo?"));
 
-	printf("\t\tmatching over a minimal text...\n");
+	expect(0, pat_match(&mat, "foo", &pat));
+	expect(0, mat->off);
+	expect(3, mat->ext);
 
-	ok(!pat_match(&mat, "foo", &pat));
-	ok(mat->off == 0);
-	ok(mat->ext == 3);
+	expect(0, pat_match(&mat, "fo", &pat));
+	expect(0, mat->off);
+	expect(2, mat->ext);
+}
 
-	printf("\t\tmatching within a text...\n");
+void
+test_qmark2(void)
+{
+	struct pattern pat = {0};
+	struct patmatch *mat = 0x0;
+
+	ok(!vec_ctor(mat));
+	ok(!pat_compile(&pat, "foo?"));
 
 	ok(!pat_match(&mat, "blah blah foo", &pat));
 	ok(mat->off == 10);
@@ -45,8 +64,17 @@ test_qmark(void)
 
 	ok(mat->off == 6);
 	ok(mat->ext == 2);
+}
 
-	printf("\t\ttesting non-matches...\n");
+void
+test_qmark3(void)
+{
+	struct pattern pat = {0};
+	struct patmatch *mat = 0x0;
+
+	ok(!vec_ctor(mat));
+	ok(!pat_compile(&pat, "foo?"));
+
 	ok(pat_match(&mat, "it's not here", &pat) == -1);
 	ok(pat_match(&mat, "ffffff", &pat) == -1);
 
@@ -103,7 +131,20 @@ test_star2(void)
 
 	expect(0, pat_match(&mat, "", &pat));
 	expect(0, mat->off);
-	expect(1, mat->ext);
+	expect(0, mat->ext);
+}
 
-	printf("done\n");
+void
+test_star3(void)
+{
+	struct pattern pat = {0};
+	struct patmatch *mat = 0x0;
+
+	expect(0, vec_ctor(mat));
+
+	expect(0, pat_compile(&pat, "qu+u?x$"));
+
+	expect(-1, pat_match(&mat, "no", &pat));
+	expect(-1, pat_match(&mat, "quuuuu", &pat));
+	expect(-1, pat_match(&mat, "", &pat));
 }
