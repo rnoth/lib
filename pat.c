@@ -584,7 +584,8 @@ pat_do_match(struct patmatch **res, struct context *ctx)
 	if (err) return err;
 
 	vec_foreach (it, ctx->mat) {
-		if (it->mat[0].ext > ctx->mat[max].mat[0].ext) {
+		if (it->mat[0].ext > ctx->mat[max].mat[0].ext
+		&& it->mat[0].off <= ctx->mat[max].mat[0].off) {
 			max = it - ctx->mat;
 		}
 	}
