@@ -15,6 +15,7 @@ static void test_elim(void);
 static void test_insert(void);
 static void test_fun(void);
 static void test_large_insert(void);
+static void test_resize(void);
 static void test_shift(void);
 static void test_slice(void);
 static void test_splice(void);
@@ -35,6 +36,8 @@ struct test tests[] = {
 	{ test_large_insert,  test_copy,          "copying vectors", },
 	{ test_large_insert,  test_slice,         "slicing a vector", },
 	{ test_large_insert,  test_splice,        "splicing a vector with an array", },
+	{ test_alloc,         test_resize,        "resizing a fresh vector", },
+	{ test_large_insert,  test_resize,        "resizing a filled vector", }, // XXX
 };
 
 size_t const tests_len = arr_len(tests);
@@ -216,6 +219,15 @@ test_large_insert(void)
 		ok(vec_len(intvec) == (size_t)i + 1);
 	}
 
+}
+
+void
+test_resize(void)
+{
+	vec_resize(&intvec, 200);
+	expect(800, vec_mem(intvec));
+	vec_resize(&intvec, 4);
+	expect(16, vec_mem(intvec));
 }
 
 void
