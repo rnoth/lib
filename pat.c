@@ -10,6 +10,8 @@
 
 // TODO: implement bounded version of pat_match, wrap pat_match around it
 // fixes the bug where empty texts always fail to match
+//
+// TODO: move pat_match's matv into struct pattern
 
 #define HALT (ins_halt)
 #define CHAR (ins_char)
@@ -43,9 +45,17 @@ enum pat_sym {
 };
 
 struct context {
-	size_t		  pos;
+	int          (*cb)(char *, void *);
+	void          *ctx;
+	size_t         pos;
 	struct thread *thr;
 	struct thread *mat;
+};
+
+struct pos {
+	char const  *v;
+	size_t       n;
+	size_t       f;
 };
 
 struct thread {
@@ -69,6 +79,8 @@ static inline struct patins *ip(struct thread *);
 
 static int  ctx_init(struct context *);
 static void ctx_fini(struct context *);
+
+static int get_char(char *, void *);
 
 static int ins_char(struct context *, struct thread *, wchar_t const);
 static int ins_clss(struct context *, struct thread *, wchar_t const);
@@ -96,7 +108,8 @@ static int pataddinit(struct pattern *);
 static int pataddfini(struct pattern *, struct patins **);
 
 static size_t patlex(struct token *, char const *, size_t);
-static int    pat_do_match(struct patmatch **, struct context *, char const *);
+static int    pat_do_match(struct patmatch **, struct context *);
+static int    pat_exec(struct context *);
 
 static int (* const patadd[])(struct pattern *, struct token *, struct patins **) = {
 	[pat_sym_literal] = pataddlit,
@@ -141,6 +154,27 @@ ctx_fini(struct context *ctx)
 }
 
 int
+get_char(char *dst, void *x)
+{
+	union {
+		void *p;
+		struct pos *v;
+	} str = { .p = x };
+	struct pos *p = str.v;
+	int len = 0;
+
+	if (p->f > p->n) return 0;
+	len = mblen(p->v + p->f, p->n - p->f);
+	if (len <= 0) len = 1;
+
+	memcpy(dst, p->v + p->f, len);
+
+	p->f += len;
+
+	return len;
+}
+
+int
 ins_char(struct context *ctx, struct thread *th, wchar_t const wc)
 {
 	size_t ind = th - ctx->thr;
@@ -179,6 +213,7 @@ int
 ins_fork(struct context *ctx, struct thread *th, wchar_t const wc)
 {
 	int err = 0;
+	size_t ind = th - ctx->thr;
 	struct thread new = {0};
 
 	err = thr_fork(&new, th);
@@ -188,6 +223,8 @@ ins_fork(struct context *ctx, struct thread *th, wchar_t const wc)
 
 	err = vec_insert(&ctx->thr, &new, th - ctx->thr + 1);
 	if (err) goto fail;
+
+	th = ctx->thr + ind;
 
 	++th->pos;
 	return ip(th)->op(ctx, th, wc);
@@ -274,6 +311,7 @@ ip(struct thread *th)
 int
 thr_next(struct context *ctx, size_t ind, wchar_t wc)
 {
+	if (!vec_len(ctx->thr)) return -1;
 	if (ind >= vec_len(ctx->thr)) return 0;
 	else return ip(ctx->thr + ind)->op(ctx, ctx->thr + ind, wc);
 }
@@ -536,43 +574,55 @@ esc:
 }
 
 int
-pat_do_match(struct patmatch **res, struct context *ctx, char const *str)
+pat_do_match(struct patmatch **res, struct context *ctx)
 {
 	int err = 0;
-	int len = 0;
 	size_t max = 0;
-	size_t srclen = strlen(str);
 	struct thread *it;
-	wchar_t wc = 0;
 
-	while (str[ctx->pos] && vec_len(ctx->thr)) {
+	err = pat_exec(ctx);
+	if (err) return err;
 
-		ctx->pos += len;
-
-		len = mbtowc(&wc, str + ctx->pos, srclen - ctx->pos);
-		if (len == -1) { err = EILSEQ; break; }
-
-		err = thr_start(ctx, wc);
-		if (err) break;
-	}
-
-	if (err > 0) goto finally;
-
-	if (!len(ctx->mat)) {
-		err = -1;
-		goto finally;
-	}
-	
 	vec_foreach (it, ctx->mat) {
 		if (it->mat[0].ext > ctx->mat[max].mat[0].ext) {
 			max = it - ctx->mat;
 		}
 	}
 
-	err = vec_copy(res, ctx->mat[max].mat);
+	return vec_copy(res, ctx->mat[max].mat);
+}
 
-finally:
-	return err;
+int
+pat_exec(struct context *ctx)
+{
+	char c[8];
+	int err;
+	int len;
+	wchar_t wc = 0;
+	wchar_t *wcs = 0;
+
+	err = vec_ctor(wcs);
+	if (err) return err;
+
+	while (ctx->cb(c, ctx->ctx)) {
+
+		len = mbtowc(&wc, c, 8);
+		if (len <= 0) wc = *c; // XXX
+
+		err = vec_concat(&wcs, &wc, len);
+		if (err) break;
+
+		err = thr_start(ctx, wc);
+		if (err) break;
+
+		ctx->pos += len;
+	}
+	
+	vec_free(wcs);
+
+	if (err > 0) return err;
+	if (!vec_len(ctx->mat)) return -1;
+	return 0;
 }
 
 int
@@ -608,9 +658,17 @@ finally:
 int
 pat_match(struct patmatch **matv, char const *str, struct pattern const *pat)
 {
+	return pat_match_callback(matv, pat, get_char,
+                                  (struct pos []){{.n=strlen(str)+1,.v=str}});
+}
+
+int
+pat_match_callback(struct patmatch **matv, struct pattern const *pat,
+                   int (*cb)(char *, void *), void *x)
+{
 	int err = 0;
-	struct context ctx = {0};
-	struct thread th = { .ins = pat->prog, .pos = 0, .mat = 0x0 };
+	struct context ctx = {.cb = cb, .ctx = x};
+	struct thread th = { .ins = pat->prog };
 
 	if (matv) vec_check(matv);
 
@@ -623,7 +681,7 @@ pat_match(struct patmatch **matv, char const *str, struct pattern const *pat)
 	err = vec_append(&ctx.thr, &th);
 	if (err) goto finally;
 
-	err = pat_do_match(matv, &ctx, str);
+	err = pat_do_match(matv, &ctx);
 	if (err) goto finally;
 
 finally:
