@@ -7,144 +7,125 @@ char filename[] = "pat.c";
 
 // TODO: there is a simpler way to implement these tests
 
-static void test_qmark1(void);
-static void test_qmark2(void);
-static void test_qmark3(void);
-static void test_star1(void);
-static void test_star2(void);
-static void test_star3(void);
+static void do_qmark(void);
+static void do_star(void);
+static void do_plus(void);
+static void loop(void);
+
+struct a {
+	char *pat;
+	struct b *accept;
+	struct b *reject;
+};
+
+struct b {
+	char *txt;
+	size_t off;
+	size_t ext;
+};
 
 struct test tests[] = {
-	{ 0x0, 0x0,           "testing the ? operator", },
-	{ 0x0, test_qmark1,   "\tmatching over a minimal text", },
-	{ 0x0, test_qmark2,   "\tmatching within a text", },
-	{ 0x0, test_qmark3,   "\ttesting non-matches", },
-	{ 0x0, 0x0,           "testing the * operator", },
-	{ 0x0, test_star1,    "\tmatching over a simple text", },
-	{ 0x0, test_star2,    "\ttesting a more complex pattern", },
-	{ 0x0, test_star3,    "\ttesting non-matches" },
+	{ do_qmark, loop,      "testing the ? operator", },
+	{ do_star,  loop,      "testing the * operator", },
+	{ do_plus,  loop,      "testing the + operator", },
+};
+
+struct a qmark[] = {
+	{ "foo?", (struct b[]) {
+		{ "foo",          0, 3, },
+                { "fo",           0, 2, },
+	        { "fe fi fo fum", 6, 2, },
+		{ 0x0 }, },
+
+		(struct b[]) {
+		{ "it's no here", },
+	        { "ffffff", },
+		{ 0x0 }, },
+	},
+
+	{ "b?a?r?", (struct b[]) {
+		{ "bar",     0, 3, },
+		{ "a",       0, 1, },
+		{ "bababar", 0, 2, },
+		{ "",        0, 0, },
+		{ 0x0 }, },
+
+		(struct b[]) {
+		{ 0x0 }, },
+	},
+
+	{ 0x0 },
+};
+
+struct a star[] = {
+	{ "bleh*", (struct b[]) {
+		{ "ble",                  0,  3, },
+		{ "bleh",                 0,  4, },
+		{ "blehhhh",              0,  7, },
+		{ "blah blah blehh blah", 10, 5, },
+		{ 0x0 }, },
+	
+		(struct b[]) {
+		{ "no" },
+		{ "bl" },
+		{ 0x0 }, },
+	},
+
+	{ "b*a*r*", (struct b[]) {
+		{ "bar",   0, 3, },
+		{ "bbaaa", 0, 5, },
+		{ "r",     0, 1, },
+		{ "",      0, 0, },
+		{ 0x0 }, },
+
+		(struct b[]) {
+		{ 0x0 }, },
+	},
+};
+
+struct a plus[] = {
+	{ "hi+", (struct b[]) {
+		{ "hi",    0, 2, },
+		{ "hiiii", 0, 5, },
+		{ 0x0}, },
+	
+		(struct b[]) {
+		{ "h" },
+		{ "" },
+		{ 0x0 }, }
+	},
 };
 
 size_t const tests_len = arr_len(tests);
+struct a *cur;
+
+void do_qmark(void) { cur = qmark; }
+void do_star(void)  { cur = star; }
+void do_plus(void)  { cur = plus; }
 
 void cleanup() {}
 
 void
-test_qmark1(void)
+loop(void)
 {
+	size_t i = 0;
+	struct a *a = 0x0;
+	struct b *b = 0x0;
 	struct pattern pat = {0};
-	struct patmatch *mat = 0x0;
-
-	ok(!vec_ctor(mat));
-	ok(!pat_compile(&pat, "foo?"));
-
-	expect(0, pat_match(&mat, "foo", &pat));
-	expect(0, mat->off);
-	expect(3, mat->ext);
-
-	expect(0, pat_match(&mat, "fo", &pat));
-	expect(0, mat->off);
-	expect(2, mat->ext);
-}
-
-void
-test_qmark2(void)
-{
-	struct pattern pat = {0};
-	struct patmatch *mat = 0x0;
-
-	ok(!vec_ctor(mat));
-	ok(!pat_compile(&pat, "foo?"));
-
-	ok(!pat_match(&mat, "blah blah foo", &pat));
-	ok(mat->off == 10);
-	ok(mat->ext == 3);
-
-	ok(!pat_match(&mat, "fe fi fo fum", &pat));
-
-	ok(mat->off == 6);
-	ok(mat->ext == 2);
-}
-
-void
-test_qmark3(void)
-{
-	struct pattern pat = {0};
-	struct patmatch *mat = 0x0;
-
-	ok(!vec_ctor(mat));
-	ok(!pat_compile(&pat, "foo?"));
-
-	ok(pat_match(&mat, "it's not here", &pat) == -1);
-	ok(pat_match(&mat, "ffffff", &pat) == -1);
-
-	pat_free(&pat);
-	vec_free(mat);
-}
-
-void
-test_star1(void)
-{
-	struct pattern pat = {0};
-	struct patmatch *mat = 0x0;
-
-	expect(0, vec_ctor(mat));
-	expect(0, pat_compile(&pat, "bleh*"));
-
-	expect(0, pat_match(&mat, "ble", &pat));
-	expect(0, mat->off);
-	expect(3, mat->ext);
-
-	expect(0, pat_match(&mat, "bleh", &pat));
-	expect(0, mat->off);
-	expect(4, mat->ext);
-
-	expect(0, pat_match(&mat, "blehhhh", &pat));
-	expect(0, mat->off);
-	expect(7, mat->ext);
-
-	expect(0, pat_match(&mat, "blah blah blehh blah", &pat));
-	expect(10, mat->off);
-	expect(5,  mat->ext);
-}
-
-void
-test_star2(void)
-{
-	struct pattern pat = {0};
-	struct patmatch *mat = 0x0;
-
-	expect(0, vec_ctor(mat));
-	ok(!pat_compile(&pat, "b*a*r*"));
-
-	expect(0, pat_match(&mat, "bar", &pat));
-	expect(0, mat->off);
-	expect(3, mat->ext);
-
-	expect(0, pat_match(&mat, "bbaaa", &pat));
-	expect(0, mat->off);
-	expect(5, mat->ext);
-
-	expect(0, pat_match(&mat, "r", &pat));
-	expect(0, mat->off);
-	expect(1, mat->ext);
-
-	expect(0, pat_match(&mat, "", &pat));
-	expect(0, mat->off);
-	expect(0, mat->ext);
-}
-
-void
-test_star3(void)
-{
-	struct pattern pat = {0};
-	struct patmatch *mat = 0x0;
+	struct patmatch *mat;
 
 	expect(0, vec_ctor(mat));
 
-	expect(0, pat_compile(&pat, "qu+u?x$"));
+	for (a = cur; a->pat; ++a) {
+		expect(0, pat_compile(&pat, a->pat));
 
-	expect(-1, pat_match(&mat, "no", &pat));
-	expect(-1, pat_match(&mat, "quuuuu", &pat));
-	expect(-1, pat_match(&mat, "", &pat));
+		for (b = a->accept; b->txt; ++b) {
+			expect(0, pat_match(&mat, b->txt, &pat));
+			expect(b->off, mat->off);
+			expect(b->ext, mat->ext);
+		}
+
+		for (b = a->reject; b->txt; ++b)
+			expect(-1, pat_match(&mat, b->txt, &pat));
+	}
 }
