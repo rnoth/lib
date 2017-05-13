@@ -18,6 +18,8 @@ struct patmatch {
 
 int  pat_compile(struct pattern *, char const *);
 int  pat_match(struct patmatch **, char const *, struct pattern const *);
+int  pat_match_callback(struct patmatch **, struct pattern const *,
+                        int (*)(char *, void *), void *);
 void pat_free(struct pattern *);
 
 #endif // _edna_pat_
