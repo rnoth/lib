@@ -5,24 +5,16 @@
 #include "vec.h"
 
 #ifndef isascii
-# define isascii(C) (!((C) & (1<<7)))
+# define isascii(c) (!((c) & (1<<7)))
 #endif
 
-#define eol(str, pos) (pos >= len(str))
-
-typedef char string_t;
+#define str_eol(STR, POS) (POS >= vec_len(STR))
 
 /* str.c */
-void	str_chomp	(char *);
-void	str_free	(string_t *);
-string_t* str_alloc	(void);
+char * str_alloc        (void);
+int    str_append       (char **, char);
+void   str_chomp        (char **);
+void   str_free         (char *);
+int    str_readline     (char **, FILE *);
 
-/* str-io */
-int	str_readline	(string_t **, FILE *);
-int	str_write	(FILE *, string_t const *);
-
-/* utf8.c */
-int 	get_uchar	(char *, const char *);
-int	uchar_extent	(const unsigned char);
-size_t	ustrlen		(const char *);
 #endif
