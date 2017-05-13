@@ -29,19 +29,17 @@
 #undef vec_elim
 #undef vec_insert
 #undef vec_join
+#undef vec_resize
 #undef vec_shift
 #undef vec_slice
 #undef vec_splice
 #undef vec_transfer
-#undef vec_truncate
+#undef vec_truncat
 
 union vec {
 	void const *p;
 	unsigned char **v;
 };
-
-static int vec_expand(unsigned char **, size_t, size_t);
-
 
 size_t
 vec_mem(void const *v, size_t size)
@@ -117,7 +115,7 @@ vec_copy(void *destp, void *src, size_t size)
 	vec_check(dest.v, size);
 	vec_check(&src, size);
 
-	vec_truncate(destp, 0, size);
+	vec_truncat(destp, 0, size);
 
 	return vec_splice(destp, 0, src, len(src), size);
 }
@@ -160,29 +158,6 @@ vec_elim(void *vecp, size_t ind, size_t nmemb, size_t size)
 }
 
 int
-vec_expand(unsigned char **vecv, size_t size, size_t diff)
-{
-	unsigned char *old = 0x0;
-	unsigned char *tmp = 0x0;
-
-	assert(vec_mem(*vecv, size) != 0);
-
-	old = *vecv - HEADER;
-
-	(*vecv)[vec_mem(*vecv, size) - 1] = 0;
-
-	tmp = calloc(1, diff + HEADER);
-	if (!tmp) return ENOMEM;
-	memcpy(tmp, old, len(*vecv) * size + HEADER);
-	free(old);
-
-	*vecv = tmp + HEADER;
-
-	(*vecv)[diff - 1] = 0xff;
-	return 0;
-}
-
-int
 vec_insert(void *vecp, void const * data, size_t pos, size_t size)
 {
 	union vec vec = {.p = vecp};
@@ -205,6 +180,35 @@ vec_free(void *vec)
 	free((char *)vec - HEADER);
 }
 
+int
+vec_resize(void *vecp, size_t new, size_t size)
+{
+	union vec vec = {.p = vecp};
+	unsigned char *old = 0x0;
+	unsigned char *tmp = 0x0;
+	size_t ext = 0;
+
+	vec_check(vec.v, size);
+
+	old = *vec.v - HEADER;
+
+	(*vec.v)[vec_mem(*vec.v, size) - 1] = 0;
+
+	tmp = calloc(1, new + HEADER);
+	if (!tmp) return ENOMEM;
+
+	ext = umin(new, vec_len(*vec.v) * size);
+	ext += HEADER;
+
+	memcpy(tmp, old, ext);
+	free(old);
+
+	*vec.v = tmp + HEADER;
+
+	(*vec.v)[new - 1] = 0xff;
+	return 0;
+}
+
 void
 vec_shift(void *vecp, size_t off, size_t size)
 {
@@ -225,7 +229,7 @@ vec_slice(void *vecp, size_t beg, size_t nmemb, size_t size)
 	vec_check(vec.v, size);
 
 	if (beg >= len(*vec.v)) {
-		vec_truncate(vecp, 0, size);
+		vec_truncat(vecp, 0, size);
 		return;
 	}
 
@@ -263,10 +267,10 @@ vec_splice(void *destp, size_t pos, void const *src, size_t nmemb, size_t size)
 	len = vec_len(*dest.v) * size;
 	off = pos * size;
 
-	while (len + ext >= vec_mem(*dest.v, size)) {
+	if (len + ext >= vec_mem(*dest.v, size)) {
 		mem = vec_mem(*dest.v, size);
 		while (mem <= len + ext) mem *= 2;
-		err = vec_expand(dest.v, size, mem);
+		err = vec_resize(dest.v, mem, size);
 		if (err) return err;
 	}
 
@@ -282,7 +286,7 @@ vec_splice(void *destp, size_t pos, void const *src, size_t nmemb, size_t size)
 }
 
 void
-vec_truncate(void *vecp, size_t off, size_t size)
+vec_truncat(void *vecp, size_t off, size_t size)
 {
 	union vec vec = {.p = vecp};
 	memset(*vec.v + off * size,
@@ -294,6 +298,6 @@ vec_truncate(void *vecp, size_t off, size_t size)
 int
 vec_transfer(void *destp, void const *data, size_t len, size_t size)
 {
-	vec_truncate(destp, 0, size);
+	vec_truncat(destp, 0, size);
 	return vec_splice(destp, 0, data, len, size);
 }
