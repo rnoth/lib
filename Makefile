@@ -34,11 +34,11 @@ deps.mk: $(SRC) $(TESTS)
 tests/%-test: tests/%-test.c %.c $(OBJ) unit.h
 	@echo CCLD -o $@
 	@$(CC) $(CFLAGS) -Wno-missing-prototypes -Wno-unused-variable -Wno-unused-function $(LDFLAGS) -o $@ $< $(OBJ)
-	@echo
 	@$@ || true
+	@echo
 
 test:
-	@for test in tests/*-test; do "$$test"; read; done;
+	@for test in tests/*-test; do "$$test"; echo; done;
 
 clean:
 	@rm -f *.o $(NAME) tests/*-test core vgcore.*
