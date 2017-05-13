@@ -193,8 +193,7 @@ ins_fork(struct context *ctx, struct thread *th, wchar_t const wc)
 	return ip(th)->op(ctx, th, wc);
 
 fail:
-	vec_free(th->mat);
-	free(th);
+	vec_free(new.mat);
 	return err;
 }
 
