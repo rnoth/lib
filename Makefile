@@ -33,7 +33,7 @@ deps.mk: $(SRC) $(TESTS)
 
 tests/%-test: tests/%-test.c %.c $(OBJ) unit.h
 	@echo CCLD -o $@
-	@$(CC) $(CFLAGS) -Wno-missing-prototypes -Wno-unused-variable -Wno-unused-function $(LDFLAGS) -o $@ $< $(OBJ)
+	@$(CC) $(CFLAGS) -Wno-missing-prototypes -Wno-unused-variable -Wno-unused-function -o $@ $< $(OBJ) $(LDFLAGS)
 	@$@ || true
 	@echo
 
