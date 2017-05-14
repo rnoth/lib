@@ -8,7 +8,7 @@ struct pattern {
 	long opts;
 	struct patmatch *mat;
 	size_t nmat;
-	struct patins *prog;
+	struct ins *prog;
 };
 
 struct patmatch {
