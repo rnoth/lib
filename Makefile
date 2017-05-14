@@ -1,5 +1,6 @@
 CC	?= cc
 CFLAGS	+= -pipe -D_POSIX_C_SOURCE -std=c99 -pedantic -Wall -Wextra \
+	   -Wunreachable-code -Wshadow \
 	   -Wno-missing-field-initializers -Wno-unused-parameter \
 	   -Warray-bounds -Wno-switch -Wmissing-prototypes \
 	   -fstrict-aliasing -fstrict-overflow \
