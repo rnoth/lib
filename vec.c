@@ -30,6 +30,7 @@
 #undef vec_insert
 #undef vec_join
 #undef vec_resize
+#undef vec_pop
 #undef vec_shift
 #undef vec_slice
 #undef vec_splice
@@ -178,6 +179,21 @@ vec_free(void *vec)
 {
 	if (!vec) return;
 	free((char *)vec - HEADER);
+}
+
+void
+vec_pop(void *dest, void *srcp, size_t size)
+{
+	union vec src = {.p = srcp};
+	size_t ext = 0;
+
+	vec_check(src.v, size);
+
+	ext = (vec_len(*src.v) - 1) * size;
+	
+	memcpy(dest, src.v + ext, size);
+
+	vec_delete(src.v, vec_len(*src.v) - 1, size);
 }
 
 int

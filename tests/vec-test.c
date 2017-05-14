@@ -36,8 +36,7 @@ struct test tests[] = {
 	{ test_large_insert,  test_copy,          "copying vectors", },
 	{ test_large_insert,  test_slice,         "slicing a vector", },
 	{ test_large_insert,  test_splice,        "splicing a vector with an array", },
-	{ test_alloc,         test_resize,        "resizing a fresh vector", },
-	{ test_large_insert,  test_resize,        "resizing a filled vector", }, // XXX
+	{ test_large_insert,  test_pop,           "popping elements from a vector" },
 };
 
 size_t const tests_len = arr_len(tests);
@@ -228,6 +227,14 @@ test_resize(void)
 	expect(800, vec_mem(intvec));
 	vec_resize(&intvec, 4);
 	expect(16, vec_mem(intvec));
+}
+
+void
+test_pop(void)
+{
+	vec_pop(&i, intvec);
+	expect(999, vec_len(intvec));
+	expect(999, i);
 }
 
 void
