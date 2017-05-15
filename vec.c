@@ -191,7 +191,7 @@ vec_pop(void *dest, void *srcp, size_t size)
 
 	ext = (vec_len(*src.v) - 1) * size;
 	
-	memcpy(dest, src.v + ext, size);
+	memcpy(dest, *src.v + ext, size);
 
 	vec_delete(src.v, vec_len(*src.v) - 1, size);
 }
