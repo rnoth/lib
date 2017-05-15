@@ -15,6 +15,7 @@ static void test_elim(void);
 static void test_insert(void);
 static void test_fun(void);
 static void test_large_insert(void);
+static void test_pop(void);
 static void test_resize(void);
 static void test_shift(void);
 static void test_slice(void);
@@ -190,9 +191,9 @@ test_fun(void)
 	vec_foreach (each, intvec) expect(*each, i++);
 
 	printf("\t\ttrying continue inside vec_foreach()...\n");
-	vec_foreach (int *i, intvec) {
-		if (*i != 8) continue;
-		try(vec_delete(&intvec, i - intvec)); // note: don't try this at home
+	vec_foreach (int *j, intvec) {
+		if (*j != 8) continue;
+		try(vec_delete(&intvec, j - intvec)); // note: don't try this at home
 	}
 
 	expect(999, vec_len(intvec));
@@ -200,9 +201,9 @@ test_fun(void)
 	expect(9, intvec[8]);
 
 	printf("\t\ttrying to break out of vec_foreach()...\n");
-	vec_foreach (int *i, intvec) {
-		if (*i == 9) break;
-		ok(*i < 9);
+	vec_foreach (int *j, intvec) {
+		if (*j == 9) break;
+		ok(*j < 9);
 	}
 
 }
@@ -232,7 +233,8 @@ test_resize(void)
 void
 test_pop(void)
 {
-	vec_pop(&i, intvec);
+	int i;
+	vec_pop(&i, &intvec);
 	expect(999, vec_len(intvec));
 	expect(999, i);
 }
