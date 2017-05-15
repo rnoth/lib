@@ -22,26 +22,35 @@
 #define CLSS (ins_clss)
 
 enum pat_char_class {
-	pat_cl_any   = 0x0,
-	pat_cl_dot   = 0x1,
-	pat_cl_alpha = 0x2,
-	pat_cl_upper = 0x3,
-	pat_cl_lower = 0x4,
-	pat_cl_digit = 0x5,
-	pat_cl_space = 0x6,
+	class_any   = 0x0,
+	class_dot   = 0x1,
+	class_alpha = 0x2,
+	class_upper = 0x3,
+	class_lower = 0x4,
+	class_digit = 0x5,
+	class_space = 0x6,
 };
 
 enum pat_sym {
-	pat_sym_literal,
-	pat_sym_dot,
-	pat_sym_qmark,
-	pat_sym_star,
-	pat_sym_plus,
-	pat_sym_pipe,
-	pat_sym_carrot,
-	pat_sym_dollar,
-	pat_sym_lparen,
-	pat_sym_rparen,
+	sym_literal,
+	sym_dot,
+	sym_qmark,
+	sym_star,
+	sym_plus,
+	sym_pipe,
+	sym_carrot,
+	sym_dollar,
+	sym_lparen,
+	sym_rparen,
+};
+
+enum type {
+	type_null,
+	type_root,
+	type_opt,
+	type_rep_null,
+	type_rep,
+	type_alt,
 };
 
 struct context {
@@ -52,6 +61,12 @@ struct context {
 	struct thread *mat;
 };
 
+struct node {
+	uintptr_t *chld;
+	struct node *up;
+	enum type type;
+};
+
 struct pos {
 	char const  *v;
 	size_t       n;
@@ -60,7 +75,7 @@ struct pos {
 
 struct thread {
 	struct patmatch *mat;
-	struct patins 	*ins;
+	struct ins 	*ins;
 	size_t		 pos;
 };
 
@@ -70,12 +85,27 @@ struct token {
 	wchar_t		 wc;
 };
 
-struct patins {
+struct state {
+	struct pos   str[1];
+	struct token tok[1];
+	struct node *cur;
+	struct ins  *buf;
+	size_t       dep;
+};
+
+struct ins {
         int      (*op)(struct context *, struct thread *, wchar_t const);
 	uint64_t  arg;
 };
 
-static inline struct patins *ip(struct thread *);
+static inline struct ins *ip(struct thread *);
+
+static int add_literal(struct state *, struct pattern *);
+static int add_repetition(struct state *, struct pattern *);
+static int add_submatch(struct state *, struct pattern *);
+static int climb(struct state *, struct pattern *);
+
+static int comp_root(struct ins **, struct node *);
 
 static int  ctx_init(struct context *);
 static void ctx_fini(struct context *);
@@ -90,38 +120,160 @@ static int ins_jump(struct context *, struct thread *, wchar_t const);
 static int ins_mark(struct context *, struct thread *, wchar_t const);
 static int ins_save(struct context *, struct thread *, wchar_t const);
 
+static struct node *nod_ctor(struct node *);
+static void         nod_free(struct node *);
+
+static int  st_flush(struct state *);
+static void st_surface(struct state *);
+
 static int  thr_next(struct context *, size_t, wchar_t const);
 static int  thr_finish(struct context *, size_t);
 static int  thr_fork(struct thread *, struct thread *);
 static int  thr_start(struct context *, wchar_t const);
 static void thr_remove(struct context *, size_t);
 
-static int pataddalt(struct pattern *, struct token *, struct patins **);
-static int pataddbol(struct pattern *, struct token *, struct patins **);
-static int pataddeol(struct pattern *, struct token *, struct patins **);
-static int pataddlit(struct pattern *, struct token *, struct patins **);
-static int pataddlpar(struct pattern *, struct token *, struct patins **);
-static int pataddrpar(struct pattern *, struct token *, struct patins **);
-static int pataddrep(struct pattern *, struct token *, struct patins **);
-
-static int pataddinit(struct pattern *);
-static int pataddfini(struct pattern *, struct patins **);
-
-static size_t patlex(struct token *, char const *, size_t);
+static size_t pat_lex(struct state *, char const *, size_t);
+static int    pat_marshal(struct pattern *, struct node *);
+static int    pat_parse(struct node **, char const *, struct pattern *);
 static int    pat_do_match(struct pattern *, struct context *);
 static int    pat_exec(struct context *);
 
-static int (* const patadd[])(struct pattern *, struct token *, struct patins **) = {
-	[pat_sym_literal] = pataddlit,
-	[pat_sym_qmark]	  = pataddrep,
-	[pat_sym_star]	  = pataddrep,
-	[pat_sym_plus]	  = pataddrep,
-	[pat_sym_pipe]    = pataddalt,
-	[pat_sym_carrot]  = pataddbol,
-	[pat_sym_dollar]  = pataddeol,
-	[pat_sym_lparen]  = pataddlpar,
-	[pat_sym_rparen]  = pataddrpar,
+static int (* const pat_add[])(struct state *, struct pattern *) = {
+	[sym_literal] = add_literal,
+	[sym_qmark]   = add_repetition,
+	[sym_star]    = add_repetition,
+	[sym_plus]    = add_repetition,
+	[sym_lparen]  = add_submatch,
+	[sym_rparen]  = 0x0,
 };
+
+static int (* const pat_comp[])(struct ins **, struct node *) = {
+	[type_root] = comp_root,
+};
+
+static inline
+struct ins * ip(struct thread *th) { return th->ins + th->pos; }
+
+static inline struct node *to_node(uintptr_t u) { return (void *)u; }
+static inline struct ins  *to_leaf(uintptr_t u) { return (void *)u; }
+static inline bool is_leaf(uintptr_t u) { return u ? !(u & 1) : false; }
+//static inline bool is_node(uintptr_t u) { return u ? u & 1 : false; }
+static inline uintptr_t tag_leaf(struct ins *i) { return (uintptr_t)i; }
+static inline uintptr_t tag_node(struct node *n) { return (uintptr_t)n + 1; }
+
+int
+add_literal(struct state *st, struct pattern *pat)
+{
+	return vec_append(&st->buf, ((struct ins[]){{ .arg = st->tok->wc, .op = CHAR }}));
+}
+
+int
+add_repetition(struct state *st, struct pattern *pat)
+{
+	enum type const tab[] = {
+		[sym_qmark] = type_opt,
+		[sym_plus]  = type_rep,
+		[sym_star]  = type_rep_null,
+	};
+	struct node *nod = 0x0;
+	struct ins *ins = 0x0;
+	int err = 0;
+
+	nod = nod_ctor(st->cur);
+	if (!nod) goto nomem;
+
+	ins = calloc(1, sizeof *ins);
+	if (!ins) goto nomem;
+
+	nod->type = tab[st->tok->type];
+
+	vec_pop(ins, &st->buf);
+
+	err = vec_append(&nod->chld, (uintptr_t[]){ tag_leaf(ins) });
+	if (err) goto fail;
+
+	err = st_flush(st);
+	if (err) goto fail;
+
+	vec_truncat(&st->buf, 0);
+
+	err = vec_append(&st->cur->chld, (uintptr_t[]){ tag_node(nod) });
+	if (err) goto fail;
+
+	return 0;
+
+nomem:
+	err = ENOMEM;
+fail:
+	nod_free(nod);
+	free(ins);
+	return err;
+}
+
+int
+add_submatch(struct state *st, struct pattern *pat)
+{
+	struct node *new = 0x0;
+	int err = 0;
+
+	new = nod_ctor(st->cur);
+	if (!new) return ENOMEM;
+
+	new->type = type_sub;
+
+	err = st_flush(st);
+	if (err) goto fail;
+
+	err = vec_append(&st->cur, ((uintptr_t[]) { tag_node(new) }));
+	if (err) goto fail;
+
+	return 0;
+
+fail:
+	free(new);
+	return err;
+}
+
+int
+climb(struct state *st, struct pattern *_)
+{
+	assert(st->cur->up);
+	st->cur = st->cur->up;
+	return 0;
+}
+
+int
+comp_root(struct ins **dest, struct node *root)
+{
+	uintptr_t *u;
+	int err = 0;
+
+	err = vec_concat_arr(dest, ((struct ins[]) {
+		[0] = { .op = ins_jump, .arg = 2, },
+		[1] = { .op = ins_clss, .arg = class_any, },
+		[2] = { .op = ins_fork, .arg = -1, },
+
+		[3] = { .op = ins_mark, .arg = 0, },
+	}));
+	if (err) goto finally;
+
+	vec_foreach (u, root->chld) {
+		if (is_leaf(*u)) err = vec_append(dest, to_leaf(*u));
+		else err = pat_comp[to_node(*u)->type](dest, to_node(*u));
+
+		if (err) goto finally;
+	}
+
+	err = vec_concat_arr(dest, ((struct ins[]) {
+		[0] = { .op = ins_save, .arg = 0, },
+		[1] = { .op = ins_halt, .arg = 0, },
+	}));
+	if (err) goto finally;
+
+finally:
+	if (err) vec_truncat(dest, 0);
+	return err;
+}
 
 int
 ctx_init(struct context *ctx)
@@ -192,13 +344,13 @@ ins_clss(struct context *ctx, struct thread *th, wchar_t const wc)
 	bool res;
 
 	switch (ip(th)->arg) {
-	case pat_cl_any: res = true; break;
-	case pat_cl_dot: res = wc != L'\n' && wc != L'\0'; break;
-	case pat_cl_alpha: res = iswalpha(wc); break;
-	case pat_cl_upper: res = iswupper(wc); break;
-	case pat_cl_lower: res = iswlower(wc); break;
-	case pat_cl_space: res = iswspace(wc); break;
-	case pat_cl_digit: res = iswdigit(wc); break;
+	case class_any: res = true; break;
+	case class_dot: res = wc != L'\n' && wc != L'\0'; break;
+	case class_alpha: res = iswalpha(wc); break;
+	case class_upper: res = iswupper(wc); break;
+	case class_lower: res = iswlower(wc); break;
+	case class_space: res = iswspace(wc); break;
+	case class_digit: res = iswdigit(wc); break;
 	default:
 		assert(!"invalid argument to character class instruction");
 	}
@@ -272,12 +424,56 @@ ins_mark(struct context *ctx, struct thread *th, wchar_t const wc)
 int
 ins_save(struct context *ctx, struct thread *th, wchar_t const wc)
 {
-	struct patins *ins = th->ins + th->pos;
+	struct ins *ins = th->ins + th->pos;
 
 	th->mat[ins->arg].ext = ctx->pos - th->mat[ins->arg].off;
 	++th->pos;
 
 	return ip(th)->op(ctx, th, wc);
+}
+
+struct node *
+nod_ctor(struct node *par)
+{
+	struct node *ret;
+
+	ret = calloc(1, sizeof *ret);
+	if (!ret) return 0x0;
+
+	if (vec_ctor(ret->chld)) {
+		free(ret);
+		return 0x0;
+	}
+
+	ret->up = par;
+
+	return ret;
+}
+
+void
+nod_free(struct node *root)
+{
+}
+
+
+int
+st_flush(struct state *st)
+{
+	struct ins *ins = 0x0;
+	int err = 0;
+
+	vec_foreach (ins, st->buf) {
+		err = vec_append(&st->cur->chld, (uintptr_t[]){ tag_leaf(ins) });
+		if (err) return err;
+	}
+
+	return 0;
+}
+
+void
+st_surface(struct state *st)
+{
+	while (st->cur->up) st->cur = st->cur->up;
 }
 
 int
@@ -302,12 +498,6 @@ thr_fork(struct thread *dst, struct thread *src)
 	return dst->mat ? 0 : ENOMEM;
 }
 
-struct patins *
-ip(struct thread *th)
-{
-	return th->ins + th->pos;
-}
-
 int
 thr_next(struct context *ctx, size_t ind, wchar_t wc)
 {
@@ -329,248 +519,10 @@ thr_remove(struct context *ctx, size_t ind)
 	vec_delete(&ctx->thr, ind);
 }
 
-int // XXX
-pataddalt(struct pattern *pat, struct token *tok, struct patins **bufp)
-{
-	int err = 0;
-	size_t offset = 0;
-	struct patins ins = {0};
-
-	if (addz_overflows(vec_len(pat->prog), len(*bufp)))
-		return EOVERFLOW;
-	offset = vec_len(pat->prog) + len(*bufp);
-	if (addz_overflows(offset, 2))
-		return EOVERFLOW;
-	offset += 2;
-
-	ins.op = FORK;
-	ins.arg = offset;
-
-	err = vec_append(&pat->prog, &ins);
-	if (err) return err;
-
-	err = vec_join(&pat->prog, *bufp);
-	if (err) return err;
-
-	ins.op = JUMP;
-	ins.arg = -1;
-
-	err = vec_append(&pat->prog, &ins);
-	if (err) return err;
-
-	vec_truncat(bufp, 0);
-
-	return 0;
-}
-
 int
-pataddbol(struct pattern *pat, struct token *tok, struct patins **bufp)
+pat_marshal(struct pattern *dest, struct node *root)
 {
-	vec_shift(&pat->prog, 3);
-	return 0;
-}
-
-int
-pataddeol(struct pattern *pat, struct token *tok, struct patins **bufp)
-{
-	int err;
-	struct patins ins = { .op = CHAR, .arg = 0 };
-	err = vec_join(&pat->prog, *bufp);
-	if (err) return err;
-	vec_truncat(bufp, 0);
-	return vec_append(&pat->prog, &ins);
-}
-
-int
-pataddinit(struct pattern *pat)
-{
-	struct patins insv[] = {
-		[0] = { .op = JUMP, .arg = 2 },
-		[1] = { .op = CLSS, .arg = 0 },
-		[2] = { .op = FORK, .arg = 1 },
-		[3] = { .op = MARK, .arg = 0 },
-	};
-
-	return vec_concat(&pat->prog, insv, sizeof insv / sizeof *insv);
-}
-
-int
-pataddfini(struct pattern *pat, struct patins **bufp)
-{
-	int err = 0;
-	struct patins insv[] = {
-		[0] = { .op = SAVE, .arg = 0 },
-		[1] = { .op = HALT, .arg = 0 },
-	};
-
-	err = vec_join(&pat->prog, *bufp);
-	if (err) return err;
-
-	vec_truncat(bufp, 0);
-
-	return vec_concat(&pat->prog, &insv, sizeof insv/ sizeof *insv);
-}
-
-int
-pataddlit(struct pattern *pat, struct token *tok, struct patins **bufp)
-{
-	struct patins ins = { .op = CHAR, .arg = tok->wc };
-	return vec_append(bufp, &ins);
-}
-
-int
-pataddlpar(struct pattern *pat, struct token *tok, struct patins **bufp)
-{
-	int err = 0;
-	struct patins ins = { .op = JUMP, .arg = -2 };
-
-	err = vec_join(&pat->prog, *bufp);
-	if (err) return err;
-
-	vec_truncat(bufp, 0);
-
-	return vec_append(&pat->prog, &ins);
-}
-
-int
-pataddrep(struct pattern *pat, struct token *tok, struct patins **bufp)
-{
-	int err = 0;
-	struct patins ins = {0};
-	size_t again = vec_len(pat->prog) + vec_len(*bufp) - 1;
-	size_t offset = tok->type != pat_sym_qmark ? 3 : 2;
-
-	if (!vec_len(*bufp)) return 0;
-
-	if (addz_overflows(vec_len(pat->prog), vec_len(*bufp) + offset))
-		return EOVERFLOW;
-
-	err = vec_concat(&pat->prog, *bufp, vec_len(*bufp) - 1);
-	if (err) return err;
-
-	if (tok->type != pat_sym_plus) {
-		ins.op = FORK;
-		ins.arg = vec_len(pat->prog) + offset;
-
-		err = vec_append(&pat->prog, &ins);
-		if (err) return err;
-
-		++again;
-	}
-
-	ins = (*bufp)[vec_len(*bufp) - 1];
-
-	err = vec_append(&pat->prog, &ins);
-	if (err) return err;
-
-	if (tok->type != pat_sym_qmark) {
-		ins.op = FORK;
-		ins.arg = again;
-
-		err = vec_append(&pat->prog, &ins);
-		if (err) return err;
-	}
-
-	vec_truncat(bufp, 0);
-
-	return 0;
-}
-
-int
-pataddrpar(struct pattern *pat, struct token *tok, struct patins **bufp)
-{
-	int err = 0;
-	size_t i = 0;
-	uint64_t arg = 0;
-	struct patins ins = {0};
-	struct patins *p = 0x0;
-
-	err = vec_join(&pat->prog, *bufp);
-	if (err) return err;
-
-	vec_truncat(bufp, 0);
-
-	for (i = vec_len(pat->prog); p = pat->prog + i, i --> 0;) {
-		if (p->op == JUMP && p->arg > -3UL) {
-			arg = p->arg;
-			p->arg = vec_len(pat->prog);
-			if (arg == -2UL) break;
-			else ++p->arg;
-		}
-	}
-
-	ins.op = JUMP;
-	ins.arg = vec_len(pat->prog) + 1;
-	if (ins.arg < vec_len(pat->prog)) return EOVERFLOW;
-
-	err = vec_append(&pat->prog, &ins);
-	if (err) return err;
-
-	ins.op = JUMP;
-	ins.arg = i + 1;
-
-	err = vec_append(&pat->prog, &ins);
-	if (err) return err;
-
-	return 0;
-}
-
-size_t
-patlex(struct token *tok, char const *src, size_t off)
-{
-	size_t ret = 0;
-	int len = 0;
-
-	ret = tok->len = 1;
-	switch (src[off]) {
-	case '.':
-		tok->type = pat_sym_dot;
-		break;
-	case '?':
-		tok->type = pat_sym_qmark;
-		break;
-	case '*':
-		tok->type = pat_sym_star;
-		break;
-	case '+':
-		tok->type = pat_sym_plus;
-		break;
-	case '(':
-		tok->type = pat_sym_lparen;
-		break;
-	case ')':
-		tok->type = pat_sym_rparen;
-		break;
-	case '|':
-		tok->type = pat_sym_pipe;
-		break;
-	case '^':
-		if (off) goto literal;
-		tok->type = pat_sym_carrot;
-		break;
-	case '$':
-		tok->type = pat_sym_dollar;
-		break;
-	case '\\':
-		goto esc;
-	default:
-	literal:
-		tok->type = pat_sym_literal;
-		ret = tok->len = mbtowc(&tok->wc, src + off, strlen(src + off));
-	}
-
-	return ret;
-
-esc:
-	switch (src[1]) {
-	default:
-		tok->type = pat_sym_literal;
-		len = mbtowc(&tok->wc, src, strlen(src + ret));
-		if (len == -1) abort();
-		ret = tok->len += len;
-	}
-
-	return ret;
+	return pat_comp[root->type](&dest->prog, root);
 }
 
 int
@@ -627,15 +579,106 @@ pat_exec(struct context *ctx)
 }
 
 int
+recurse(struct state *st, struct pattern *pat)
+{
+	while (st->src) {
+		st->src += pat_lex(st, st->src, off);
+		err = pat_add[st->tok->type](st, pat);
+		if (err) break;
+	}
+}
+
+int
+pat_parse(struct node **rootp, char const *src, struct pattern *pat)
+{
+	struct state st[1] = {{.cur=*rootp,.str={.v=src,.n=strlen(src),}}};
+	int err = 0;
+	size_t off = 0;
+
+	vec_ctor(st->buf);
+	if (!st->buf) return ENOMEM;
+
+	st->cur->type = type_root;
+
+	while (st->src) {
+		st->src += pat_lex(st, src, off);
+		err = pat_add[st->tok->type](st, pat);
+		if (err) break;
+	}
+
+	st_flush(st);
+	vec_free(st->buf);
+
+	st_surface(st);
+
+	*rootp = st->cur;
+
+	return err;
+}
+
+size_t
+pat_lex(struct state *st, char const *src)
+{
+	size_t ret = 0;
+	int len = 0;
+	struct token *tok = &st->tok;
+
+	ret = tok->len = 1;
+	switch (src[0]) {
+	case '.':
+		tok->type = sym_dot;
+		break;
+	case '?':
+		tok->type = sym_qmark;
+		break;
+	case '*':
+		tok->type = sym_star;
+		break;
+	case '+':
+		tok->type = sym_plus;
+		break;
+	case '(':
+		tok->type = sym_lparen;
+		break;
+	case ')':
+		tok->type = sym_rparen;
+		break;
+	case '|':
+		tok->type = sym_pipe;
+		break;
+	case '^':
+		tok->type = sym_carrot;
+		break;
+	case '$':
+		tok->type = sym_dollar;
+		break;
+	case '\\':
+		goto esc;
+	default:
+	literal:
+		tok->type = sym_literal;
+		ret = tok->len = mbtowc(&tok->wc, src, strlen(src));
+	}
+
+	return ret;
+
+esc:
+	switch (src[1]) {
+	default:
+		tok->type = sym_literal;
+		len = mbtowc(&tok->wc, src, strlen(src + ret));
+		if (len == -1) abort();
+		ret = tok->len += len;
+	}
+
+	return ret;
+}
+
+int
 pat_compile(struct pattern *dest, char const *src)
 {
 	int err = 0;
-	size_t off = 0;
-	struct token tok = {0};
-	struct patins *buf = 0x0;
-
-	vec_ctor(buf);
-	if (!buf) return ENOMEM;
+	struct node *root = 0x0;
 
 	err = vec_ctor(dest->prog);
 	if (err) goto finally;
@@ -643,18 +686,20 @@ pat_compile(struct pattern *dest, char const *src)
 	err = vec_ctor(dest->mat);
 	if (err) goto finally;
 
-	pataddinit(dest);
-
-	while (src[off]) {
-		off += patlex(&tok, src, off);
-		err = patadd[tok.type](dest, &tok, &buf);
-		if (err) goto finally;
+	root = nod_ctor(0x0);
+	if (!root) {
+		err = ENOMEM;
+		goto finally;
 	}
 
-	pataddfini(dest, &buf);
+	err = pat_parse(&root, src, dest);
+	if (err) goto finally;
+
+	err = pat_marshal(dest, root);
+	if (err) goto finally;
 
 finally:
-	vec_free(buf);
+	nod_free(root);
 	if (err) vec_free(dest->prog);
 	if (err) vec_free(dest->mat);
 	return err;
