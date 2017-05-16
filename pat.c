@@ -772,17 +772,17 @@ pat_match(struct pattern *pat, char const *str)
 int
 pat_match_callback(struct pattern *pat, int (*cb)(char *, void *), void *cbx)
 {
-	int err = 0;
 	struct context ctx[1] = {{.cb = cb, .cbx = cbx}};
-	struct thread th = { .ins = pat->prog };
+	struct thread th[1] = {{ .ins = pat->prog }};
+	int err = 0;
 
 	err = ctx_init(ctx);
 	if (err) goto finally;
 
-	err = vec_ctor(th.mat);
+	err = vec_ctor(th->mat);
 	if (err) goto finally;
 
-	err = vec_append(&ctx->thr, &th);
+	err = vec_append(&ctx->thr, th);
 	if (err) goto finally;
 
 	err = pat_do_match(pat, ctx);
