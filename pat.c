@@ -788,4 +788,5 @@ void
 pat_free(struct pattern *pat)
 {
 	vec_free(pat->prog);
+	vec_free(pat->mat);
 }
