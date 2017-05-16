@@ -763,10 +763,10 @@ pat_match(struct pattern *pat, char const *str)
 }
 
 int
-pat_match_callback(struct pattern *pat, int (*cb)(char *, void *), void *x)
+pat_match_callback(struct pattern *pat, int (*cb)(char *, void *), void *cbx)
 {
 	int err = 0;
-	struct context ctx[1] = {{.cb = cb, .cbx = x}};
+	struct context ctx[1] = {{.cb = cb, .cbx = cbx}};
 	struct thread th = { .ins = pat->prog };
 
 	err = ctx_init(ctx);
