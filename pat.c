@@ -764,23 +764,23 @@ int
 pat_match_callback(struct pattern *pat, int (*cb)(char *, void *), void *x)
 {
 	int err = 0;
-	struct context ctx = {.cb = cb, .cbx = x};
+	struct context ctx[1] = {{.cb = cb, .cbx = x}};
 	struct thread th = { .ins = pat->prog };
 
-	err = ctx_init(&ctx);
+	err = ctx_init(ctx);
 	if (err) goto finally;
 
 	err = vec_ctor(th.mat);
 	if (err) goto finally;
 
-	err = vec_append(&ctx.thr, &th);
+	err = vec_append(&ctx->thr, &th);
 	if (err) goto finally;
 
-	err = pat_do_match(pat, &ctx);
+	err = pat_do_match(pat, ctx);
 	if (err) goto finally;
 
 finally:
-	ctx_fini(&ctx);
+	ctx_fini(ctx);
 	return err;
 }
 
