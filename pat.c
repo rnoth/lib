@@ -182,9 +182,6 @@ add_repetition(struct state *st, struct pattern *pat)
 	nod = nod_ctor(st->cur);
 	if (!nod) goto nomem;
 
-	ins = calloc(1, sizeof *ins);
-	if (!ins) goto nomem;
-
 	nod->type = tab[st->tok->type];
 
 	vec_pop(&ins, &st->buf);
@@ -506,8 +503,18 @@ nod_ctor(struct node *par)
 }
 
 void
-nod_free(struct node *root)
+nod_free(struct node *nod)
 {
+	uintptr_t *u;
+	if (!nod) return;
+	vec_foreach(u, nod->chld) {
+		if (is_leaf(*u)) free(to_leaf(*u));
+		else nod_free(to_node(*u));
+	}
+
+	vec_free(nod->chld);
+
+	free(nod);
 }
 
 
@@ -645,32 +652,42 @@ pat_lex(struct state *st)
 	case '.':
 		tok->type = sym_dot;
 		break;
+
 	case '?':
 		tok->type = sym_qmark;
 		break;
+
 	case '*':
 		tok->type = sym_star;
 		break;
+
 	case '+':
 		tok->type = sym_plus;
 		break;
+
 	case '(':
 		tok->type = sym_lparen;
 		break;
+
 	case ')':
 		tok->type = sym_rparen;
 		break;
+
 	case '|':
 		tok->type = sym_pipe;
 		break;
+
 	case '^':
 		tok->type = sym_carrot;
 		break;
+
 	case '$':
 		tok->type = sym_dollar;
 		break;
+
 	case '\\':
 		goto esc;
+
 	default:
 		tok->type = sym_literal;
 		ret = tok->len = mbtowc(&tok->wc, str(pos), rem(pos));
@@ -686,7 +703,7 @@ esc:
 	switch (pos->v[pos->f + 1]) {
 	default:
 		tok->type = sym_literal;
-		ret = tok->len += mbtowc(&tok->wc, str(pos), rem(pos));
+		ret += tok->len = mbtowc(&tok->wc, str(pos), rem(pos));
 		if (ret == -1) {
 			ret = 1;
 			tok->wc = pos->v[0];
@@ -699,8 +716,11 @@ esc:
 int
 pat_parse(struct node **rootp, char const *src, struct pattern *pat)
 {
-	struct state st[1] = {{.cur=*rootp,.str={{.v=src,.n=strlen(src),}}}};
 	int err = 0;
+	struct state st[1] = {{
+		.cur = *rootp,
+		.str = {{ .v = src, .n = strlen(src), }}
+	}};
 
 	vec_ctor(st->buf);
 	if (!st->buf) return ENOMEM;

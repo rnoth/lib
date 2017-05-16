@@ -111,18 +111,20 @@ loop(void)
 	size_t i = 0;
 	struct a *a = 0x0;
 	struct b *b = 0x0;
-	struct pattern pat = {0};
+	struct pattern pat[1] = {{0}};
 
 	for (a = cur; a->pat; ++a) {
-		expect(0, pat_compile(&pat, a->pat));
+		expect(0, pat_compile(pat, a->pat));
 
 		for (b = a->accept; b->txt; ++b) {
-			expect(0, pat_match(&pat, b->txt));
-			expect(b->off, pat.mat->off);
-			expect(b->ext, pat.mat->ext);
+			expect(0, pat_match(pat, b->txt));
+			expect(b->off, pat->mat->off);
+			expect(b->ext, pat->mat->ext);
 		}
 
 		for (b = a->reject; b->txt; ++b)
-			expect(-1, pat_match(&pat, b->txt));
+			expect(-1, pat_match(pat, b->txt));
+
+		pat_free(pat);
 	}
 }
