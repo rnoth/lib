@@ -45,7 +45,7 @@ struct context {
 	void          *cbx;
 	size_t         pos;
 	struct thread *thr;
-	struct thread *mat;
+	struct thread *fin;
 };
 
 struct node {
@@ -338,13 +338,13 @@ ctx_init(struct context *ctx)
 	err = vec_ctor(ctx->thr);
 	if (err) goto nomem;
 
-	err = vec_ctor(ctx->mat);
+	err = vec_ctor(ctx->fin);
 	if (err) goto nomem;
 
 	return 0;
 nomem:
 	vec_free(ctx->thr);
-	vec_free(ctx->mat);
+	vec_free(ctx->fin);
 	return err;
 
 }
@@ -355,9 +355,9 @@ ctx_fini(struct context *ctx)
 	struct thread *tmp;
 
 	vec_foreach(tmp, ctx->thr) vec_free(tmp->mat);
-	vec_foreach(tmp, ctx->mat) vec_free(tmp->mat);
+	vec_foreach(tmp, ctx->fin) vec_free(tmp->mat);
 	vec_free(ctx->thr);
-	vec_free(ctx->mat);
+	vec_free(ctx->fin);
 }
 
 int
@@ -536,7 +536,7 @@ thr_finish(struct context *ctx, size_t ind)
 {
 	int err = 0;
 
-	err = vec_append(&ctx->mat, ctx->thr + ind);
+	err = vec_append(&ctx->fin, ctx->thr + ind);
 	if (err) return err;
 	vec_delete(&ctx->thr, ind);
 
@@ -590,14 +590,14 @@ pat_do_match(struct pattern *pat, struct context *ctx)
 	err = pat_exec(ctx);
 	if (err) return err;
 
-	vec_foreach (it, ctx->mat) {
-		if (it->mat[0].ext > ctx->mat[max].mat[0].ext
-		&& it->mat[0].off <= ctx->mat[max].mat[0].off) {
-			max = it - ctx->mat;
+	vec_foreach (it, ctx->fin) {
+		if (it->mat[0].ext > ctx->fin[max].mat[0].ext
+		&& it->mat[0].off <= ctx->fin[max].mat[0].off) {
+			max = it - ctx->fin;
 		}
 	}
 
-	return vec_copy(&pat->mat, ctx->mat[max].mat);
+	return vec_copy(&pat->mat, ctx->fin[max].mat);
 }
 
 int
@@ -629,7 +629,7 @@ pat_exec(struct context *ctx)
 	vec_free(wcs);
 
 	if (err > 0) return err;
-	if (!vec_len(ctx->mat)) return -1;
+	if (!vec_len(ctx->fin)) return -1;
 	return 0;
 }
 
