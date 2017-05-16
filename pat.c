@@ -754,11 +754,18 @@ finally:
 	return err;
 }
 
+void
+pat_free(struct pattern *pat)
+{
+	vec_free(pat->prog);
+	vec_free(pat->mat);
+}
+
 int
 pat_match(struct pattern *pat, char const *str)
 {
 	return pat_match_callback(pat, get_char, (struct pos[]){
-			{ .n = strlen(str) + 1, .v = str }
+			{ .n = strlen(str) + 1, .v = str },
 	});
 }
 
@@ -784,11 +791,4 @@ pat_match_callback(struct pattern *pat, int (*cb)(char *, void *), void *cbx)
 finally:
 	ctx_fini(ctx);
 	return err;
-}
-
-void
-pat_free(struct pattern *pat)
-{
-	vec_free(pat->prog);
-	vec_free(pat->mat);
 }
