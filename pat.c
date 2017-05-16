@@ -55,7 +55,7 @@ enum type {
 
 struct context {
 	int          (*cb)(char *, void *);
-	void          *ctx;
+	void          *cbx;
 	size_t         pos;
 	struct thread *thr;
 	struct thread *mat;
@@ -68,8 +68,8 @@ struct node {
 };
 
 struct pos {
-	char const  *v;
-	size_t       n;
+	char   const*v;
+	size_t const n;
 	size_t       f;
 };
 
@@ -89,7 +89,7 @@ struct state {
 	struct pos   str[1];
 	struct token tok[1];
 	struct node *cur;
-	struct ins  *buf;
+	struct ins **buf;
 	size_t       dep;
 };
 
@@ -103,8 +103,11 @@ static inline struct ins *ip(struct thread *);
 static int add_literal(struct state *, struct pattern *);
 static int add_repetition(struct state *, struct pattern *);
 static int add_submatch(struct state *, struct pattern *);
-static int climb(struct state *, struct pattern *);
 
+static int comp_opt(struct ins **, struct node *);
+static int comp_recurse(struct ins **, uintptr_t *);
+static int comp_rep(struct ins **, struct node *);
+static int comp_rep_null(struct ins **, struct node *);
 static int comp_root(struct ins **, struct node *);
 
 static int  ctx_init(struct context *);
@@ -132,11 +135,23 @@ static int  thr_fork(struct thread *, struct thread *);
 static int  thr_start(struct context *, wchar_t const);
 static void thr_remove(struct context *, size_t);
 
-static size_t pat_lex(struct state *, char const *, size_t);
+static size_t pat_lex(struct state *);
 static int    pat_marshal(struct pattern *, struct node *);
 static int    pat_parse(struct node **, char const *, struct pattern *);
 static int    pat_do_match(struct pattern *, struct context *);
 static int    pat_exec(struct context *);
+
+static inline struct ins * ip(struct thread *th) { return th->ins + th->pos; }
+
+static inline bool        eol(struct pos const *p) { return p->f >= p->n; }
+static inline size_t      rem(struct pos const *p) { return p->n - p->f; }
+static inline char const *str(struct pos const *p) { return p->v + p->f; }
+
+static inline struct node *to_node(uintptr_t u) { return (void *)(u & ~1); }
+static inline struct ins  *to_leaf(uintptr_t u) { return (void *)u; }
+static inline bool is_leaf(uintptr_t u) { return u ? !(u & 1) : false; }
+static inline uintptr_t tag_leaf(struct ins *i) { return (uintptr_t)i; }
+static inline uintptr_t tag_node(struct node *n) { return (uintptr_t)n + 1; }
 
 static int (* const pat_add[])(struct state *, struct pattern *) = {
 	[sym_literal] = add_literal,
@@ -148,23 +163,21 @@ static int (* const pat_add[])(struct state *, struct pattern *) = {
 };
 
 static int (* const pat_comp[])(struct ins **, struct node *) = {
-	[type_root] = comp_root,
+	[type_root]     = comp_root,
+	[type_opt]      = comp_opt,
+	[type_rep_null] = comp_rep_null,
+	[type_rep]      = comp_rep,
 };
-
-static inline
-struct ins * ip(struct thread *th) { return th->ins + th->pos; }
-
-static inline struct node *to_node(uintptr_t u) { return (void *)u; }
-static inline struct ins  *to_leaf(uintptr_t u) { return (void *)u; }
-static inline bool is_leaf(uintptr_t u) { return u ? !(u & 1) : false; }
-//static inline bool is_node(uintptr_t u) { return u ? u & 1 : false; }
-static inline uintptr_t tag_leaf(struct ins *i) { return (uintptr_t)i; }
-static inline uintptr_t tag_node(struct node *n) { return (uintptr_t)n + 1; }
 
 int
 add_literal(struct state *st, struct pattern *pat)
 {
-	return vec_append(&st->buf, ((struct ins[]){{ .arg = st->tok->wc, .op = CHAR }}));
+	struct ins *p = calloc(1, sizeof *p);
+	if (!p) return ENOMEM;
+
+	memcpy(p, (struct ins[]){{.arg=st->tok->wc, .op=ins_char}}, sizeof *p);
+
+	return vec_append(&st->buf, &p);
 }
 
 int
@@ -187,7 +200,7 @@ add_repetition(struct state *st, struct pattern *pat)
 
 	nod->type = tab[st->tok->type];
 
-	vec_pop(ins, &st->buf);
+	vec_pop(&ins, &st->buf);
 
 	err = vec_append(&nod->chld, (uintptr_t[]){ tag_leaf(ins) });
 	if (err) goto fail;
@@ -213,56 +226,111 @@ fail:
 int
 add_submatch(struct state *st, struct pattern *pat)
 {
-	struct node *new = 0x0;
 	int err = 0;
+	while (st->str->n > st->str->f) {
+		st->str->f += pat_lex(st);
+		err = pat_add[st->tok->type](st, pat);
+		if (err) break;
+	}
 
-	new = nod_ctor(st->cur);
-	if (!new) return ENOMEM;
-
-	new->type = type_sub;
-
-	err = st_flush(st);
-	if (err) goto fail;
-
-	err = vec_append(&st->cur, ((uintptr_t[]) { tag_node(new) }));
-	if (err) goto fail;
-
-	return 0;
-
-fail:
-	free(new);
 	return err;
 }
 
 int
-climb(struct state *st, struct pattern *_)
+comp_opt(struct ins **dest, struct node *nod)
 {
-	assert(st->cur->up);
-	st->cur = st->cur->up;
+	size_t off = 0;
+	int err = 0;
+
+	off = vec_len(*dest);
+
+	err = vec_append(dest, (struct ins[]) {{ .op = ins_fork }});
+	if (err) return err;
+
+	err = comp_recurse(dest, nod->chld);
+	if (err) return err;
+
+	(*dest)[off].arg = vec_len(*dest);
+
+	return 0;
+}
+
+int
+comp_recurse(struct ins **dest, uintptr_t *chld)
+{
+	int err = 0;
+	uintptr_t *u;
+
+	vec_foreach (u, chld) {
+		if (is_leaf(*u)) err = vec_append(dest, to_leaf(*u));
+		else err = pat_comp[to_node(*u)->type](dest, to_node(*u));
+
+		if (err) return err;
+	}
+
+	return 0;
+}
+
+int
+comp_rep(struct ins **dest, struct node *nod)
+{
+	int err = 0;
+	size_t beg = 0;
+
+	beg = vec_len(*dest);
+
+	err = comp_recurse(dest, nod->chld);
+	if (err) return err;
+
+	return vec_append(dest, ((struct ins[]) {{
+		.arg = beg,
+		.op = ins_fork,
+	}}));
+}
+
+int
+comp_rep_null(struct ins **dest, struct node *nod)
+{
+	int err = 0;
+	size_t beg = 0;
+	size_t off = 0;
+
+	off = vec_len(*dest);
+
+	err = vec_append(dest, (struct ins[]) {{ .op = ins_fork }});
+	if (err) return err;
+
+	beg = vec_len(*dest);
+
+	err = comp_recurse(dest, nod->chld);
+	if (err) return err;
+
+	err = vec_append(dest, ((struct ins[]) {{
+		.arg = beg,
+		.op = ins_fork,
+	}}));
+	if (err) return err;
+
+	(*dest)[off].arg = vec_len(*dest);
+
 	return 0;
 }
 
 int
 comp_root(struct ins **dest, struct node *root)
 {
-	uintptr_t *u;
 	int err = 0;
 
 	err = vec_concat_arr(dest, ((struct ins[]) {
 		[0] = { .op = ins_jump, .arg = 2, },
 		[1] = { .op = ins_clss, .arg = class_any, },
-		[2] = { .op = ins_fork, .arg = -1, },
-
+		[2] = { .op = ins_fork, .arg = 1, },
 		[3] = { .op = ins_mark, .arg = 0, },
 	}));
 	if (err) goto finally;
 
-	vec_foreach (u, root->chld) {
-		if (is_leaf(*u)) err = vec_append(dest, to_leaf(*u));
-		else err = pat_comp[to_node(*u)->type](dest, to_node(*u));
-
-		if (err) goto finally;
-	}
+	err = comp_recurse(dest, root->chld);
+	if (err) goto finally;
 
 	err = vec_concat_arr(dest, ((struct ins[]) {
 		[0] = { .op = ins_save, .arg = 0, },
@@ -459,11 +527,11 @@ nod_free(struct node *root)
 int
 st_flush(struct state *st)
 {
-	struct ins *ins = 0x0;
+	struct ins **ins = 0x0;
 	int err = 0;
 
 	vec_foreach (ins, st->buf) {
-		err = vec_append(&st->cur->chld, (uintptr_t[]){ tag_leaf(ins) });
+		err = vec_append(&st->cur->chld, (uintptr_t[]){ tag_leaf(*ins) });
 		if (err) return err;
 	}
 
@@ -557,7 +625,7 @@ pat_exec(struct context *ctx)
 	err = vec_ctor(wcs);
 	if (err) return err;
 
-	while (ctx->cb(c, ctx->ctx)) {
+	while (ctx->cb(c, ctx->cbx)) {
 
 		len = mbtowc(&wc, c, 8);
 		if (len <= 0) wc = *c; // XXX
@@ -578,53 +646,15 @@ pat_exec(struct context *ctx)
 	return 0;
 }
 
-int
-recurse(struct state *st, struct pattern *pat)
-{
-	while (st->src) {
-		st->src += pat_lex(st, st->src, off);
-		err = pat_add[st->tok->type](st, pat);
-		if (err) break;
-	}
-}
-
-int
-pat_parse(struct node **rootp, char const *src, struct pattern *pat)
-{
-	struct state st[1] = {{.cur=*rootp,.str={.v=src,.n=strlen(src),}}};
-	int err = 0;
-	size_t off = 0;
-
-	vec_ctor(st->buf);
-	if (!st->buf) return ENOMEM;
-
-	st->cur->type = type_root;
-
-	while (st->src) {
-		st->src += pat_lex(st, src, off);
-		err = pat_add[st->tok->type](st, pat);
-		if (err) break;
-	}
-
-	st_flush(st);
-	vec_free(st->buf);
-
-	st_surface(st);
-
-	*rootp = st->cur;
-
-	return err;
-}
-
 size_t
-pat_lex(struct state *st, char const *src)
+pat_lex(struct state *st)
 {
-	size_t ret = 0;
-	int len = 0;
-	struct token *tok = &st->tok;
+	int ret = 0;
+	struct token *tok = st->tok;
+	struct pos *pos = st->str;
 
 	ret = tok->len = 1;
-	switch (src[0]) {
+	switch (*str(pos)) {
 	case '.':
 		tok->type = sym_dot;
 		break;
@@ -655,23 +685,55 @@ pat_lex(struct state *st, char const *src)
 	case '\\':
 		goto esc;
 	default:
-	literal:
 		tok->type = sym_literal;
-		ret = tok->len = mbtowc(&tok->wc, src, strlen(src));
+		ret = tok->len = mbtowc(&tok->wc, str(pos), rem(pos));
+		if (ret == -1) {
+			ret = 1;
+			tok->wc = pos->v[0];
+		} else if (ret == 0) ret = 1;
 	}
 
 	return ret;
 
 esc:
-	switch (src[1]) {
+	switch (pos->v[pos->f + 1]) {
 	default:
 		tok->type = sym_literal;
-		len = mbtowc(&tok->wc, src, strlen(src + ret));
-		if (len == -1) abort();
-		ret = tok->len += len;
+		ret = tok->len += mbtowc(&tok->wc, str(pos), rem(pos));
+		if (ret == -1) {
+			ret = 1;
+			tok->wc = pos->v[0];
+		} else if (ret == 0) ret = 1;
 	}
 
 	return ret;
+}
+
+int
+pat_parse(struct node **rootp, char const *src, struct pattern *pat)
+{
+	struct state st[1] = {{.cur=*rootp,.str={{.v=src,.n=strlen(src),}}}};
+	int err = 0;
+
+	vec_ctor(st->buf);
+	if (!st->buf) return ENOMEM;
+
+	st->cur->type = type_root;
+
+	while (!eol(st->str)) {
+		st->str->f += pat_lex(st);
+		err = pat_add[st->tok->type](st, pat);
+		if (err) break;
+	}
+
+	st_flush(st);
+	vec_free(st->buf);
+
+	st_surface(st);
+
+	*rootp = st->cur;
+
+	return err;
 }
 
 int
@@ -715,7 +777,7 @@ int
 pat_match_callback(struct pattern *pat, int (*cb)(char *, void *), void *x)
 {
 	int err = 0;
-	struct context ctx = {.cb = cb, .ctx = x};
+	struct context ctx = {.cb = cb, .cbx = x};
 	struct thread th = { .ins = pat->prog };
 
 	err = ctx_init(&ctx);
