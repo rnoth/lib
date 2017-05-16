@@ -757,7 +757,9 @@ finally:
 int
 pat_match(struct pattern *pat, char const *str)
 {
-	return pat_match_callback(pat, get_char, (struct pos[]){{.n=strlen(str)+1,.v=str}});
+	return pat_match_callback(pat, get_char, (struct pos[]){
+			{ .n = strlen(str) + 1, .v = str }
+	});
 }
 
 int
