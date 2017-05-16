@@ -8,14 +8,6 @@
 #include "util.h"
 #include "vec.h"
 
-#define HALT (ins_halt)
-#define CHAR (ins_char)
-#define FORK (ins_fork)
-#define JUMP (ins_jump)
-#define MARK (ins_mark)
-#define SAVE (ins_save)
-#define CLSS (ins_clss)
-
 enum pat_char_class {
 	class_any   = 0x0,
 	class_dot   = 0x1,
