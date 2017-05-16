@@ -8,11 +8,6 @@
 #include "util.h"
 #include "vec.h"
 
-// TODO: implement bounded version of pat_match, wrap pat_match around it
-// fixes the bug where empty texts always fail to match
-//
-// TODO: move pat_match's matv into struct pattern
-
 #define HALT (ins_halt)
 #define CHAR (ins_char)
 #define FORK (ins_fork)
