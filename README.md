@@ -109,7 +109,7 @@ If you just pass the vector itself, your program might blow up.
 - `vec_foreach(variable, vector)` is a macro which loops over the elements of `vector`,
 assigning the address of each one to `varible` in sequence. e.g.
 
-```
+```c
 int
 main()
 {
@@ -135,6 +135,63 @@ main()
 
 	- finally, `vec_foreach()` contains no double evaluatation.
 	any correctly typed expression can be used as `vector` or `variable`, even if it has side-effects
+
+# pitfalls
+
+- forgeting the `&`
+
+	- as stated above, the mutating functions (insert, delete, et al.) take a *pointer* to a vector,
+rather than the vector itself.
+
+	- it's very easy to forget the `&` and write something like `vec_append(vec, foo)`
+which gives strange results for a vector of pointers (and a build error otherwise)
+
+- passing a vector to a fucntion
+
+	- this seems like reasonable code
+
+```c
+
+int
+frobnicate(struct frob *target, long errata)
+{
+	int err;
+
+	/* ... */
+
+	err = vec_append(&target, some_local)
+	if (err) return err;
+
+	/* ... */
+
+	return 0;
+}
+```
+
+	- however, it has a fatal bug -- if target overflows it's capacity, it will be reallocated and
+quite likely moved to another address. these changes will not propagate back to the caller,
+resulting in a user-after-free bug
+
+the fix is simply pass a pointer the vector, as the vec.h functions do
+
+- using compound literals
+
+	- it's convenient to use compound literals, particular when the vector is of scalars --
+the scope need not be polluted with temporary variables. however, there is wrinkle when using this
+idiom with structs or arrays
+
+```c
+	vec_insert(frob, index, (struct frob[]) {{ .a = res_a, .b = res_b, .c = res_c }});
+```
+
+	- this snippet looks reasonable, but will not compile. compilers vary in helpfulness, but the source error
+comes from the preprocessor -- the commas are interpreted as argument delimiters, rather than a pat of a single initializer
+
+the fix is simply to wrap it in paranthese
+
+```c
+	vec_insert(frob, index, ((struct frob[]) {{ .a = res_a, .b = res_b, .c = res_c }}));
+```
 
 ## set
 
