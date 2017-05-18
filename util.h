@@ -10,27 +10,14 @@
 #define cpy(dest,src)   (memcpy((dest), (src), sizeof *(dest)))
 #define die(blame)      do { perror(blame); abort(); } while (0);
 
-/* deprecated  -- don't use */
-#define eat(ret, buf, expr)			\
-do {						\
-        char *_buf = buf;			\
-        int _ext;				\
-        size_t _len = strlen(buf);		\
-        size_t *_ret = &(ret);			\
-        wchar_t wc;				\
-						\
-	*_ret = 0;				\
-	while ((_ext = mbtowc(&wc, _buf, _len))	\
-		&& (expr)) {			\
-                if (_ext == -1) {		\
-			*_ret = -1;		\
-			break;			\
-		}				\
-		*_ret += (size_t)_ext;		\
-		 _buf += (size_t)_ext;		\
-		 _len -= (size_t)_ext;		\
-	}					\
-} while (0)
+#define arr_foreach(VAR, ARR) 				\
+	for (size_t _i=0, _j=0;				\
+			_i < arr_len(ARR);		\
+			++_i, _j = _i)			\
+	for (bool _q = true; _q; _q = false)		\
+	for (VAR = ARR[_i];				\
+			_i = _q ? arr_len(ARR) :_j,_q;	\
+			_q = 0)
 
 static inline
 unsigned long
