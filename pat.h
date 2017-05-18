@@ -4,6 +4,13 @@
 #include <stdint.h>
 #include <stddef.h>
 
+enum {
+	PAT_ERR_NOMATCH  = -1,
+	PAT_ERR_BADPAREN = -2,
+	PAT_ERR_BADREP   = -3
+};
+
+
 struct pattern {
 	long opts;
 	struct patmatch *mat;
