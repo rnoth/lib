@@ -14,7 +14,7 @@
 			_vec && _p;				\
 			_p = 0)					\
 	for (size_t _i=0,_j=0, _siz = sizeof *(VEC);		\
-			_i < len(_vec);				\
+			_i < vec_len(_vec);			\
 			++_i, _j = _i)				\
 	for (char _q = 1; _q; _q = 0)				\
 	for (VAR = (void*)(_vec + _i * _siz);			\
