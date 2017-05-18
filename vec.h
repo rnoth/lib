@@ -21,20 +21,6 @@
 			_i = _q ? len(_vec) : _j, _q;		\
 			_q = 0)
 
-#define vec_assert(prop) do if (!(prop)) {			\
-		fprintf(stderr,					\
-			"error: invalid pointer passed to %s\n",\
-			__func__);				\
-		abort();					\
-} while (0)
-
-#define vec_check(vecv) do {                                  \
-	vec_assert(*vecv != 0x0);                             \
-	vec_assert(vec_len(*vecv) <= vec_mem(*vecv));                 \
-	vec_assert(sizeof **vecv < vec_mem(*vecv));               \
-	vec_assert(vec_len(*vecv) * sizeof **vecv <= vec_mem(*vecv)); \
-} while (0)
-
 static inline
 size_t
 vec_len(void const *v)
