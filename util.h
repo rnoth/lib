@@ -19,6 +19,10 @@
 			_i = _q ? arr_len(ARR) :_j,_q;	\
 			_q = 0)
 
+#define repeat(ntimes) for (size_t _repeat_counter = 0;   \
+				_repeat_counter < ntimes; \
+				++_repeat_counter)
+
 static inline
 unsigned long
 umin(unsigned long a, unsigned long b)
