@@ -81,6 +81,8 @@ struct a star[] = {
 		(struct b[]) {
 		{ 0x0 }, },
 	},
+
+	{ 0x0 },
 };
 
 struct a plus[] = {
@@ -94,6 +96,8 @@ struct a plus[] = {
 		{ "" },
 		{ 0x0 }, }
 	},
+
+	{ 0x0 },
 };
 
 size_t const tests_len = arr_len(tests);
