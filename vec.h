@@ -46,6 +46,7 @@ void    vec_elim     (void *, size_t, size_t, size_t);
 int     vec_insert   (void *, void const *, size_t, size_t);
 int     vec_join     (void *, void const *, size_t);
 void    vec_free     (void *);
+void *  vec_new      (size_t);
 void    vec_pop      (void *, void *, size_t);
 int     vec_resize   (void *, size_t, size_t);
 void    vec_shift    (void *, size_t, size_t);
@@ -56,6 +57,7 @@ void    vec_truncat  (void *, size_t, size_t);
 
 #define vec_concat_arr(dest_ptr, src) vec_concat(dest_ptr, src, arr_len(src))
 #define vec_mem(vec) vec_mem(vec, sizeof *vec)
+#define vec_new(type) vec_new(sizeof (type))
 
 #define vec_append(vec_ptr, src)                vec_append(vec_ptr, src,               sizeof **vec_ptr)
 #define vec_clone(vec)                          vec_clone(vec,                         sizeof *vec)
