@@ -34,10 +34,42 @@ enum pat_sym {
 enum type {
 	type_null,
 	type_root,
+	type_sub,
 	type_opt,
 	type_rep_null,
 	type_rep,
 	type_alt,
+};
+
+struct pos {
+	char   const *v;
+	size_t const  n;
+	size_t        f;
+};
+
+struct node {
+	uintptr_t chld[2];
+	enum type type;
+};
+
+struct token {
+	size_t       len;
+	enum pat_sym type;
+	wchar_t      wc;
+};
+
+struct state {
+	struct pos   str[1];
+	struct token tok[1];
+	struct ins **buf;
+	uintptr_t  **stk;
+	struct node *cur;
+};
+
+struct thread {
+	struct patmatch *mat;
+	struct ins      *ins;
+	size_t           pos;
 };
 
 struct context {
@@ -48,48 +80,23 @@ struct context {
 	struct thread *fin;
 };
 
-struct node {
-	uintptr_t *chld;
-	struct node *up;
-	enum type type;
-};
-
-struct pos {
-	char   const*v;
-	size_t const n;
-	size_t       f;
-};
-
-struct thread {
-	struct patmatch *mat;
-	struct ins 	*ins;
-	size_t		 pos;
-};
-
-struct token {
-	size_t		 len;
-	enum pat_sym	 type;
-	wchar_t		 wc;
-};
-
-struct state {
-	struct pos   str[1];
-	struct token tok[1];
-	struct node *cur;
-	struct ins **buf;
-	size_t       dep;
+union arg {
+	off_t   f;
+	size_t  z;
+	wchar_t w;
 };
 
 struct ins {
         int      (*op)(struct context *, struct thread *, wchar_t const);
-	uint64_t  arg;
+	union arg arg;
 };
 
 static inline struct ins *ip(struct thread *);
 
-static int add_literal(struct state *, struct pattern *);
-static int add_repetition(struct state *, struct pattern *);
-static int add_submatch(struct state *, struct pattern *);
+static int add_literal(struct state *);
+static int add_repetition(struct state *);
+static int add_submatch(struct state *);
+static int add_subtree(struct state *);
 
 static int comp_opt(struct ins **, struct node *);
 static int comp_recurse(struct ins **, uintptr_t *);
@@ -110,11 +117,10 @@ static int ins_jump(struct context *, struct thread *, wchar_t const);
 static int ins_mark(struct context *, struct thread *, wchar_t const);
 static int ins_save(struct context *, struct thread *, wchar_t const);
 
-static struct node *nod_ctor(struct node *);
+static struct node *nod_alloc(void);
 static void         nod_free(struct node *);
 
 static int  st_flush(struct state *);
-static void st_surface(struct state *);
 
 static int  thr_next(struct context *, size_t, wchar_t const);
 static int  thr_finish(struct context *, size_t);
@@ -134,19 +140,21 @@ static inline bool        eol(struct pos const *p) { return p->f >= p->n; }
 static inline size_t      rem(struct pos const *p) { return p->n - p->f; }
 static inline char const *str(struct pos const *p) { return p->v + p->f; }
 
+static inline uintptr_t **stk_top(uintptr_t **stk) { return stk + vec_len(stk) - 1; }
+
 static inline struct node *to_node(uintptr_t u) { return (void *)(u & ~1); }
 static inline struct ins  *to_leaf(uintptr_t u) { return (void *)u; }
-static inline bool is_leaf(uintptr_t u) { return u ? !(u & 1) : false; }
-static inline uintptr_t tag_leaf(struct ins *i) { return (uintptr_t)i; }
-static inline uintptr_t tag_node(struct node *n) { return (uintptr_t)n + 1; }
+static inline bool         is_leaf(uintptr_t u) { return u ? !(u & 1) : false; }
+static inline uintptr_t    tag_leaf(struct ins *i) { return (uintptr_t)i; }
+static inline uintptr_t    tag_node(struct node *n) { return (uintptr_t)n + 1; }
 
-static int (* const pat_add[])(struct state *, struct pattern *) = {
+static int (* const pat_add[])(struct state *) = {
 	[sym_literal] = add_literal,
 	[sym_qmark]   = add_repetition,
 	[sym_star]    = add_repetition,
 	[sym_plus]    = add_repetition,
 	[sym_lparen]  = add_submatch,
-	[sym_rparen]  = 0x0,
+	[sym_rparen]  = add_subtree,
 };
 
 static int (* const pat_comp[])(struct ins **, struct node *) = {
@@ -157,44 +165,47 @@ static int (* const pat_comp[])(struct ins **, struct node *) = {
 };
 
 int
-add_literal(struct state *st, struct pattern *pat)
+add_literal(struct state *st)
 {
 	struct ins *p = calloc(1, sizeof *p);
 	if (!p) return ENOMEM;
 
-	memcpy(p, (struct ins[]){{.arg=st->tok->wc, .op=ins_char}}, sizeof *p);
+	memcpy(p, (struct ins[]){{
+			.op = ins_char
+			.arg = { .w = st->tok->wc },
+	}}, sizeof *p);
 
 	return vec_append(&st->buf, &p);
 }
 
 int
-add_repetition(struct state *st, struct pattern *pat)
+add_repetition(struct state *st)
 {
 	enum type const tab[] = {
 		[sym_qmark] = type_opt,
 		[sym_plus]  = type_rep,
 		[sym_star]  = type_rep_null,
 	};
+	struct node *cat = 0x0;
 	struct node *nod = 0x0;
 	struct ins *ins = 0x0;
 	int err = 0;
 
-	nod = nod_ctor(st->cur);
-	if (!nod) goto nomem;
-
-	nod->type = tab[st->tok->type];
+	if (!vec_len(st->buf)) return PAT_ERR_BADREP; // XXX
 
 	vec_pop(&ins, &st->buf);
 
-	err = vec_append(&nod->chld, (uintptr_t[]){ tag_leaf(ins) });
-	if (err) goto fail;
-
-	err = st_flush(st);
-	if (err) goto fail;
-
+	cat = mk_concat(buf, vec_len(buf));
+	if (!cat) goto nomem;
 	vec_truncat(&st->buf, 0);
 
-	err = vec_append(&st->cur->chld, (uintptr_t[]){ tag_node(nod) });
+	new = nod_alloc();
+	if (!new) goto nomem;
+
+	new->type = tab[st->tok->type];
+	new->chld[0] = tag_leaf(ins);
+
+	err = st_push(new);
 	if (err) goto fail;
 
 	return 0;
@@ -203,21 +214,53 @@ nomem:
 	err = ENOMEM;
 fail:
 	nod_free(nod);
-	free(ins);
 	return err;
 }
 
 int
-add_submatch(struct state *st, struct pattern *pat)
+add_submatch(struct state *st)
 {
 	int err = 0;
-	while (st->str->n > st->str->f) {
-		st->str->f += pat_lex(st);
-		err = pat_add[st->tok->type](st, pat);
-		if (err) break;
+	uintptr_t *new = 0;
+
+	err = vec_ctor(new);
+	if (err) return err;
+
+	err = vec_append(&st->stk, new);
+	if (err) return err;
+
+	return 0;
+}
+
+int
+add_subtree(struct state *st)
+{
+	int err = 0;
+	uintptr_t *chld;
+	struct node *new = 0x0;
+
+	if (!vec_len(st->stk)) return PAT_ERR_BADPAREN;
+
+	new = calloc(1, sizeof *new);
+	if (!new) return ENOMEM;
+
+	vec_pop(&chld, &st->stk);
+
+	new->chld = chld;
+
+	if (vec_len(st->stk)) {
+		err = vec_append(stk_top(st->stk), (uintptr_t[]) {
+			tag_node(new)
+		});
+	} else {
+		err = vec_append(&st->cur->chld, (uintptr_t[]) {
+			tag_node(new)
+		});
 	}
 
-	return err;
+	if (err) return err;
+
+	return 0;
 }
 
 int
@@ -483,9 +526,34 @@ ins_save(struct context *ctx, struct thread *th, wchar_t const wc)
 
 	return ip(th)->op(ctx, th, wc);
 }
+ 
+struct node *
+mk_concat(struct ins *buf, size_t len)
+{
+	struct node *tmp = 0x0;
+	struct node *ret = calloc(1, sizeof *ret);
+
+	if (!ret) return 0x0;
+
+	if (len > 0) {
+		tmp = mk_concat(buf + 1, len - 1);
+		if (!tmp) goto fail;
+	}
+
+	*ret = {
+		.type = type_concat,
+		.chld = { tag_leaf(buf[0]), tag_node(tmp), },
+	};
+
+	return ret;
+
+fail:
+	free(ret);
+	return 0x0;
+}
 
 struct node *
-nod_ctor(struct node *par)
+nod_alloc(void)
 {
 	struct node *ret;
 
@@ -496,8 +564,6 @@ nod_ctor(struct node *par)
 		free(ret);
 		return 0x0;
 	}
-
-	ret->up = par;
 
 	return ret;
 }
@@ -530,12 +596,6 @@ st_flush(struct state *st)
 	}
 
 	return 0;
-}
-
-void
-st_surface(struct state *st)
-{
-	while (st->cur->up) st->cur = st->cur->up;
 }
 
 int
@@ -729,14 +789,12 @@ pat_parse(struct node **rootp, char const *src, struct pattern *pat)
 
 	while (!eol(st->str)) {
 		st->str->f += pat_lex(st);
-		err = pat_add[st->tok->type](st, pat);
+		err = pat_add[st->tok->type](st);
 		if (err) break;
 	}
 
 	st_flush(st);
 	vec_free(st->buf);
-
-	st_surface(st);
 
 	*rootp = st->cur;
 
@@ -755,7 +813,7 @@ pat_compile(struct pattern *dest, char const *src)
 	err = vec_ctor(dest->mat);
 	if (err) goto finally;
 
-	root = nod_ctor(0x0);
+	root = nod_alloc();
 	if (!root) {
 		err = ENOMEM;
 		goto finally;
