@@ -12,6 +12,7 @@
 #define HEADER (sizeof (size_t))
 
 #undef vec_mem
+#undef vec_new
 
 #undef vec_append
 #undef vec_clone
@@ -158,6 +159,16 @@ vec_free(void *vec)
 {
 	if (!vec) return;
 	free((char *)vec - HEADER);
+}
+
+void *
+vec_new(size_t size)
+{
+	void *ret;
+
+	vec_alloc(&ret, size);
+
+	return ret;
 }
 
 void
