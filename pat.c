@@ -186,24 +186,18 @@ add_repetition(struct state *st)
 		[sym_plus]  = type_rep,
 		[sym_star]  = type_rep_null,
 	};
-	struct node *cat = 0x0;
 	struct node *nod = 0x0;
-	struct ins *ins = 0x0;
+	void *chld = 0x0;
 	int err = 0;
 
-	if (!vec_len(st->buf)) return PAT_ERR_BADREP; // XXX
+	if (vec_len(st->buf)) vec_pop(&chld, &st->buf);
+	else vec_pop(&chld, st->
 
-	vec_pop(&ins, &st->buf);
-
-	cat = mk_concat(buf, vec_len(buf));
-	if (!cat) goto nomem;
-	vec_truncat(&st->buf, 0);
-
-	new = nod_alloc();
+	new = nod_ctor(tab[st->tok->typ], tag_leaf(ins), 0x0);
 	if (!new) goto nomem;
 
-	new->type = tab[st->tok->type];
-	new->chld[0] = tag_leaf(ins);
+	err = st_flush(st);
+	if (err) goto fail;
 
 	err = st_push(new);
 	if (err) goto fail;
@@ -223,10 +217,10 @@ add_submatch(struct state *st)
 	int err = 0;
 	uintptr_t *new = 0;
 
-	err = vec_ctor(new);
+	err = vec_ctor(new, type_sub, 0x0, 0x0);
 	if (err) return err;
 
-	err = vec_append(&st->stk, new);
+	err = vec_push(st, new);
 	if (err) return err;
 
 	return 0;
@@ -237,27 +231,15 @@ add_subtree(struct state *st)
 {
 	int err = 0;
 	uintptr_t *chld;
-	struct node *new = 0x0;
+	struct node *par = 0x0;
 
 	if (!vec_len(st->stk)) return PAT_ERR_BADPAREN;
 
-	new = calloc(1, sizeof *new);
-	if (!new) return ENOMEM;
+	par = stk_top(st)[0];
+	par->chld[0] = st_concat(st);
+	if (!par->chld[[0]) return ENOMEM;
 
-	vec_pop(&chld, &st->stk);
-
-	new->chld = chld;
-
-	if (vec_len(st->stk)) {
-		err = vec_append(stk_top(st->stk), (uintptr_t[]) {
-			tag_node(new)
-		});
-	} else {
-		err = vec_append(&st->cur->chld, (uintptr_t[]) {
-			tag_node(new)
-		});
-	}
-
+	err = st_push(st, par);
 	if (err) return err;
 
 	return 0;
@@ -596,6 +578,12 @@ st_flush(struct state *st)
 	}
 
 	return 0;
+}
+
+int
+st_push(struct state *st, struct node *nod)
+{
+	return -1;
 }
 
 int
