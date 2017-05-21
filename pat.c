@@ -1,5 +1,6 @@
 #include <assert.h>
 #include <errno.h>
+#include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
 #include <wctype.h>
@@ -34,6 +35,7 @@ enum pat_sym {
 enum type {
 	type_null,
 	type_root,
+	type_cat,
 	type_sub,
 	type_opt,
 	type_rep_null,
@@ -68,8 +70,7 @@ struct state {
 
 struct thread {
 	struct patmatch *mat;
-	struct ins      *ins;
-	size_t           pos;
+	struct ins      *ip;
 };
 
 struct context {
@@ -81,17 +82,16 @@ struct context {
 };
 
 union arg {
-	off_t   f;
-	size_t  z;
-	wchar_t w;
+	ptrdiff_t f;
+	size_t    z;
+	wchar_t   w;
+	int       i;
 };
 
 struct ins {
         int      (*op)(struct context *, struct thread *, wchar_t const);
 	union arg arg;
 };
-
-static inline struct ins *ip(struct thread *);
 
 static int add_literal(struct state *);
 static int add_repetition(struct state *);
@@ -103,6 +103,8 @@ static int comp_recurse(struct ins **, uintptr_t *);
 static int comp_rep(struct ins **, struct node *);
 static int comp_rep_null(struct ins **, struct node *);
 static int comp_root(struct ins **, struct node *);
+
+static uintptr_t buf_concat(struct ins **buf);
 
 static int  ctx_init(struct context *);
 static void ctx_fini(struct context *);
@@ -117,10 +119,12 @@ static int ins_jump(struct context *, struct thread *, wchar_t const);
 static int ins_mark(struct context *, struct thread *, wchar_t const);
 static int ins_save(struct context *, struct thread *, wchar_t const);
 
-static struct node *nod_alloc(void);
-static void         nod_free(struct node *);
+static struct node *nod_ctor(enum type, uintptr_t, uintptr_t);
+static void         nod_dtor(struct node *);
 
-static int  st_flush(struct state *);
+static uintptr_t st_concat(struct state *);
+static int       st_flush(struct state *);
+static int       st_push(struct state *, struct node *);
 
 static int  thr_next(struct context *, size_t, wchar_t const);
 static int  thr_finish(struct context *, size_t);
@@ -130,17 +134,16 @@ static void thr_remove(struct context *, size_t);
 
 static size_t pat_lex(struct state *);
 static int    pat_marshal(struct pattern *, struct node *);
-static int    pat_parse(struct node **, char const *, struct pattern *);
+static int    pat_parse(struct node **, char const *);
+static int    pat_parse_tree(struct state *);
 static int    pat_do_match(struct pattern *, struct context *);
 static int    pat_exec(struct context *);
-
-static inline struct ins * ip(struct thread *th) { return th->ins + th->pos; }
 
 static inline bool        eol(struct pos const *p) { return p->f >= p->n; }
 static inline size_t      rem(struct pos const *p) { return p->n - p->f; }
 static inline char const *str(struct pos const *p) { return p->v + p->f; }
 
-static inline uintptr_t **stk_top(uintptr_t **stk) { return stk + vec_len(stk) - 1; }
+static inline uintptr_t **stk_top(struct state *st) { return st->stk + vec_len(st->stk) - 1; }
 
 static inline struct node *to_node(uintptr_t u) { return (void *)(u & ~1); }
 static inline struct ins  *to_leaf(uintptr_t u) { return (void *)u; }
@@ -171,7 +174,7 @@ add_literal(struct state *st)
 	if (!p) return ENOMEM;
 
 	memcpy(p, (struct ins[]){{
-			.op = ins_char
+			.op = ins_char,
 			.arg = { .w = st->tok->wc },
 	}}, sizeof *p);
 
@@ -186,20 +189,26 @@ add_repetition(struct state *st)
 		[sym_plus]  = type_rep,
 		[sym_star]  = type_rep_null,
 	};
-	struct node *nod = 0x0;
-	void *chld = 0x0;
+	struct node *new = 0x0;
+	uintptr_t chld = 0x0;
+	void *tmp = 0x0;
 	int err = 0;
 
-	if (vec_len(st->buf)) vec_pop(&chld, &st->buf);
-	else vec_pop(&chld, st->
+	if (vec_len(st->buf)) {
+		vec_pop(&tmp, &st->buf);
+		chld = tag_leaf(tmp);
+	} else {
+		vec_pop(&tmp, stk_top(st));
+		chld = tag_node(tmp);
+	}
 
-	new = nod_ctor(tab[st->tok->typ], tag_leaf(ins), 0x0);
+	new = nod_ctor(tab[st->tok->type], chld, 0x0);
 	if (!new) goto nomem;
 
 	err = st_flush(st);
 	if (err) goto fail;
 
-	err = st_push(new);
+	err = st_push(st, new);
 	if (err) goto fail;
 
 	return 0;
@@ -207,7 +216,7 @@ add_repetition(struct state *st)
 nomem:
 	err = ENOMEM;
 fail:
-	nod_free(nod);
+	free(new);
 	return err;
 }
 
@@ -215,12 +224,12 @@ int
 add_submatch(struct state *st)
 {
 	int err = 0;
-	uintptr_t *new = 0;
+	struct node *new = 0;
 
-	err = vec_ctor(new, type_sub, 0x0, 0x0);
-	if (err) return err;
+	new = nod_ctor(type_sub, 0x0, 0x0);
+	if (!new) return ENOMEM;
 
-	err = vec_push(st, new);
+	err = st_push(st, new);
 	if (err) return err;
 
 	return 0;
@@ -229,20 +238,34 @@ add_submatch(struct state *st)
 int
 add_subtree(struct state *st)
 {
-	int err = 0;
-	uintptr_t *chld;
 	struct node *par = 0x0;
+	int err = 0;
 
 	if (!vec_len(st->stk)) return PAT_ERR_BADPAREN;
 
-	par = stk_top(st)[0];
+	par = to_node(*stk_top(st)[0]);
 	par->chld[0] = st_concat(st);
-	if (!par->chld[[0]) return ENOMEM;
+	if (!par->chld[0]) return ENOMEM;
 
 	err = st_push(st, par);
 	if (err) return err;
 
 	return 0;
+}
+
+uintptr_t
+buf_concat(struct ins **buf)
+{
+	struct node *nod = 0x0;
+	uintptr_t ret = 0x0;
+	size_t len = vec_len(buf);
+
+	while (len --> 0) {
+		nod = nod_ctor(type_cat, tag_leaf(buf[len]), ret);
+		ret = tag_node(nod);
+	}
+
+	return ret;
 }
 
 int
@@ -259,8 +282,7 @@ comp_opt(struct ins **dest, struct node *nod)
 	err = comp_recurse(dest, nod->chld);
 	if (err) return err;
 
-	(*dest)[off].arg = vec_len(*dest);
-
+	(*dest)[off].arg.f = off - vec_len(*dest);
 	return 0;
 }
 
@@ -292,8 +314,8 @@ comp_rep(struct ins **dest, struct node *nod)
 	if (err) return err;
 
 	return vec_append(dest, ((struct ins[]) {{
-		.arg = beg,
 		.op = ins_fork,
+		.arg = { .f = beg - vec_len(*dest) },
 	}}));
 }
 
@@ -315,12 +337,13 @@ comp_rep_null(struct ins **dest, struct node *nod)
 	if (err) return err;
 
 	err = vec_append(dest, ((struct ins[]) {{
-		.arg = beg,
 		.op = ins_fork,
+		.arg = { .f = beg - vec_len(*dest) },
 	}}));
-	if (err) return err;
 
-	(*dest)[off].arg = vec_len(*dest);
+	(*dest)[off].arg.f = off - vec_len(*dest);
+
+	if (err) return err;
 
 	return 0;
 }
@@ -331,10 +354,10 @@ comp_root(struct ins **dest, struct node *root)
 	int err = 0;
 
 	err = vec_concat_arr(dest, ((struct ins[]) {
-		[0] = { .op = ins_jump, .arg = 2, },
-		[1] = { .op = ins_clss, .arg = class_any, },
-		[2] = { .op = ins_fork, .arg = 1, },
-		[3] = { .op = ins_mark, .arg = 0, },
+		[0] = { .op = ins_jump, .arg = {.f=2}, },
+		[1] = { .op = ins_clss, .arg = {.i=class_any}, },
+		[2] = { .op = ins_fork, .arg = {.f=1}, },
+		[3] = { .op = ins_mark, .arg = {0}, },
 	}));
 	if (err) goto finally;
 
@@ -342,8 +365,8 @@ comp_root(struct ins **dest, struct node *root)
 	if (err) goto finally;
 
 	err = vec_concat_arr(dest, ((struct ins[]) {
-		[0] = { .op = ins_save, .arg = 0, },
-		[1] = { .op = ins_halt, .arg = 0, },
+		[0] = { .op = ins_save, .arg = {0}, },
+		[1] = { .op = ins_halt, .arg = {0}, },
 	}));
 	if (err) goto finally;
 
@@ -408,8 +431,8 @@ ins_char(struct context *ctx, struct thread *th, wchar_t const wc)
 {
 	size_t ind = th - ctx->thr;
 
-	if ((wchar_t)ip(th)->arg != wc) thr_remove(ctx, th - ctx->thr), --ind;
-	else ++th->pos;
+	if (th->ip->arg.w != wc) thr_remove(ctx, th - ctx->thr), --ind;
+	else ++th->ip;
 
 	return thr_next(ctx, ind + 1, wc);
 }
@@ -420,7 +443,7 @@ ins_clss(struct context *ctx, struct thread *th, wchar_t const wc)
 	size_t ind = th - ctx->thr;
 	bool res;
 
-	switch (ip(th)->arg) {
+	switch (th->ip->arg.i) {
 	case class_any: res = true; break;
 	case class_dot: res = wc != L'\n' && wc != L'\0'; break;
 	case class_alpha: res = iswalpha(wc); break;
@@ -433,7 +456,7 @@ ins_clss(struct context *ctx, struct thread *th, wchar_t const wc)
 	}
 
 	if (!res) thr_remove(ctx, ind), --ind;
-	else ++th->pos;
+	else ++th->ip;
 
 	return thr_next(ctx, ind + 1, wc);
 }
@@ -441,25 +464,23 @@ ins_clss(struct context *ctx, struct thread *th, wchar_t const wc)
 int
 ins_fork(struct context *ctx, struct thread *th, wchar_t const wc)
 {
-	int err = 0;
+	struct thread new[1] = {{0}};
 	size_t ind = th - ctx->thr;
-	struct thread new = {0};
+	int err = 0;
 
-	err = thr_fork(&new, th);
+	err = thr_fork(new, th);
 	if (err) goto fail;
 
-	new.pos = ip(th)->arg;
+	new->ip += th->ip->arg.f;
 
-	err = vec_insert(&ctx->thr, &new, th - ctx->thr + 1);
+	err = vec_insert(&ctx->thr, new, ind + 1);
 	if (err) goto fail;
 
-	th = ctx->thr + ind;
-
-	++th->pos;
-	return ip(th)->op(ctx, th, wc);
+	++th->ip;
+	return th->ip->op(ctx, th, wc);
 
 fail:
-	vec_free(new.mat);
+	vec_free(new->mat);
 	return err;
 }
 
@@ -478,8 +499,8 @@ ins_halt(struct context *ctx, struct thread *th, wchar_t const wc)
 int
 ins_jump(struct context *ctx, struct thread *th, wchar_t const wc)
 {
-	th->pos = ip(th)->arg;
-	return ip(th)->op(ctx, th, wc);
+	th->ip += th->ip->arg.f;
+	return th->ip->op(ctx, th, wc);
 }
 
 int
@@ -494,70 +515,46 @@ ins_mark(struct context *ctx, struct thread *th, wchar_t const wc)
 	err = vec_append(&th->mat, &mat);
 	if (err) return err;
 
-	++th->pos;
-	return ip(th)->op(ctx, th, wc);
+	++th->ip;
+	return th->ip->op(ctx, th, wc);
 }
 
 int
 ins_save(struct context *ctx, struct thread *th, wchar_t const wc)
 {
-	struct ins *ins = th->ins + th->pos;
+	size_t tag = th->ip->arg.z ;
+	size_t beg = th->mat[tag].off ;
+	size_t ext = ctx->pos - beg ;
 
-	th->mat[ins->arg].ext = ctx->pos - th->mat[ins->arg].off;
-	++th->pos;
+	th->mat[tag].ext = ext ;
 
-	return ip(th)->op(ctx, th, wc);
+	th->ip++ ;
+
+	return th->ip->op(ctx, th, wc);
 }
  
 struct node *
-mk_concat(struct ins *buf, size_t len)
+nod_ctor(enum type type, uintptr_t chld0, uintptr_t chld1)
 {
-	struct node *tmp = 0x0;
 	struct node *ret = calloc(1, sizeof *ret);
 
-	if (!ret) return 0x0;
+	if (!ret) return 0;
 
-	if (len > 0) {
-		tmp = mk_concat(buf + 1, len - 1);
-		if (!tmp) goto fail;
-	}
-
-	*ret = {
-		.type = type_concat,
-		.chld = { tag_leaf(buf[0]), tag_node(tmp), },
-	};
-
-	return ret;
-
-fail:
-	free(ret);
-	return 0x0;
-}
-
-struct node *
-nod_alloc(void)
-{
-	struct node *ret;
-
-	ret = calloc(1, sizeof *ret);
-	if (!ret) return 0x0;
-
-	if (vec_ctor(ret->chld)) {
-		free(ret);
-		return 0x0;
-	}
+	ret->type = type;
+	ret->chld[0] = chld0;
+	ret->chld[1] = chld1;
 
 	return ret;
 }
 
 void
-nod_free(struct node *nod)
+nod_dtor(struct node *nod)
 {
 	uintptr_t *u;
 	if (!nod) return;
 	vec_foreach(u, nod->chld) {
 		if (is_leaf(*u)) free(to_leaf(*u));
-		else nod_free(to_node(*u));
+		else nod_dtor(to_node(*u));
 	}
 
 	vec_free(nod->chld);
@@ -565,19 +562,21 @@ nod_free(struct node *nod)
 	free(nod);
 }
 
+uintptr_t
+st_concat(struct state *st)
+{
+	struct node *cat = 0x0;
+
+	return tag_node(cat);
+	return -1;
+}
 
 int
 st_flush(struct state *st)
 {
-	struct ins **ins = 0x0;
-	int err = 0;
-
-	vec_foreach (ins, st->buf) {
-		err = vec_append(&st->cur->chld, (uintptr_t[]){ tag_leaf(*ins) });
-		if (err) return err;
-	}
-
-	return 0;
+	uintptr_t u = buf_concat(st->buf);
+	vec_truncat(&st->buf, 0);
+	return vec_append(stk_top(st), (uintptr_t[]){u});
 }
 
 int
@@ -601,8 +600,7 @@ thr_finish(struct context *ctx, size_t ind)
 int
 thr_fork(struct thread *dst, struct thread *src)
 {
-	dst->ins = src->ins;
-	dst->pos = src->pos;
+	dst->ip = src->ip;
 	dst->mat = vec_clone(src->mat);
 
 	return dst->mat ? 0 : ENOMEM;
@@ -613,13 +611,13 @@ thr_next(struct context *ctx, size_t ind, wchar_t wc)
 {
 	if (!vec_len(ctx->thr)) return -1;
 	if (ind >= vec_len(ctx->thr)) return 0;
-	else return ip(ctx->thr + ind)->op(ctx, ctx->thr + ind, wc);
+	else return ctx->thr[ind].ip->op(ctx, ctx->thr + ind, wc);
 }
 
 int
 thr_start(struct context *ctx, wchar_t wc)
 {
-	return ip(ctx->thr)->op(ctx, ctx->thr, wc);
+	return ctx->thr->ip->op(ctx, ctx->thr, wc);
 }
 
 void
@@ -762,31 +760,43 @@ esc:
 }
 
 int
-pat_parse(struct node **rootp, char const *src, struct pattern *pat)
+pat_parse(struct node **rootp, char const *src)
 {
 	int err = 0;
 	struct state st[1] = {{
-		.cur = *rootp,
 		.str = {{ .v = src, .n = strlen(src), }}
 	}};
 
-	vec_ctor(st->buf);
-	if (!st->buf) return ENOMEM;
+	st->cur = nod_ctor(type_root, 0x0, 0x0);
+	if (!st->cur) return ENOMEM;
 
-	st->cur->type = type_root;
+	err = vec_ctor(st->buf);
+	if (err) goto finally;
 
-	while (!eol(st->str)) {
-		st->str->f += pat_lex(st);
-		err = pat_add[st->tok->type](st);
-		if (err) break;
-	}
+	err = pat_parse_tree(st);
+	if (err) goto finally;
 
-	st_flush(st);
+finally:
+	if (err) nod_dtor(st->cur);
 	vec_free(st->buf);
 
 	*rootp = st->cur;
 
 	return err;
+}
+
+int
+pat_parse_tree(struct state *st)
+{
+	int err = 0;
+
+	while (!eol(st->str)) {
+		st->str->f += pat_lex(st);
+		err = pat_add[st->tok->type](st);
+		if (err) return err;
+	}
+
+	return st_flush(st);
 }
 
 int
@@ -801,20 +811,14 @@ pat_compile(struct pattern *dest, char const *src)
 	err = vec_ctor(dest->mat);
 	if (err) goto finally;
 
-	root = nod_alloc();
-	if (!root) {
-		err = ENOMEM;
-		goto finally;
-	}
-
-	err = pat_parse(&root, src, dest);
+	err = pat_parse(&root, src);
 	if (err) goto finally;
 
 	err = pat_marshal(dest, root);
 	if (err) goto finally;
 
 finally:
-	nod_free(root);
+	nod_dtor(root);
 	if (err) vec_free(dest->prog);
 	if (err) vec_free(dest->mat);
 	return err;
@@ -839,7 +843,7 @@ int
 pat_match_callback(struct pattern *pat, int (*cb)(char *, void *), void *cbx)
 {
 	struct context ctx[1] = {{.cb = cb, .cbx = cbx}};
-	struct thread th[1] = {{ .ins = pat->prog }};
+	struct thread th[1] = {{ .ip = pat->prog }};
 	int err = 0;
 
 	err = ctx_init(ctx);
