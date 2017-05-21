@@ -9,7 +9,7 @@ LDFLAGS += -lc -Wl,--sort-section=alignment -Wl,--sort-common
 SRC	:= $(shell find . -name "*.c")
 OBJ	:= $(SRC:.c=.c.o)
 TESTS	:= $(shell find ./tests -name "*-test.c")
-DEP	:= $(SRC.c=.c.d)
+DEP	:= $(shell find . -name "*.d")
 BIN	:= $(patsubst %.c, %, $(filter $(TESTS), $(SRC)))
 
 ifndef NDEBUG
