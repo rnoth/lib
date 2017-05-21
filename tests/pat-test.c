@@ -112,7 +112,6 @@ void cleanup() {}
 void
 loop(void)
 {
-	size_t i = 0;
 	struct a *a = 0x0;
 	struct b *b = 0x0;
 	struct pattern pat[1] = {{0}};

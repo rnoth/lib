@@ -16,7 +16,6 @@ static void test_insert(void);
 static void test_fun(void);
 static void test_large_insert(void);
 static void test_pop(void);
-static void test_resize(void);
 static void test_shift(void);
 static void test_slice(void);
 static void test_splice(void);
@@ -37,6 +36,7 @@ struct test tests[] = {
 	{ test_large_insert,  test_copy,          "copying vectors", },
 	{ test_large_insert,  test_slice,         "slicing a vector", },
 	{ test_large_insert,  test_splice,        "splicing a vector with an array", },
+	{ test_large_insert,  test_transfer,      "transfering elements to an array", },
 	{ test_large_insert,  test_pop,           "popping elements from a vector" },
 };
 
@@ -222,15 +222,6 @@ test_large_insert(void)
 }
 
 void
-test_resize(void)
-{
-	vec_resize(&intvec, 200);
-	expect(800, vec_mem(intvec));
-	vec_resize(&intvec, 4);
-	expect(16, vec_mem(intvec));
-}
-
-void
 test_pop(void)
 {
 	int i;
@@ -257,7 +248,6 @@ test_slice(void)
 	try(vec_slice(&intvec, 300, 600));
 
 	expect(600, vec_len(intvec));
-
 	for (i = 0; i < 600; ++i) {
 		expect(i + 300, intvec[i]);
 	}
@@ -294,7 +284,7 @@ test_transfer(void)
 	expect(0, vec_transfer(&intvec, arr, ARR_LEN));
 	expect(100, vec_len(intvec));
 
-	ok(!memcmp(intvec, arr, 1000 * sizeof *intvec));
+	ok(!memcmp(intvec, arr, 100 * sizeof *intvec));
 #	undef ARR_LEN
 }
 

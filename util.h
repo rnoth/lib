@@ -8,7 +8,7 @@
 #define arr_len(arr)    (sizeof arr / sizeof *arr)
 #define bit(off)        (1UL << (off))
 #define cpy(dest,src)   (memcpy((dest), (src), sizeof *(dest)))
-#define die(blame)      do { perror(blame); abort(); } while (0);
+#define die(blame)      do { perror(blame); exit(1); } while (0);
 
 #define arr_foreach(VAR, ARR) 				\
 	for (size_t _i=0, _j=0;				\
@@ -22,6 +22,10 @@
 #define repeat(ntimes) for (size_t _repeat_counter = 0;   \
 				_repeat_counter < ntimes; \
 				++_repeat_counter)
+
+#define iterate(var, ntimes) for (size_t var = 0; \
+				  var < ntimes;   \
+				  ++var)
 
 static inline
 unsigned long
