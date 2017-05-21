@@ -1,40 +1,33 @@
-CC	?= cc
-CFLAGS	+= -pipe -D_POSIX_C_SOURCE -std=c99 -pedantic -Wall -Wextra \
-	   -Wunreachable-code -Wshadow \
-	   -Wno-missing-field-initializers -Wno-unused-parameter \
-	   -Warray-bounds -Wno-switch -Wmissing-prototypes \
-	   -fstrict-aliasing -fstrict-overflow \
-	   -fdata-sections -ffunction-sections -fno-exceptions \
-	   -fno-unwind-tables -fno-asynchronous-unwind-tables \
-	   -fno-stack-protector
-LDFLAGS += -lc -Wl,--sort-section=alignment -Wl,--sort-common
+include config.mk
 
-SRC	!= find . -maxdepth 1 -name "*.c"
-OBJ	:= $(SRC:.c=.c.o)
-TESTS	!= find tests -name "*-test.c"
+all: obj bin
+obj: $(OBJ)
+bin: obj $(BIN)
 
-all:: deps.mk $(NAME) $(TESTS:.c=)
+-include $(DEP)
 
-ifndef NDEBUG
-CFLAGS += -O0 -g -Werror
-else
-LDFLAGS += -Wl,--gc-section
-CFLAGS += -O3 -flto
-endif
+deps	= $(eval deps-undef := $(shell cat $(1:.o=.u))) \
+	  $(foreach obj, $(OBJ) \
+	  	, $(if $(filter $(deps-undef), $(shell cat $(obj:.o=.f))) \
+		  , $(obj)))
 
--include deps.mk
-
-deps.mk: $(SRC) $(TESTS)
-	@echo making deps.mk
-	@$(CC) -M $+ | sed -e 's/\.o/.c.o/' -e 's/\(.*\)-test.c.o/\1-test/' > deps.mk
+resolve = $(eval undef := $(shell cat $(1:.o=.u))) \
+	  $(sort $(foreach obj, $(filter-out $1, $(OBJ)) \
+	  	   , $(if $(filter $(undef), $(shell cat $(obj:.o=.f))) \
+		     , $(obj) $(call deps,$(obj)))))
 
 %.c.o: %.c
+	@makedepend -Y -o.c.o -f - $< 2>/dev/null | sed 1,2d > $*.c.d
 	@echo CC $<
 	@$(CC) $(CFLAGS) -c -o $@ $<
+	@nm -u $@ | awk '{ print $$2 }' | sort > $*.c.u
+	@nm -g $@ | awk '/0+ [^U]/ { print $$3 }' | sort > $*.c.f
 
-tests/%-test: tests/%-test.c %.c unit.h $(OBJ)
-	@echo CCLD -o $@
-	@$(CC) $(CFLAGS) -Wno-missing-prototypes -Wno-unused-variable -Wno-unused-function -o $@ $< $(OBJ) $(LDFLAGS)
+tests/%-test: tests/%-test.c.o skel.c.o
+	@$(eval res := $(call resolve, $<))
+	@printf '%s: %s\n' $@ '$(res)' > $@.d
+	@echo LD -o $@
+	$(CC) $(CFLAGS) -o $@ $< skel.c.o $(res) $(LDFLAGS)
 	@$@ || true
 	@echo
 
@@ -42,8 +35,13 @@ test:
 	@for test in tests/*-test; do "$$test"; echo; done;
 
 clean:
-	@rm -f *.o $(NAME) tests/*-test core vgcore.*
+	@rm -f *.o $(NAME) tests/*-test tests/*.o core vgcore.*
 	@echo cleaning
 
-.PHONY: clean test
-.SECONDARY: $(OBJ) $(TESTS)
+clean-test:
+	@rm -f tests/*-test
+
+clean-obj:
+	@rm -f *.o *.d *.f *.u
+
+.PHONY: clean test all obj bin
