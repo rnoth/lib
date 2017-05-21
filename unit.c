@@ -12,7 +12,7 @@ sigtostr(int src)
 	switch (src) {
 	case SIGSEGV: return "segfault";
 	case SIGBUS:  return "bus error";
-	case SIGABRT: return "aborted";
+	case SIGABRT: return "abort";
 	default:
 		assert(!"I will never be reached");
 	}
