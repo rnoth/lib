@@ -805,6 +805,9 @@ pat_compile(struct pattern *dest, char const *src)
 	int err = 0;
 	struct node *root = 0x0;
 
+	if (!dest) return EFAULT;
+	if (!src) return EFAULT;
+
 	err = vec_ctor(dest->prog);
 	if (err) goto finally;
 
@@ -834,6 +837,7 @@ pat_free(struct pattern *pat)
 int
 pat_match(struct pattern *pat, char const *str)
 {
+	if (!str) return EFAULT;
 	return pat_match_callback(pat, get_char, (struct pos[]){
 			{ .n = strlen(str) + 1, .v = str },
 	});
@@ -845,6 +849,9 @@ pat_match_callback(struct pattern *pat, int (*cb)(char *, void *), void *cbx)
 	struct context ctx[1] = {{.cb = cb, .cbx = cbx}};
 	struct thread th[1] = {{ .ip = pat->prog }};
 	int err = 0;
+
+	if (!pat) return EFAULT;
+	if (!cb) return EFAULT;
 
 	err = ctx_init(ctx);
 	if (err) goto finally;
