@@ -197,10 +197,10 @@ add_repetition(struct state *st)
 	if (vec_len(st->buf)) {
 		vec_pop(&tmp, &st->buf);
 		chld = tag_leaf(tmp);
-	} else {
+	} else if (vec_len(st->stk)) {
 		vec_pop(&tmp, stk_top(st));
 		chld = tag_node(tmp);
-	}
+	} else return PAT_ERR_BADREP;
 
 	new = nod_ctor(tab[st->tok->type], chld, 0x0);
 	if (!new) goto nomem;
