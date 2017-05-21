@@ -27,7 +27,7 @@ tests/%-test: tests/%-test.c.o skel.c.o
 	@$(eval res := $(call resolve, $<))
 	@printf '%s: %s\n' $@ '$(res)' > $@.d
 	@echo LD -o $@
-	$(CC) $(CFLAGS) -o $@ $< skel.c.o $(res) $(LDFLAGS)
+	@$(CC) $(CFLAGS) -o $@ $< skel.c.o $(res) $(LDFLAGS)
 	@$@ || true
 	@echo
 
