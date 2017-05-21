@@ -1,0 +1,16 @@
+*~
+.*.swp
+vgcore.*
+*.a
+*.o
+*.f
+*.u
+*.d
+deps.mk
+core
+tags
+vgcore.*
+a.out
+tests/*-test
+.gdbinit
+cscope.out
