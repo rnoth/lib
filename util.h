@@ -42,6 +42,13 @@ umax(unsigned long a, unsigned long b)
 }
 
 static inline
+unsigned long
+ucmp(unsigned long a, unsigned long b)
+{
+	return a > b ? 1 : a < b ? -1 : 0;
+}
+
+static inline
 bool
 addz_overflows(size_t a, size_t b)
 {
