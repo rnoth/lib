@@ -100,10 +100,8 @@ static int add_submatch(struct state *);
 static int add_subtree(struct state *);
 
 static int comp_cat(struct ins **, struct node *);
-static int comp_opt(struct ins **, struct node *);
 static int comp_recurse(struct ins **, uintptr_t *);
 static int comp_rep(struct ins **, struct node *);
-static int comp_rep_null(struct ins **, struct node *);
 static int comp_root(struct ins **, struct node *);
 
 static uintptr_t buf_concat(struct ins **buf);
@@ -184,8 +182,8 @@ static int (* const pat_add[])(struct state *) = {
 static int (* const pat_comp[])(struct ins **, struct node *) = {
 	[type_root]     = comp_root,
 	[type_cat]      = comp_cat,
-	[type_opt]      = comp_opt,
-	[type_rep_null] = comp_rep_null,
+	[type_opt]      = comp_rep,
+	[type_rep_null] = comp_rep,
 	[type_rep]      = comp_rep,
 };
 
@@ -329,24 +327,6 @@ comp_cat(struct ins **dest, struct node *nod)
 }
 
 int
-comp_opt(struct ins **dest, struct node *nod)
-{
-	size_t off = 0;
-	int err = 0;
-
-	off = vec_len(*dest);
-
-	err = vec_append(dest, (struct ins[]) {{ .op = ins_fork }});
-	if (err) return err;
-
-	err = comp_recurse(dest, nod->chld);
-	if (err) return err;
-
-	(*dest)[off].arg.f = vec_len(*dest) - off;
-	return 0;
-}
-
-int
 comp_recurse(struct ins **dest, uintptr_t chld[static 2])
 {
 	int err = 0;
@@ -370,43 +350,31 @@ comp_rep(struct ins **dest, struct node *nod)
 {
 	int err = 0;
 	size_t beg = 0;
-
-	beg = vec_len(*dest);
-
-	err = comp_recurse(dest, nod->chld);
-	if (err) return err;
-
-	return vec_append(dest, ((struct ins[]) {{
-		.op = ins_fork,
-		.arg = { .f = beg - vec_len(*dest) },
-	}}));
-}
-
-int
-comp_rep_null(struct ins **dest, struct node *nod)
-{
-	int err = 0;
-	size_t beg = 0;
 	size_t off = 0;
 
 	off = vec_len(*dest);
 
-	err = vec_append(dest, (struct ins[]) {{ .op = ins_fork }});
-	if (err) return err;
+	if (type(nod) != type_rep) {
+		err = vec_append(dest, (struct ins[]) {{ .op = ins_fork }});
+		if (err) return err;
+	}
 
 	beg = vec_len(*dest);
 
 	err = comp_recurse(dest, nod->chld);
 	if (err) return err;
 
-	err = vec_append(dest, ((struct ins[]) {{
-		.op = ins_fork,
-		.arg = { .f = beg - vec_len(*dest) },
-	}}));
+	if (type(nod) != type_opt) {
+		err = vec_append(dest, ((struct ins[]) {{
+			.op = ins_fork,
+			.arg = { .f = beg - vec_len(*dest) },
+		}}));
+		if (err) return err;
+	}
 
-	(*dest)[off].arg.f = vec_len(*dest) - off;
-
-	if (err) return err;
+	if (type(nod) != type_rep) {
+		(*dest)[off].arg.f = vec_len(*dest) - off;
+	}
 
 	return 0;
 }
