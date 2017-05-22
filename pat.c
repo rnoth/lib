@@ -106,7 +106,7 @@ static int comp_root(struct ins **, struct node *);
 
 static uintptr_t buf_concat(struct ins **buf);
 
-static int  ctx_init(struct context *);
+static int  ctx_init(struct context *, struct pattern *);
 static void ctx_fini(struct context *);
 
 static int get_char(char *, void *);
@@ -131,18 +131,20 @@ static int       st_flush(struct state *);
 static int       st_init(struct state *);
 static int       st_push(struct state *, struct node *);
 
-static int  thr_cmp(struct thread *, struct thread *);
-static void thr_finish(struct context *, size_t);
-static int  thr_fork(struct thread *, struct thread *);
-static int  thr_next(struct context *, size_t, wchar_t const);
-static int  thr_start(struct context *, wchar_t const);
-static void thr_remove(struct context *, size_t);
+static int             thr_cmp(struct thread *, struct thread *);
+static struct thread * thr_ctor(struct ins *);
+static void            thr_dtor(struct thread *);
+static void            thr_finish(struct context *, size_t);
+static int             thr_fork(struct thread *, struct thread *);
+static int             thr_next(struct context *, size_t, wchar_t const);
+static int             thr_start(struct context *, wchar_t const);
+static void            thr_remove(struct context *, size_t);
 
 static size_t pat_lex(struct state *);
 static int    pat_marshal(struct pattern *, struct node *);
 static int    pat_parse(struct node **, char const *);
 static int    pat_parse_tree(struct state *);
-static int    pat_do_match(struct pattern *, struct context *);
+static int    pat_do_match(struct context *, struct pattern *);
 static int    pat_exec(struct context *);
 
 static inline
@@ -405,10 +407,26 @@ finally:
 }
 
 int
-ctx_init(struct context *ctx)
+ctx_init(struct context *ctx, struct pattern *pat)
 {
-	if (vec_ctor(ctx->thr)) return ENOMEM;
-	else return 0;
+	struct thread *th = 0x0;
+	int err = 0;
+
+	th = thr_ctor(pat->prog);
+	if (!th) return ENOMEM;
+
+	err = vec_ctor(ctx->thr);
+	if (err) goto fail;
+
+	err = vec_append(&ctx->thr, th);
+	if (err) goto fail;
+
+	return 0;
+
+fail:
+	thr_dtor(th);
+	vec_free(ctx->thr);
+	return err;
 }
 
 void
@@ -740,6 +758,33 @@ thr_cmp(struct thread *lt, struct thread *rt)
 		      sizeof vec_len(0)); // ?
 }
 
+struct thread *
+thr_ctor(struct ins *prog)
+{
+	struct thread *ret = 0x0;
+
+	ret = calloc(1, sizeof *ret);
+	if (!ret) return 0x0;
+
+	ret->ip = prog;
+
+	ret->mat = vec_new(struct thread);
+	if (!ret->mat) {
+		free(ret);
+		return 0x0;
+	}
+
+	return ret;
+}
+
+void
+thr_dtor(struct thread *th)
+{
+	if (!th) return;
+	vec_free(th->mat);
+	free(th);
+}
+
 void
 thr_finish(struct context *ctx, size_t ind)
 {
@@ -786,11 +831,9 @@ pat_marshal(struct pattern *dest, struct node *root)
 }
 
 int
-pat_do_match(struct pattern *pat, struct context *ctx)
+pat_do_match(struct context *ctx, struct pattern *pat)
 {
-	int err = 0;
-
-	err = pat_exec(ctx);
+	int err = pat_exec(ctx);
 	if (err) return err;
 
 	return vec_copy(&pat->mat, ctx->fin->mat);
@@ -826,6 +869,7 @@ pat_exec(struct context *ctx)
 
 	if (err > 0) return err;
 	if (nomatch(ctx)) return -1;
+
 	return 0;
 }
 
@@ -992,23 +1036,16 @@ pat_match(struct pattern *pat, char const *str)
 int
 pat_match_callback(struct pattern *pat, int (*cb)(char *, void *), void *cbx)
 {
-	struct context ctx[1] = {{.cb = cb, .cbx = cbx}};
-	struct thread th[1] = {{ .ip = pat->prog }};
+	struct context ctx[1] = {{ .cb = cb, .cbx = cbx }};
 	int err = 0;
 
 	if (!pat) return EFAULT;
-	if (!cb) return EFAULT;
+	if (!cb)  return EFAULT;
 
-	err = ctx_init(ctx);
+	err = ctx_init(ctx, pat);
 	if (err) goto finally;
 
-	err = vec_ctor(th->mat);
-	if (err) goto finally;
-
-	err = vec_append(&ctx->thr, th);
-	if (err) goto finally;
-
-	err = pat_do_match(pat, ctx);
+	err = pat_do_match(ctx, pat);
 	if (err) goto finally;
 
 finally:
