@@ -35,13 +35,8 @@ test:
 	@for test in tests/*-test; do "$$test"; echo; done;
 
 clean:
-	@rm -f *.o $(NAME) tests/*-test tests/*.o core vgcore.*
+	@find . -regex '.*\.o\|.*\.d\|.*\.f\|.*\.u' -delete
+	@rm -f tests/*-test core vgcore.*
 	@echo cleaning
-
-clean-test:
-	@rm -f tests/*-test
-
-clean-obj:
-	@rm -f *.o *.d *.f *.u
 
 .PHONY: clean test all obj bin
