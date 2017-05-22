@@ -78,7 +78,7 @@ struct context {
 	void          *cbx;
 	size_t         pos;
 	struct thread *thr;
-	struct thread *fin;
+	struct thread  fin[1];
 };
 
 union arg {
@@ -131,9 +131,10 @@ static int       st_flush(struct state *);
 static int       st_init(struct state *);
 static int       st_push(struct state *, struct node *);
 
-static int  thr_next(struct context *, size_t, wchar_t const);
-static int  thr_finish(struct context *, size_t);
+static int  thr_cmp(struct thread *, struct thread *);
+static void thr_finish(struct context *, size_t);
 static int  thr_fork(struct thread *, struct thread *);
+static int  thr_next(struct context *, size_t, wchar_t const);
 static int  thr_start(struct context *, wchar_t const);
 static void thr_remove(struct context *, size_t);
 
@@ -152,6 +153,8 @@ size_t      rem(struct pos const *p) { return p->n - p->f; }
 
 static inline
 char const *str(struct pos const *p) { return p->v + p->f; }
+
+static inline bool nomatch(struct context *ctx) { return !ctx->fin->ip; }
 
 static inline enum type    type(struct node *n) { return n ? n->type : 0x0; }
 static inline struct node *to_node(uintptr_t u) { return (void *)(u & ~1); }
@@ -404,20 +407,8 @@ finally:
 int
 ctx_init(struct context *ctx)
 {
-	int err = 0;
-
-	err = vec_ctor(ctx->thr);
-	if (err) goto nomem;
-
-	err = vec_ctor(ctx->fin);
-	if (err) goto nomem;
-
-	return 0;
-nomem:
-	vec_free(ctx->thr);
-	vec_free(ctx->fin);
-	return err;
-
+	if (vec_ctor(ctx->thr)) return ENOMEM;
+	else return 0;
 }
 
 void
@@ -426,9 +417,8 @@ ctx_fini(struct context *ctx)
 	struct thread *tmp;
 
 	vec_foreach(tmp, ctx->thr) vec_free(tmp->mat);
-	vec_foreach(tmp, ctx->fin) vec_free(tmp->mat);
 	vec_free(ctx->thr);
-	vec_free(ctx->fin);
+	vec_free(ctx->fin->mat);
 }
 
 int
@@ -515,12 +505,14 @@ fail:
 int
 ins_halt(struct context *ctx, struct thread *th, wchar_t const wc)
 {
-	int err = 0;
 	size_t ind = th - ctx->thr;
 
-	err = thr_finish(ctx, ind);
-	if (err) return err;
+	if (thr_cmp(ctx->fin, th) > 0) {
+		thr_remove(ctx, ind);
+		return thr_next(ctx, ind, wc);
+	}
 
+	thr_finish(ctx, ind);
 	return thr_next(ctx, ind, wc);
 }
 
@@ -719,15 +711,42 @@ st_push(struct state *st, struct node *nod)
 }
 
 int
+thr_cmp(struct thread *lt, struct thread *rt)
+{
+	size_t min = 0;
+	ptrdiff_t cmp = 0;
+	size_t l = 0;
+	size_t r = 0;
+
+	if (!lt->mat && !rt->mat) return 0;
+	if (!lt->mat) return -1;
+	if (!rt->mat) return  1;
+
+	min = umin(vec_len(lt->mat), vec_len(rt->mat));
+
+	iterate(i, min) {
+		l = lt->mat[i].off;
+		r = rt->mat[i].off;
+		cmp = ucmp(l, r);
+		if (cmp) return -cmp;
+		l = lt->mat[i].ext;
+		r = rt->mat[i].ext;
+		cmp = ucmp(l, r);
+		if (cmp) return cmp;
+	}
+
+	return memcmp((size_t[]){vec_len(lt->mat)},
+	              (size_t[]){vec_len(rt->mat)},
+		      sizeof vec_len(0)); // ?
+}
+
+void
 thr_finish(struct context *ctx, size_t ind)
 {
-	int err = 0;
+	if (ctx->fin->mat) vec_free(ctx->fin->mat);
+	memcpy(ctx->fin, ctx->thr + ind, sizeof *ctx->fin);
 
-	err = vec_append(&ctx->fin, ctx->thr + ind);
-	if (err) return err;
 	vec_delete(&ctx->thr, ind);
-
-	return 0;
 }
 
 int
@@ -770,20 +789,11 @@ int
 pat_do_match(struct pattern *pat, struct context *ctx)
 {
 	int err = 0;
-	size_t max = 0;
-	struct thread *it;
 
 	err = pat_exec(ctx);
 	if (err) return err;
 
-	vec_foreach (it, ctx->fin) {
-		if (it->mat[0].ext > ctx->fin[max].mat[0].ext
-		&& it->mat[0].off <= ctx->fin[max].mat[0].off) {
-			max = it - ctx->fin;
-		}
-	}
-
-	return vec_copy(&pat->mat, ctx->fin[max].mat);
+	return vec_copy(&pat->mat, ctx->fin->mat);
 }
 
 int
@@ -815,7 +825,7 @@ pat_exec(struct context *ctx)
 	vec_free(wcs);
 
 	if (err > 0) return err;
-	if (!vec_len(ctx->fin)) return -1;
+	if (nomatch(ctx)) return -1;
 	return 0;
 }
 
