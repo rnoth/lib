@@ -5,8 +5,6 @@
 
 char filename[] = "pat.c";
 
-// TODO: there is a simpler way to implement these tests
-
 static void do_qmark(void);
 static void do_star(void);
 static void do_plus(void);
