@@ -16,7 +16,7 @@
 	for (size_t _i=0,_j=0, _siz = sizeof *(VEC);            \
 			_i < vec_len(_vec);                     \
 			++_i, _j = _i)                          \
-	for (int _ = 0; _ < 1;)                            \
+	for (int _ = 0; _ < 1; ++_)                             \
 	for (VAR = (void*)(_vec + _i * _siz);                   \
 			_i = !_ ? vec_len(_vec) : _j, !_;       \
 			++_)
