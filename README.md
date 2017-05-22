@@ -207,19 +207,16 @@ free:
 
 ### supported operations:
 
-note that all of these functions have three variations ----
+note that all of these functions have two variations ----
 one takes a byte buffer and a length,
-one takes a null-terminated c-string,
-and the last takes a vector.
-All of them have equivalent behavior, what differs is how length is calculated.
+and one takes a null-terminated c-string.
+Both of them have equivalent behavior, what differs is how length is calculated.
 
 **adding members:**
 
 - `set_add_bytes(set_t *set, void *elem, size_t length)`
 
 - `set_add_string(set_t *set, char *elem)`
-
-- `set_add_vector(set_t *set, void *elem)`
 
 	- *insert* `elem` into `set`
 
@@ -236,8 +233,6 @@ All of them have equivalent behavior, what differs is how length is calculated.
 
 - `set_remove_string(set_t *set, char *elem)`
 
-- `set_remove_vector(set_t *set, void *elem)`
-
 	- *remove* `elem` from `set`
 
 	- return `0` if successful
@@ -248,8 +243,6 @@ All of them have equivalent behavior, what differs is how length is calculated.
 
 - `set_contains_string(set_t *set, char *elem, size_t length)`
 
-- `set_contains_vector(set_t *set, void *element, size_t length)`
-
 	- check if `elem` is contained in `set`
 
 	- return `true` iff `elem` is in `set`, `false` otherwise
@@ -257,8 +250,6 @@ All of them have equivalent behavior, what differs is how length is calculated.
 - `set_prefix_bytes(set_t *set, void *prefix, size_t length)`
 
 - `set_prefix_string(set_t *set, char *prefix)`
-
-- `set_prefix_vector(set_t *set, void *prefix)`
 
 	- check if any elements of `set` have the prefix `prefix`
 
