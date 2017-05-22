@@ -31,14 +31,15 @@
 #undef vec_truncat
 
 union vec {
-	void const *p;
+	size_t        **z;
+	void const     *p;
 	unsigned char **v;
 };
 
 size_t
 vec_mem(void const *v, size_t size)
 {
-	size_t off = len(v) * size;
+	size_t off = vec_len(v) * size;
 	union {
 		void const *v;
 		unsigned char const *y;
@@ -56,20 +57,17 @@ vec_alloc(void *vecp, size_t size)
 	size_t siz = 0;
 	union vec vec = {.p = vecp};
 
-	assert(vec.v != 0x0);
-
 	if (mulz_overflows(VECSIZ, size)) return EOVERFLOW;
 	siz = VECSIZ * size;
 
-	if (addz_overflows(HEADER + 1, siz)) return EOVERFLOW;
-	siz = HEADER + 1 + siz;
+	if (addz_overflows(HEADER, siz)) return EOVERFLOW;
+	siz = HEADER + siz;
 
 	*vec.v = calloc(1, siz);
 	if (!*vec.v) return ENOMEM;
 
 	*vec.v = *vec.v + HEADER;
 
-	len(*vec.v) = 0;
 	(*vec.v)[VECSIZ * size - 1] = 0xff;
 
 	return 0;
@@ -79,7 +77,7 @@ int
 vec_append(void *destp, void const *data, size_t size)
 {
 	union vec dest = {.p = destp};
-	return vec_splice(destp, len(*dest.v), data, 1, size);
+	return vec_splice(destp, vec_len(*dest.v), data, 1, size);
 }
 
 void *
@@ -109,7 +107,7 @@ int
 vec_concat(void *destp, void const *src, size_t nmemb, size_t size)
 {
 	union vec dest = {.p = destp};
-	return vec_splice(destp, len(*dest.v), src, nmemb, size);
+	return vec_splice(destp, vec_len(*dest.v), src, nmemb, size);
 }
 
 void
@@ -136,7 +134,7 @@ vec_elim(void *vecp, size_t ind, size_t nmemb, size_t size)
 	        *vec.v + off + ext,
 	        len - off - ext);
 
-	len(*vec.v) -= umin(nmemb, vec_len(*vec.v));
+	(*vec.z)[-1] -= umin(nmemb, vec_len(*vec.v));
 
 	memset(*vec.v + vec_len(*vec.v) * size, 0, ext);
 }
@@ -245,7 +243,7 @@ vec_slice(void *vecp, size_t beg, size_t nmemb, size_t size)
 	memmove(*vec.v, *vec.v + off, ext);
 	memset(*vec.v + ext, 0, len - ext);
 
-	len(*vec.v) = min;
+	(*vec.z)[-1] = min;
 }
 
 int
@@ -281,7 +279,7 @@ vec_splice(void *destp, size_t pos, void const *src, size_t nmemb, size_t size)
 
 	memcpy(*dest.v + off, src, ext);
 
-	len(*dest.v) += nmemb;
+	(*dest.z)[-1] += nmemb;
 
 	return 0;
 }
@@ -293,7 +291,7 @@ vec_truncat(void *vecp, size_t off, size_t size)
 	memset(*vec.v + off * size,
 		0,
 		(vec_len(*vec.v) - off) * size);
-	len(*vec.v) = off;
+	(*vec.z)[-1] = off;
 }
 
 int

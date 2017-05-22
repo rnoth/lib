@@ -155,18 +155,18 @@ test_insert(void)
 	ok(intvec[0] == 5);
 
 	expect(0, vec_insert(&intvec, (int[]){3}, 0));
-	ok(len(intvec) == 2);
+	ok(vec_len(intvec) == 2);
 	ok(intvec[0] == 3);
 	ok(intvec[1] == 5);
 
 	expect(0, vec_insert(&intvec, (int[]){312345}, 1));
-	ok(len(intvec) == 3);
+	ok(vec_len(intvec) == 3);
 	ok(intvec[0] == 3);
 	ok(intvec[1] == 312345);
 	ok(intvec[2] == 5);
 
 	expect(0, vec_insert(&intvec, (int[]){15557145}, 1));
-	ok(len(intvec) == 4);
+	ok(vec_len(intvec) == 4);
 	ok(intvec[0] == 3);
 	ok(intvec[1] == 15557145);
 	ok(intvec[2] == 312345);

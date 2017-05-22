@@ -5,8 +5,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define len(vec) (((size_t *)(vec))[-1]) // XXX
-
 #define vec_ctor(INST) vec_alloc(&(INST), sizeof *INST)
 
 #define vec_foreach(VAR, VEC)                                   \
@@ -25,13 +23,11 @@ static inline
 size_t
 vec_len(void const *v)
 {
-	size_t ret;
 	union {
 		size_t const *z;
 		void const *v;
 	} vec = { .v = v };
-	memcpy(&ret, vec.z - 1, sizeof ret);
-	return ret;
+	return vec.z[-1];
 }
 
 size_t  vec_mem(void const *, size_t);
