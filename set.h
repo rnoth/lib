@@ -4,8 +4,6 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include "vec.h"
-
 typedef struct set set_t;
 
 set_t *set_alloc(void);
