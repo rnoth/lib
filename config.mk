@@ -12,13 +12,13 @@ TESTS	:= $(shell find ./tests -name "*-test.c")
 DEP	:= $(shell find . -name "*.d")
 BIN	:= $(patsubst %.c, %, $(filter $(TESTS), $(SRC)))
 
-ifndef NDEBUG
+#ifndef NDEBUG
 CFLAGS	+= -O0 -g #-Werror
 CFLAGS	+= -Wunreachable-code \
 	   -Wno-missing-field-initializers -Wno-unused-parameter \
 	   -Warray-bounds -Wno-switch -Wmissing-prototypes
-else
-LDFLAGS += -Wl,--gc-section
-CFLAGS += -O3 -flto
-endif
+#else
+#LDFLAGS += -Wl,--gc-section
+#CFLAGS += -O3 -flto
+#endif
 
