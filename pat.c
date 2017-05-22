@@ -93,6 +93,7 @@ struct ins {
 	union arg arg;
 };
 
+static int add_alter(struct state *);
 static int add_literal(struct state *);
 static int add_repetition(struct state *);
 static int add_submatch(struct state *);
@@ -154,21 +155,24 @@ size_t      rem(struct pos const *p) { return p->n - p->f; }
 static inline
 char const *str(struct pos const *p) { return p->v + p->f; }
 
-static inline
-uintptr_t **stk_top(struct state *st)
-{
-	return vec_len(st->stk) ? st->stk + vec_len(st->stk) - 1
-	                        : 0x0;
-}
-
+static inline enum type    type(struct node *n) { return n ? n->type : 0x0; }
 static inline struct node *to_node(uintptr_t u) { return (void *)(u & ~1); }
 static inline struct ins  *to_leaf(uintptr_t u) { return (void *)u; }
 static inline bool         is_leaf(uintptr_t u) { return u ? !(u & 1) : false; }
 static inline bool         is_node(uintptr_t u) { return u ? u & 1 : false; }
 static inline uintptr_t    tag_leaf(struct ins *i) { return (uintptr_t)i; }
-static inline uintptr_t    tag_node(struct node *n) { return (uintptr_t)n + 1; }
+static inline uintptr_t    tag_node(struct node *n) { return n ? (uintptr_t)n + 1 : 0x0; }
+
+static inline
+uintptr_t **stk_top(struct state *st)
+{ return vec_len(st->stk) ? st->stk + vec_len(st->stk) - 1 : 0x0; }
+
+static inline
+struct node *stk_root(struct state *st)
+{ return vec_len(st->stk) ? to_node(st->stk[vec_len(st->stk)-1][0]) : 0x0; }
 
 static int (* const pat_add[])(struct state *) = {
+	[sym_pipe]    = add_alter,
 	[sym_literal] = add_literal,
 	[sym_qmark]   = add_repetition,
 	[sym_star]    = add_repetition,
@@ -184,6 +188,30 @@ static int (* const pat_comp[])(struct ins **, struct node *) = {
 	[type_rep_null] = comp_rep_null,
 	[type_rep]      = comp_rep,
 };
+
+int
+add_alter(struct state *st)
+{
+	struct node *nod = 0x0;
+	uintptr_t chld = 0x0;
+	int err = 0;
+
+	if (type((stk_root(st))) == type_alt) return -1;
+
+	st_flush(st);
+
+	chld = st_concat(st);
+	if (!chld) return ENOMEM;
+	vec_truncat(&st->stk, 1);
+
+	nod = nod_ctor(type_alt, 0x0, chld);
+	if (!nod) return ENOMEM; // XXX
+
+	err = st_push(st, nod);
+	if (err) return err; // XXX
+
+	return 0;
+}
 
 int
 add_literal(struct state *st)
@@ -657,6 +685,8 @@ st_addtree(struct state *st)
 	struct node *par = 0x0;
 	int err = 0;
 
+	if (!vec_len(st->stk)) return -1;
+
 	err = st_flush(st);
 	if (err) return err;
 
@@ -922,7 +952,10 @@ pat_parse_tree(struct state *st)
 		if (err) return err;
 	}
 
-	return st_addtree(st);
+	do err = st_addtree(st); while (!err);
+	if (err > 0) return err;
+	else return 0;
+
 }
 
 int

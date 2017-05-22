@@ -5,6 +5,7 @@
 
 char filename[] = "pat.c";
 
+static void do_alter(void);
 static void do_qmark(void);
 static void do_star(void);
 static void do_plus(void);
@@ -26,6 +27,7 @@ struct test tests[] = {
 	{ do_qmark, loop,      "testing the ? operator", },
 	{ do_star,  loop,      "testing the * operator", },
 	{ do_plus,  loop,      "testing the + operator", },
+	{ do_alter, loop,      "testing the | operator", },
 };
 
 struct a qmark[] = {
@@ -87,7 +89,7 @@ struct a plus[] = {
 	{ "hi+", (struct b[]) {
 		{ "hi",    0, 2, },
 		{ "hiiii", 0, 5, },
-		{ 0x0}, },
+		{ 0x0 }, },
 	
 		(struct b[]) {
 		{ "h" },
@@ -98,9 +100,23 @@ struct a plus[] = {
 	{ 0x0 },
 };
 
+struct a alter[] = {
+	{ "a|b", (struct b[]) {
+		{ "a", 0, 1, },
+		{ "b", 0, 1, },
+		{ 0x0 }, }, 
+
+		(struct b[]) {
+		{ 0x0 }, }
+	},
+	
+	{ 0x0 },
+};
+
 size_t const tests_len = arr_len(tests);
 struct a *cur;
 
+void do_alter(void) { cur = alter; }
 void do_qmark(void) { cur = qmark; }
 void do_star(void)  { cur = star; }
 void do_plus(void)  { cur = plus; }
