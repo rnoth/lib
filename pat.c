@@ -161,13 +161,8 @@ static inline bool         is_node(uintptr_t u) { return u ? u & 1 : false; }
 static inline uintptr_t    tag_leaf(struct ins *i) { return (uintptr_t)i; }
 static inline uintptr_t    tag_node(struct node *n) { return n ? (uintptr_t)n + 1 : 0x0; }
 
-static inline
-uintptr_t **stk_top(struct state *st)
-{ return vec_len(st->stk) ? st->stk + vec_len(st->stk) - 1 : 0x0; }
-
-static inline
-struct node *stk_root(struct state *st)
-{ return vec_len(st->stk) ? to_node(st->stk[vec_len(st->stk)-1][0]) : 0x0; }
+static uintptr_t **stk_top(struct state *);
+static struct node *stk_root(struct state *);
 
 static int (* const pat_add[])(struct state *) = {
 	[sym_pipe]    = add_alter,
@@ -609,6 +604,20 @@ nod_dtor(struct node *nod)
 	}
 
 	free(nod);
+}
+
+uintptr_t **
+stk_top(struct state *st)
+{
+	if (!vec_len(st->stk)) return 0x0;
+	return st->stk + vec_len(st->stk) - 1;
+}
+
+struct node *
+stk_root(struct state *st)
+{
+	if (!vec_len(st->stk)) return 0x0;
+	return to_node(st->stk[vec_len(st->stk)-1][0]);
 }
 
 uintptr_t
