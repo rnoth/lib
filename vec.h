@@ -9,17 +9,17 @@
 
 #define vec_ctor(INST) vec_alloc(&(INST), sizeof *INST)
 
-#define vec_foreach(VAR, VEC)					\
-	for (char *_vec = (void *)(VEC), *_p=(void*)1;		\
-			_vec && _p;				\
-			_p = 0)					\
-	for (size_t _i=0,_j=0, _siz = sizeof *(VEC);		\
-			_i < vec_len(_vec);			\
-			++_i, _j = _i)				\
-	for (char _q = 1; _q; _q = 0)				\
-	for (VAR = (void*)(_vec + _i * _siz);			\
-			_i = _q ? len(_vec) : _j, _q;		\
-			_q = 0)
+#define vec_foreach(VAR, VEC)                                   \
+	for (char *_vec = (void *)(VEC), _ = 0;                 \
+			_vec && _ < 1;                          \
+			++_)                                    \
+	for (size_t _i=0,_j=0, _siz = sizeof *(VEC);            \
+			_i < vec_len(_vec);                     \
+			++_i, _j = _i)                          \
+	for (int _ = 0; _ < 1;)                            \
+	for (VAR = (void*)(_vec + _i * _siz);                   \
+			_i = !_ ? vec_len(_vec) : _j, !_;       \
+			++_)
 
 static inline
 size_t
