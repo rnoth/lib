@@ -134,6 +134,7 @@ static void            thr_dtor(struct thread *);
 static void            thr_finish(struct context *, size_t);
 static int             thr_fork(struct thread *, struct thread *);
 static int             thr_next(struct context *, size_t, wchar_t const);
+static void            thr_prune(struct context *, size_t);
 static int             thr_start(struct context *, wchar_t const);
 static void            thr_remove(struct context *, size_t);
 
@@ -731,15 +732,30 @@ thr_fork(struct thread *dst, struct thread *src)
 int
 thr_next(struct context *ctx, size_t ind, wchar_t wc)
 {
-	if (!vec_len(ctx->thr)) return -1;
+	if (!vec_len(ctx->thr)) return 0;
 	if (ind >= vec_len(ctx->thr)) return 0;
-	else return ctx->thr[ind].ip->op(ctx, ctx->thr + ind, wc);
+
+	if (ctx->fin->mat) thr_prune(ctx, ind);
+
+	if (ind >= vec_len(ctx->thr)) return 0;
+	return ctx->thr[ind].ip->op(ctx, ctx->thr + ind, wc);
+}
+
+void
+thr_prune(struct context *ctx, size_t ind)
+{
+	size_t i;
+
+	for (i = ind; i < vec_len(ctx->thr);) {
+		if (thr_cmp(ctx->fin, ctx->thr + i) > 0) thr_remove(ctx, i);
+		else return;
+	}
 }
 
 int
 thr_start(struct context *ctx, wchar_t wc)
 {
-	return ctx->thr->ip->op(ctx, ctx->thr, wc);
+	return thr_next(ctx, 0, wc);
 }
 
 void
