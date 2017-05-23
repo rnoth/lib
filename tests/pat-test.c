@@ -134,13 +134,13 @@ loop(void)
 		expect(0, pat_compile(pat, a->pat));
 
 		for (b = a->accept; b->txt; ++b) {
-			expect(0, pat_match(pat, b->txt));
+			expect(0, pat_execute(pat, b->txt));
 			expect(b->off, pat->mat->off);
 			expect(b->ext, pat->mat->ext);
 		}
 
 		for (b = a->reject; b->txt; ++b)
-			expect(-1, pat_match(pat, b->txt));
+			expect(-1, pat_execute(pat, b->txt));
 
 		pat_free(pat);
 	}

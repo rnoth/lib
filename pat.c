@@ -142,7 +142,7 @@ static size_t pat_lex(struct state *);
 static int    pat_marshal(struct pattern *, struct node *);
 static int    pat_parse(struct node **, char const *);
 static int    pat_parse_tree(struct state *);
-static int    pat_do_match(struct context *, struct pattern *);
+static int    pat_match(struct context *, struct pattern *);
 static int    pat_exec(struct context *);
 
 static inline
@@ -772,7 +772,7 @@ pat_marshal(struct pattern *dest, struct node *root)
 }
 
 int
-pat_do_match(struct context *ctx, struct pattern *pat)
+pat_match(struct context *ctx, struct pattern *pat)
 {
 	int err = pat_exec(ctx);
 	if (err) return err;
@@ -973,16 +973,16 @@ pat_free(struct pattern *pat)
 }
 
 int
-pat_match(struct pattern *pat, char const *str)
+pat_execute(struct pattern *pat, char const *str)
 {
 	if (!str) return EFAULT;
-	return pat_match_callback(pat, get_char, (struct pos[]){
+	return pat_execute_callback(pat, get_char, (struct pos[]){
 			{ .n = strlen(str) + 1, .v = str },
 	});
 }
 
 int
-pat_match_callback(struct pattern *pat, int (*cb)(char *, void *), void *cbx)
+pat_execute_callback(struct pattern *pat, int (*cb)(char *, void *), void *cbx)
 {
 	struct context ctx[1] = {{ .cb = cb, .cbx = cbx }};
 	int err = 0;
@@ -993,7 +993,7 @@ pat_match_callback(struct pattern *pat, int (*cb)(char *, void *), void *cbx)
 	err = ctx_init(ctx, pat);
 	if (err) goto finally;
 
-	err = pat_do_match(ctx, pat);
+	err = pat_match(ctx, pat);
 	if (err) goto finally;
 
 finally:

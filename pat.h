@@ -24,8 +24,8 @@ struct patmatch {
 };
 
 int  pat_compile(struct pattern *, char const *);
-int  pat_match(struct pattern *, char const *);
-int  pat_match_callback(struct pattern *, int (*)(char *, void *), void *);
+int  pat_execute(struct pattern *, char const *);
+int  pat_execute_callback(struct pattern *, int (*)(char *, void *), void *);
 void pat_free(struct pattern *);
 
 #endif // _edna_pat_
