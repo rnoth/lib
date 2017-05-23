@@ -127,6 +127,7 @@ static void         nod_dtor(struct node *);
 
 static int       stk_pop(uintptr_t *, struct state *);
 static int       stk_push(struct state *, uintptr_t);
+static int       stk_reduce_alter(struct state *);
 static uintptr_t stk_reduce_concat(struct state *, size_t);
 static int       stk_reduce_tree(struct state *);
 
@@ -190,7 +191,7 @@ static int (* const pat_comp[])(struct ins **, struct node *) = {
 int
 add_alter(struct state *st)
 {
-	return -1;
+	return stk_reduce_alter(st);
 }
 
 int
@@ -598,6 +599,45 @@ stk_push(struct state *st, uintptr_t u)
 	return vec_append(&st->stk, (uintptr_t[]){u});
 }
 
+int
+stk_reduce_alter(struct state *st)
+{
+	struct node *alt = 0x0;
+	struct node *nod = 0x0;
+	size_t off = vec_len(st->stk);
+
+	alt = nod_ctor(type_alt, 0x0, 0x0);
+	if (!alt) return ENOMEM;
+
+	while (off --> 0) {
+		if (is_leaf(st->stk[off])) continue;
+
+		nod = to_node(st->stk[off]);
+
+		if (nod->type == type_alt) break;
+		if (nod->type != type_sub) continue;
+		if (nod->chld[0]) continue;
+
+		break;
+
+	}
+
+	alt->chld[1] = stk_reduce_concat(st, off + 1);
+	if (!alt->chld[1]) goto nomem;
+	vec_truncat(&st->stk, off + 1);
+
+	if (nod->type == type_alt) {
+		stk_pop(alt->chld, st);
+	}
+
+	return stk_push(st, tag_node(alt));
+
+nomem:
+
+	free(alt);
+	return ENOMEM;
+}
+
 uintptr_t
 stk_reduce_concat(struct state *st, size_t off)
 {
@@ -641,6 +681,7 @@ stk_reduce_tree(struct state *st)
 		if (is_leaf(st->stk[off])) continue;
 
 		nod = to_node(st->stk[off]);
+		if (nod->type == type_alt) break;
 		if (nod->type != type_sub) continue;
 
 		if (nod->chld[0]) continue;
@@ -653,7 +694,12 @@ stk_reduce_tree(struct state *st)
 	cat = stk_reduce_concat(st, off + 1);
 	if (!cat) return ENOMEM;
 
-	nod->chld[0] = cat;
+	nod->chld[1] = cat;
+	if (nod->type == type_alt) {
+		cat = tag_node(cat);
+		nod = to_node(st->stk[off - 1]);
+		nod->chld[1] = cat;
+	}
 
 	return 0;
 }
