@@ -30,6 +30,8 @@ enum pat_sym {
 	sym_dollar,
 	sym_lparen,
 	sym_rparen,
+	sym_bol,
+	sym_eol,
 };
 
 enum type {
@@ -172,6 +174,8 @@ static int (* const pat_add[])(struct state *) = {
 	[sym_plus]    = add_repetition,
 	[sym_lparen]  = add_submatch,
 	[sym_rparen]  = add_subtree,
+	[sym_bol]     = add_submatch,
+	[sym_eol]     = add_subtree,
 };
 
 static int (* const pat_comp[])(struct ins **, struct node *) = {
@@ -823,6 +827,10 @@ pat_lex(struct state *st)
 
 	ret = tok->len = 1;
 	switch (*str(pos)) {
+	case '\0':
+		tok->type = sym_eol;
+		break;
+
 	case '.':
 		tok->type = sym_dot;
 		break;
@@ -891,7 +899,7 @@ int
 pat_parse(struct node **rootp, char const *src)
 {
 	struct state st[1] = {{
-		.str = {{ .v = src, .n = strlen(src), }}
+		.str = {{ .v = src, .n = strlen(src) + 1, }}
 	}};
 	int err = 0;
 
@@ -915,23 +923,16 @@ finally:
 int
 pat_parse_tree(struct state *st)
 {
-	struct node *nod = 0x0;
 	int err = 0;
 
-	nod = nod_ctor(type_sub, 0x0, 0x0);
-	if (!nod) return ENOMEM;
-
-	err = vec_append(&st->stk, (uintptr_t[]){tag_node(nod)});
-	if (err) { free(nod); return err; }
+	err = pat_add[sym_bol](st);
+	if (err) return err;
 
 	while (!eol(st->str)) {
 		st->str->f += pat_lex(st);
 		err = pat_add[st->tok->type](st);
 		if (err) return err;
 	}
-
-	err = stk_reduce_tree(st);
-	if (err) return err;
 
 	st->root->chld[0] = st->stk[0];
 	return 0;
