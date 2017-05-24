@@ -359,12 +359,12 @@ comp_alt(struct ins **dest, struct node *alt)
 	});
 	if (err) return err;
 
-	dest[0][fork].arg.f = fork - vec_len(*dest);
+	dest[0][fork].arg.f = vec_len(*dest) - fork;
 
-	err = comp_chld(dest, alt->chld[0]);
+	err = comp_chld(dest, alt->chld[1]);
 	if (err) return err;
 
-	dest[0][jump].arg.f = jump - vec_len(*dest);
+	dest[0][jump].arg.f = vec_len(*dest) - jump;
 
 	return 0;
 }
@@ -717,7 +717,8 @@ stk_fold(struct state *st, size_t off)
 		if (!cat) goto nomem;
 	}
 
-	nod_attach(cat, tmp);
+	if (cat) nod_attach(cat, tmp);
+	else cat = tmp;
 
 	vec_truncat(&st->stk, off);
 
