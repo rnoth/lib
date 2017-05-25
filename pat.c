@@ -237,7 +237,7 @@ add_alter(struct state *st)
 	alt = nod_ctor(type_alt);
 	if (!alt) return ENOMEM;
 
-	stk_pop(alt->chld, st);
+	stk_pop(alt->chld, st); // XXX
 	return stk_push(st, tag_node(alt));
 }
 
