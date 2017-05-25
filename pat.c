@@ -127,7 +127,6 @@ static int ins_save(struct context *, struct thread *, wchar_t const);
 
 static uintptr_t mk_cat(uintptr_t, uintptr_t);
 
-static void          nod_attach(uintptr_t, uintptr_t);
 static struct node * nod_ctor(enum type);
 static void          nod_dtor(struct node *);
 static uint8_t       nod_prec(uintptr_t);
@@ -678,15 +677,6 @@ mk_cat(uintptr_t left, uintptr_t right)
 	return tag_node(ret);
 }
  
-void
-nod_attach(uintptr_t par, uintptr_t chld)
-{
-	struct node *fin = to_node(par);
-
-	while (fin->chld[1]) fin = to_node(fin->chld[1]);
-	fin->chld[1] = chld;
-}
-
 struct node *
 nod_ctor(enum type type)
 {
