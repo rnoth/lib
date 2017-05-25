@@ -141,15 +141,14 @@ static int       stk_reduce(struct state *, uintptr_t);
 
 static enum type sym_type(struct token *);
 
-static int             thr_cmp(struct thread *, struct thread *);
-static struct thread * thr_ctor(struct ins *);
-static void            thr_dtor(struct thread *);
-static void            thr_finish(struct context *, size_t);
-static int             thr_fork(struct thread *, struct thread *);
-static int             thr_next(struct context *, size_t, wchar_t const);
-static void            thr_prune(struct context *, size_t);
-static int             thr_start(struct context *, wchar_t const);
-static void            thr_remove(struct context *, size_t);
+static int  thr_cmp(struct thread *, struct thread *);
+static int  thr_init(struct thread *, struct ins *);
+static void thr_finish(struct context *, size_t);
+static int  thr_fork(struct thread *, struct thread *);
+static int  thr_next(struct context *, size_t, wchar_t const);
+static void thr_prune(struct context *, size_t);
+static int  thr_start(struct context *, wchar_t const);
+static void thr_remove(struct context *, size_t);
 
 static void pat_lex(struct token *, struct state *);
 static int  pat_marshal(struct pattern *, struct node *);
@@ -503,11 +502,11 @@ finally:
 int
 ctx_init(struct context *ctx, struct pattern *pat)
 {
-	struct thread *th = 0x0;
+	struct thread th[1] = {0};
 	int err = 0;
 
-	th = thr_ctor(pat->prog);
-	if (!th) return ENOMEM;
+	err = thr_init(th, pat->prog);
+	if (err) return err;
 
 	err = vec_ctor(ctx->thr);
 	if (err) goto fail;
@@ -518,7 +517,7 @@ ctx_init(struct context *ctx, struct pattern *pat)
 	return 0;
 
 fail:
-	thr_dtor(th);
+	vec_free(th->mat);
 	vec_free(ctx->thr);
 	return err;
 }
@@ -832,31 +831,15 @@ sym_type(struct token *tok)
 	return tab[tok->type];
 }
 
-struct thread *
-thr_ctor(struct ins *prog)
+int
+thr_init(struct thread *th, struct ins *prog)
 {
-	struct thread *ret = 0x0;
+	th->ip = prog;
 
-	ret = calloc(1, sizeof *ret);
-	if (!ret) return 0x0;
+	th->mat = vec_new(struct thread);
+	if (!th->mat) return ENOMEM;;
 
-	ret->ip = prog;
-
-	ret->mat = vec_new(struct thread);
-	if (!ret->mat) {
-		free(ret);
-		return 0x0;
-	}
-
-	return ret;
-}
-
-void
-thr_dtor(struct thread *th)
-{
-	if (!th) return;
-	vec_free(th->mat);
-	free(th);
+	return 0;
 }
 
 void
