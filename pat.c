@@ -652,14 +652,13 @@ ins_mark(struct context *ctx, struct thread *th, wchar_t const wc)
 int
 ins_save(struct context *ctx, struct thread *th, wchar_t const wc)
 {
-	size_t tag = th->ip->arg.z ;
-	size_t beg = th->mat[tag].off ;
-	size_t ext = ctx->pos - beg ;
+	size_t off = vec_len(th->mat);
 
-	th->mat[tag].ext = ext ;
+	while (off --> 0) if (th->mat[off].ext == (size_t)-1) break;
 
-	th->ip++ ;
+	th->mat[off].ext = ctx->pos - th->mat[off].off;
 
+	th->ip++;
 	return th->ip->op(ctx, th, wc);
 }
 
