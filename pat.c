@@ -43,6 +43,7 @@ enum type {
 	type_rep_null,
 	type_rep,
 	type_alt,
+	type_leaf,
 };
 
 struct pos {
@@ -57,7 +58,7 @@ struct node {
 };
 
 struct token {
-	size_t       len;
+	int          len;
 	enum pat_sym type;
 	wchar_t      wc;
 };
@@ -94,13 +95,15 @@ struct ins {
 	union arg arg;
 };
 
-static int add_alter(struct state *);
-static int add_literal(struct state *);
-static int add_repetition(struct state *);
-static int add_submatch(struct state *);
+static int add_alter(struct state *, struct token *);
+static int add_literal(struct state *, struct token *);
+static int add_repetition(struct state *, struct token *);
+static int add_submatch(struct state *, struct token *);
+static int add_subtree(struct state *, struct token *);
 
-static int reduce_alter(struct state *);
-static int reduce_subtree(struct state *);
+static int reduce_generic(struct state *, uintptr_t, uintptr_t);
+static int reduce_leaf(struct state *, uintptr_t, uintptr_t);
+static int reduce_submatch(struct state *, uintptr_t, uintptr_t);
 
 static int comp_alt(struct ins **, struct node *);
 static int comp_cat(struct ins **, struct node *);
@@ -124,14 +127,21 @@ static int ins_save(struct context *, struct thread *, wchar_t const);
 
 static uintptr_t mk_cat(uintptr_t, uintptr_t);
 
-static void         nod_attach(uintptr_t, uintptr_t);
-static struct node *nod_ctor(enum type);
-static void         nod_dtor(struct node *);
+static void          nod_attach(uintptr_t, uintptr_t);
+static struct node * nod_ctor(enum type);
+static void          nod_dtor(struct node *);
+static uint8_t       nod_prec(uintptr_t);
+static enum type     nod_type(uintptr_t);
 
+static uintptr_t stk_cat_prec(struct state *, enum type);
 static int       stk_pop(uintptr_t *, struct state *);
+static int       stk_pop_prec(uintptr_t *, struct state *, enum type);
 static int       stk_push(struct state *, uintptr_t);
 static uintptr_t stk_fold(struct state *, size_t);
+static int       stk_reduce(struct state *, uintptr_t);
 static size_t    stk_scan_r(struct state *, enum type);
+
+static enum type sym_type(struct token *);
 
 static int             thr_cmp(struct thread *, struct thread *);
 static struct thread * thr_ctor(struct ins *);
@@ -143,12 +153,12 @@ static void            thr_prune(struct context *, size_t);
 static int             thr_start(struct context *, wchar_t const);
 static void            thr_remove(struct context *, size_t);
 
-static size_t pat_lex(struct state *);
-static int    pat_marshal(struct pattern *, struct node *);
-static int    pat_parse(struct node **, char const *);
-static int    pat_parse_tree(struct state *);
-static int    pat_match(struct context *, struct pattern *);
-static int    pat_exec(struct context *);
+static void pat_lex(struct token *, struct state *);
+static int  pat_marshal(struct pattern *, struct node *);
+static int  pat_parse(struct node **, char const *);
+static int  pat_parse_tree(struct state *);
+static int  pat_match(struct context *, struct pattern *);
+static int  pat_exec(struct context *);
 
 static inline
 bool        eol(struct pos const *p) { return p->f >= p->n; }
@@ -203,16 +213,25 @@ static inline
 uintptr_t
 tag_node(struct node *n) { return n ? (uintptr_t)n + 1 : 0x0; }
 
-static int (* const pat_add[])(struct state *) = {
+static int (* const pat_add[])(struct state *, struct token *) = {
 	[sym_pipe]    = add_alter,
 	[sym_literal] = add_literal,
 	[sym_qmark]   = add_repetition,
 	[sym_star]    = add_repetition,
 	[sym_plus]    = add_repetition,
 	[sym_lparen]  = add_submatch,
-	[sym_rparen]  = reduce_subtree,
+	[sym_rparen]  = add_subtree,
 	[sym_bol]     = add_submatch,
-	[sym_eol]     = reduce_subtree,
+	[sym_eol]     = add_subtree,
+};
+
+static int (* const pat_reduce[])(struct state *, uintptr_t, uintptr_t) = {
+	[type_alt]      = reduce_generic,
+	[type_opt]      = reduce_generic,
+	[type_rep_null] = reduce_generic,
+	[type_rep]      = reduce_generic,
+	[type_leaf]     = reduce_leaf,
+	[type_sub]      = reduce_submatch,
 };
 
 static int (* const pat_comp[])(struct ins **, struct node *) = {
@@ -225,52 +244,64 @@ static int (* const pat_comp[])(struct ins **, struct node *) = {
 	[type_sub]      = comp_sub,
 };
 
-int
-add_alter(struct state *st)
-{
-	struct node *alt = 0x0;
-	int err = 0;
+static uint8_t const pat_prec[] = {
+	[type_cat]      =  1,
+	[type_alt]      =  3,
+	[type_opt]      =  2,
+	[type_rep_null] =  2,
+	[type_rep]      =  2,
+	[type_root]     = -1,
+	[type_sub]      = -1,
+};
 
-	err = reduce_alter(st);
-	if (err) return err;
+int
+add_alter(struct state *st, struct token *tok)
+{
+	struct node *alt;
+	uintptr_t cat;
 
 	alt = nod_ctor(type_alt);
 	if (!alt) return ENOMEM;
 
-	stk_pop(alt->chld, st); // XXX
+	cat = stk_cat_prec(st, type_alt);
+	if (!cat) { free(alt); return ENOMEM; }
+
+	alt->chld[0] = cat;
+
 	return stk_push(st, tag_node(alt));
 }
 
 int
-add_literal(struct state *st)
+add_literal(struct state *st, struct token *tok)
 {
-	struct ins *p = calloc(1, sizeof *p);
+	struct ins *p;
+	
+	p = calloc(1, sizeof *p);
 	if (!p) return ENOMEM;
 
-	memcpy(p, (struct ins[]){{
-			.op = ins_char,
-			.arg = { .w = st->tok->wc },
-	}}, sizeof *p);
+	*p = (struct ins) {
+		.op = ins_char,
+		.arg = { .w = tok->wc },
+	};
 
 	return stk_push(st, tag_leaf(p));
 }
 
 int
-add_repetition(struct state *st)
+add_repetition(struct state *st, struct token *tok)
 {
-	enum type const tab[] = {
-		[sym_qmark] = type_opt,
-		[sym_plus]  = type_rep,
-		[sym_star]  = type_rep_null,
-	};
 	struct node *rep;
+	enum type ty = sym_type(tok);
 	uintptr_t chld;
 	int err;
 
-	rep = nod_ctor(tab[st->tok->type]);
+	rep = nod_ctor(ty);
 	if (!rep) return ENOMEM;
 
-	if (stk_pop(&chld, st)) return PAT_ERR_BADREP;
+	if (stk_pop_prec(&chld, st, ty)) {
+		err = PAT_ERR_BADREP;
+		goto fail;
+	}
 
 	rep->chld[0] = chld;
 
@@ -284,55 +315,55 @@ fail:
 }
 
 int
-add_submatch(struct state *st)
+add_submatch(struct state *st, struct token *tok)
 {
-	struct node *new = 0;
+	struct node *new;
+	int err;
 
 	new = nod_ctor(type_sub);
 	if (!new) return ENOMEM;
 
-	return stk_push(st, tag_node(new));
-}
-
-int
-reduce_alter(struct state *st)
-{
-	struct node *alt = 0x0;
-	size_t off = 0;
-
-	off = stk_scan_r(st, type_alt);
-	if (off == vec_len(st->stk)) return 0;
-
-	alt = to_node(st->stk[off]);
-
-	alt->chld[1] = stk_fold(st, off + 1);
-	if (!alt->chld[1]) goto nomem;
+	err = stk_push(st, tag_node(new));
+	if (err) { free(new); return err; }
 
 	return 0;
-
-nomem:
-
-	free(alt);
-	return ENOMEM;
 }
 
 int
-reduce_subtree(struct state *st)
+add_subtree(struct state *st, struct token *tok)
 {
-	struct node *nod = 0x0;
-	size_t off = 0;
-	int err = 0;
+	uintptr_t chld;
 
-	err = reduce_alter(st);
-	if (err) return err;
+	stk_pop(&chld, st);
+	return stk_reduce(st, chld);
+}
 
-	off = stk_scan_r(st, type_sub);
-	if (off == vec_len(st->stk)) return PAT_ERR_BADPAREN;
+int
+reduce_generic(struct state *st, uintptr_t par, uintptr_t chld)
+{
+	to_node(par)->chld[1] = chld;
+	return stk_reduce(st, par);
+}
 
-	nod = to_node(st->stk[off]);
+int
+reduce_leaf(struct state *st, uintptr_t par, uintptr_t chld)
+{
+	uintptr_t res = mk_cat(par, chld);
 
-	nod->chld[0] = stk_fold(st, off + 1);
-	if (!nod->chld[0]) return ENOMEM;
+	if (!res) return ENOMEM;
+	else return stk_reduce(st, res);
+}
+
+int
+reduce_submatch(struct state *st, uintptr_t par, uintptr_t chld)
+{
+	struct node *sub = to_node(par);
+
+	if (sub->chld[0]) reduce_generic(st, par, chld);
+
+	sub->chld[0] = chld;
+
+	stk_push(st, par);
 
 	return 0;
 }
@@ -684,20 +715,35 @@ nod_dtor(struct node *nod)
 	free(nod);
 }
 
-int
-stk_pop(uintptr_t *u, struct state *st)
+uint8_t
+nod_prec(uintptr_t u)
 {
-	if (!vec_len(st->stk)) return -1;
-
-	vec_pop(u, &st->stk);
-
-	return 0;
+	return pat_prec[nod_type(u)];
 }
 
-int
-stk_push(struct state *st, uintptr_t u)
+enum type
+nod_type(uintptr_t u)
 {
-	return vec_append(&st->stk, (uintptr_t[]){u});
+	if (is_leaf(u)) return type_leaf;
+	else return to_node(u)->type;
+}
+
+uintptr_t
+stk_cat_prec(struct state *st, enum type type)
+{
+	uintptr_t cat = 0;
+	uintptr_t tmp = 0;
+
+	while (!stk_pop_prec(&tmp, st, type_alt)) {
+		if (cat) cat = mk_cat(tmp, cat);
+		else cat = tmp;
+		if (!cat) goto nomem;
+	}
+
+	return cat;
+nomem:
+	nod_dtor(to_node(cat));
+	return 0x0;
 }
 
 uintptr_t
@@ -732,6 +778,52 @@ nomem:
 	}
 
 	return 0x0;
+}
+
+int
+stk_pop(uintptr_t *u, struct state *st)
+{
+	if (!vec_len(st->stk)) return -1;
+
+	vec_pop(u, &st->stk);
+
+	return 0;
+}
+
+int
+stk_pop_prec(uintptr_t *dst, struct state *st, enum type type)
+{
+	size_t len;
+	uintptr_t top;
+
+	len = vec_len(st->stk);
+	if (len == 0) return -1;
+
+	top = st->stk[len - 1];
+
+	if (is_leaf(top));
+	else if (nod_prec(top) >= pat_prec[type]) return -1;
+
+	vec_truncat(&st->stk, len - 1);
+
+	*dst = top;
+
+	return 0;
+}
+
+int
+stk_push(struct state *st, uintptr_t u)
+{
+	return vec_append(&st->stk, (uintptr_t[]){u});
+}
+
+int
+stk_reduce(struct state *st, uintptr_t chld)
+{
+	uintptr_t par;
+
+	if (stk_pop(&par, st)) return 0;
+	else return pat_reduce[nod_type(par)](st, par, chld);
 }
 
 size_t
@@ -783,6 +875,18 @@ thr_cmp(struct thread *lt, struct thread *rt)
 	return memcmp((size_t[]){vec_len(lt->mat)},
 	              (size_t[]){vec_len(rt->mat)},
 		      sizeof vec_len(0)); // ?
+}
+
+enum type
+sym_type(struct token *tok)
+{
+	enum type const tab[] = {
+		[sym_qmark] = type_opt,
+		[sym_plus]  = type_rep,
+		[sym_star]  = type_rep_null,
+	};
+
+	return tab[tok->type];
 }
 
 struct thread *
@@ -915,14 +1019,12 @@ pat_exec(struct context *ctx)
 	return 0;
 }
 
-size_t
-pat_lex(struct state *st)
+void
+pat_lex(struct token *tok, struct state *st)
 {
-	int ret = 0;
-	struct token *tok = st->tok;
 	struct pos *pos = st->str;
 
-	ret = tok->len = 1;
+	tok->len = 1;
 	switch (*str(pos)) {
 	case '.':
 
@@ -966,27 +1068,27 @@ pat_lex(struct state *st)
 
 	default:
 		tok->type = sym_literal;
-		ret = tok->len = mbtowc(&tok->wc, str(pos), rem(pos));
-		if (ret == -1) {
-			ret = 1;
-			tok->wc = pos->v[0];
-		} else if (ret == 0) ret = 1;
+		tok->len = mbtowc(&tok->wc, str(pos), rem(pos));
+
+		if (tok->len == -1) tok->wc = pos->v[0], tok->len = 1;
+		else if (tok->len == 0) tok->len = 1;
 	}
+ 
+ 	pos->f += tok->len;
+	return;
 
-	return ret;
-
-esc:
+esc:  // XXX
 	switch (pos->v[pos->f + 1]) {
 	default:
 		tok->type = sym_literal;
-		ret += tok->len = mbtowc(&tok->wc, str(pos), rem(pos));
-		if (ret == -1) {
-			ret = 1;
-			tok->wc = pos->v[0];
-		} else if (ret == 0) ret = 1;
+		tok->len = mbtowc(&tok->wc, str(pos), rem(pos));
+
+		if (tok->len == -1) tok->len = 1, tok->wc = pos->v[0];
+		else if (tok->len == 0) tok->len = 1;
 	}
 
-	return ret;
+ 	pos->f += tok->len;
+	return;
 }
 
 int
@@ -1017,18 +1119,22 @@ finally:
 int
 pat_parse_tree(struct state *st)
 {
+	struct token tok[1] = {0};
 	int err = 0;
 
-	err = pat_add[sym_bol](st);
+	err = pat_add[sym_bol](st, tok);
 	if (err) return err;
 
 	while (!eol(st->str)) {
-		st->str->f += pat_lex(st);
-		err = pat_add[st->tok->type](st);
+		pat_lex(tok, st);
+
+		err = pat_add[tok->type](st, tok);
 		if (err) return err;
 	}
 
-	err = pat_add[sym_eol](st);
+	*tok = (struct token) {0};
+
+	err = pat_add[sym_eol](st, tok);
 	if (err) return err;
 
 	st->root->chld[0] = st->stk[0];
