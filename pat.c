@@ -137,9 +137,7 @@ static uintptr_t stk_cat_prec(struct state *, enum type);
 static int       stk_pop(uintptr_t *, struct state *);
 static int       stk_pop_prec(uintptr_t *, struct state *, enum type);
 static int       stk_push(struct state *, uintptr_t);
-static uintptr_t stk_fold(struct state *, size_t);
 static int       stk_reduce(struct state *, uintptr_t);
-static size_t    stk_scan_r(struct state *, enum type);
 
 static enum type sym_type(struct token *);
 
@@ -746,40 +744,6 @@ nomem:
 	return 0x0;
 }
 
-uintptr_t
-stk_fold(struct state *st, size_t off)
-{
-	uintptr_t tmp = 0x0;
-	uintptr_t cat = 0x0;
-	size_t i = 0;
-
-	if (off == vec_len(st->stk)) return 0;
-
-	stk_pop(&tmp, st);
-
-	i = vec_len(st->stk);
-	while (i --> off) {
-		cat = mk_cat(st->stk[i], cat);
-		if (!cat) goto nomem;
-	}
-
-	if (cat) nod_attach(cat, tmp);
-	else cat = tmp;
-
-	vec_truncat(&st->stk, off);
-
-	return cat;
-
-nomem:
-	while (cat) {
-		tmp = to_node(cat)->chld[1];
-		free(to_node(cat));
-		cat = tmp;
-	}
-
-	return 0x0;
-}
-
 int
 stk_pop(uintptr_t *u, struct state *st)
 {
@@ -824,27 +788,6 @@ stk_reduce(struct state *st, uintptr_t chld)
 
 	if (stk_pop(&par, st)) return 0;
 	else return pat_reduce[nod_type(par)](st, par, chld);
-}
-
-size_t
-stk_scan_r(struct state *st, enum type type)
-{
-	size_t off = vec_len(st->stk);
-	struct node *nod = 0x0;
-
-	while (off --> 0) {
-		if (is_leaf(st->stk[off])) continue;
-
-		nod = to_node(st->stk[off]);
-
-		if (nod->type == type) return off;
-
-		if (nod->type == type_sub && !is_complete(nod)) {
-			return vec_len(st->stk);
-		}
-	}
-
-	return vec_len(st->stk);
 }
 
 int
