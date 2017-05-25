@@ -102,17 +102,34 @@ struct a plus[] = {
 
 struct a alter[] = {
 	{ "a|b", (struct b[]) {
-		{ "a", 0, 1, },
-		{ "b", 0, 1, },
+		{ "a",  0, 1, },
+		{ "b",  0, 1, },
+		{ "ab", 0, 1 },
 		{ 0x0 }, }, 
 
 		(struct b[]) {
+		{ "", },
 		{ 0x0 }, }
 	},
 
 	{ "abc|def", (struct b[]) {
+		{ "abc",    0, 3, },
+		{ "def",    0, 3, },
+		{ "defabc", 0, 3, },
+		{ 0x0 }, },
+
+		(struct b[]) {
+		{ 0x0 }, },
+	},
+
+	{ "ab+c|de*f?", (struct b[]) {
 		{ "abc", 0, 3, },
 		{ "def", 0, 3, },
+		{ "abbbbbbc", 0, 8, },
+		{ "d",        0, 1, },
+		{ "dee",      0, 3, },
+		{ "Yeah, definitetly",
+	                      6, 3, },
 		{ 0x0 }, },
 
 		(struct b[]) {
