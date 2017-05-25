@@ -526,9 +526,9 @@ fail:
 void
 ctx_fini(struct context *ctx)
 {
-	struct thread *tmp;
+	struct thread *th;
 
-	vec_foreach(tmp, ctx->thr) vec_free(tmp->mat);
+	vec_foreach(th, ctx->thr) vec_free(th->mat);
 	vec_free(ctx->thr);
 	vec_free(ctx->fin->mat);
 }
