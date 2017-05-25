@@ -109,6 +109,15 @@ struct a alter[] = {
 		(struct b[]) {
 		{ 0x0 }, }
 	},
+
+	{ "abc|def", (struct b[]) {
+		{ "abc", 0, 3, },
+		{ "def", 0, 3, },
+		{ 0x0 }, },
+
+		(struct b[]) {
+		{ 0x0 }, },
+	},
 	
 	{ 0x0 },
 };
