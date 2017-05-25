@@ -1,6 +1,6 @@
-#include <assert.h>
 #include <errno.h>
 #include <stddef.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 #include <wctype.h>
@@ -551,7 +551,7 @@ ins_clss(struct context *ctx, struct thread *th, wchar_t const wc)
 	case class_space: res = iswspace(wc); break;
 	case class_digit: res = iswdigit(wc); break;
 	default:
-		assert(!"invalid argument to character class instruction");
+		return -1; // XXX
 	}
 
 	if (!res) thr_remove(ctx, ind), --ind;
