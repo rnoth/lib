@@ -188,6 +188,24 @@ is_node(uintptr_t u) { return u ? u & 1 : false; }
 
 static inline
 bool
+is_expr(uintptr_t u)
+{
+	struct node *nod = to_node(u);
+	switch (nod->type) {
+	case type_sub:
+		if (nod->chld[0]) return true;
+		else return false;
+	case type_alt:
+		if (nod->chld[0] && nod->chld[1]) {
+			return true;
+		} else return false;
+	default:
+		return true;
+	}
+}
+
+static inline
+bool
 is_complete(struct node *n)
 {
 	switch (n->type) {
@@ -711,7 +729,8 @@ nod_dtor(struct node *nod)
 uint8_t
 nod_prec(uintptr_t u)
 {
-	return pat_prec[nod_type(u)];
+	if (is_expr(u)) return 0;
+	else return pat_prec[nod_type(u)];
 }
 
 enum type
