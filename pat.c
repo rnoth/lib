@@ -108,7 +108,7 @@ static int reduce_submatch(struct state *, uintptr_t, uintptr_t);
 static int comp_alt(struct ins **, struct node *);
 static int comp_cat(struct ins **, struct node *);
 static int comp_chld(struct ins **, uintptr_t);
-static int comp_init(struct ins **, struct node *);
+static int comp_root(struct ins **, struct node *);
 static int comp_rep(struct ins **, struct node *);
 static int comp_sub(struct ins **, struct node *);
 
@@ -231,7 +231,7 @@ static int (* const pat_reduce[])(struct state *, uintptr_t, uintptr_t) = {
 };
 
 static int (* const pat_comp[])(struct ins **, struct node *) = {
-	[type_root]     = comp_init,
+	[type_root]     = comp_root,
 	[type_alt]      = comp_alt,
 	[type_cat]      = comp_cat,
 	[type_opt]      = comp_rep,
@@ -330,7 +330,7 @@ add_subtree(struct state *st, struct token *tok)
 {
 	uintptr_t chld;
 
-	stk_pop(&chld, st);
+	if (stk_pop(&chld, st)) return PAT_ERR_BADPAREN;
 	return stk_reduce(st, chld);
 }
 
@@ -355,8 +355,10 @@ reduce_submatch(struct state *st, uintptr_t par, uintptr_t chld)
 {
 	struct node *sub = to_node(par);
 
-	if (sub->chld[0]) reduce_generic(st, par, chld);
-
+	if (sub->chld[0]) {
+		sub->chld[1] = chld;
+		return stk_reduce(st, par);
+	}
 	sub->chld[0] = chld;
 
 	stk_push(st, par);
@@ -417,7 +419,7 @@ comp_chld(struct ins **dest, uintptr_t n)
 }
 
 int
-comp_init(struct ins **dest, struct node *root)
+comp_root(struct ins **dest, struct node *root)
 {
 	int err = 0;
 
@@ -429,6 +431,11 @@ comp_init(struct ins **dest, struct node *root)
 	if (err) goto finally;
 
 	err = comp_chld(dest, root->chld[0]);
+	if (err) goto finally;
+
+	err = vec_append(dest, ((struct ins[]) {
+		{ .op = ins_halt, .arg = {0}, },
+	}));
 	if (err) goto finally;
 
 finally:
@@ -483,9 +490,8 @@ comp_sub(struct ins **dest, struct node *root)
 	err = comp_chld(dest, root->chld[0]);
 	if (err) goto finally;
 
-	err = vec_concat_arr(dest, ((struct ins[]) {
+	err = vec_append(dest, ((struct ins[]) {
 		{ .op = ins_save, .arg = {0}, },
-		{ .op = ins_halt, .arg = {0}, },
 	}));
 	if (err) goto finally;
 
@@ -692,7 +698,9 @@ void
 nod_dtor(struct node *nod)
 {
 	uintptr_t u;
+
 	if (!nod) return;
+
 	arr_foreach(u, nod->chld) {
 		if (is_leaf(u)) free(to_leaf(u));
 		else nod_dtor(to_node(u));
