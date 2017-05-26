@@ -501,7 +501,7 @@ finally:
 int
 ctx_init(struct context *ctx, struct pattern *pat)
 {
-	struct thread th[1] = {0};
+	struct thread th[1] = {{0}};
 	int err = 0;
 
 	err = thr_init(th, pat->prog);
@@ -996,10 +996,12 @@ esc:  // XXX
 	switch (pos->v[pos->f + 1]) {
 	default:
 		tok->type = sym_literal;
-		tok->len = mbtowc(&tok->wc, str(pos), rem(pos));
+		int tmp = mbtowc(&tok->wc, str(pos) + 1, rem(pos) - 1);
 
-		if (tok->len == -1) tok->len = 1, tok->wc = pos->v[0];
-		else if (tok->len == 0) tok->len = 1;
+		if (tmp == -1) tmp = 1, tok->wc = pos->v[0];
+		else if (tmp == 0) tmp = 1;
+
+		tok->len += tmp;
 	}
 
  	pos->f += tok->len;
@@ -1034,7 +1036,7 @@ finally:
 int
 pat_parse_tree(struct state *st)
 {
-	struct token tok[1] = {0};
+	struct token tok[1] = {{0}};
 	int err = 0;
 
 	err = pat_add[sym_bol](st, tok);
