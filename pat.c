@@ -164,7 +164,8 @@ size_t      rem(struct pos const *p) { return p->n - p->f; }
 static inline
 char const *str(struct pos const *p) { return p->v + p->f; }
 
-static inline bool nomatch(struct context *ctx) { return !ctx->fin->ip; }
+static inline
+bool nomatch(struct context *ctx) { return !ctx->fin->ip; }
 
 static inline
 enum type
@@ -202,20 +203,6 @@ is_expr(uintptr_t u)
 	default:
 		return true;
 	}
-}
-
-static inline
-bool
-is_complete(struct node *n)
-{
-	switch (n->type) {
-	case type_sub:
-		return !!n->chld[1];
-	case type_alt:
-		return n->chld[0] && n->chld[1];
-	}
-
-	abort();
 }
 
 static inline
