@@ -65,7 +65,6 @@ struct token {
 
 struct state {
 	struct pos   str[1];
-	struct token tok[1];
 	struct node  root[1];
 	uintptr_t   *stk;
 };
