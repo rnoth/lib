@@ -152,13 +152,13 @@ struct a esc[] = {
 
 struct a sub[] = {
 	{ "abc(def)", (struct b[]) {
-		{ "abcdef",   0, 6, (struct patmatch[]) {{ 3, 3 }} },
-		{ "123abcdef", 3, 6, (struct patmatch[]) {{ 6, 3 }} },
+		{ "abcdef",   0, 6, (struct patmatch[]) {{ 3, 3 }, {-1}} },
+		{ "123abcdef", 3, 6, (struct patmatch[]) {{ 6, 3 }, {-1}} },
 		{ 0x0 } },
 	},
 
 	{ "a(b)c", (struct b[]) {
-		{ "abc", 0, 3, (struct patmatch[]) {{ 1, 1 }} },
+		{ "abc", 0, 3, (struct patmatch[]) {{ 1, 1 }, {-1}} },
 		{ 0x0 }, },
 	},
 
@@ -166,15 +166,41 @@ struct a sub[] = {
 		{ "abcde", 0, 5, (struct patmatch[]) {
 			{ 1, 3, },
 			{ 2, 1, },
+			{ -1 },
 		} },
 		{ 0x0 }, },
 	},
 
+	{ "ab*(c+d?)ff", (struct b[]) {
+		{ "abbbcccdff", 0, 10, (struct patmatch[]) { { 4, 4 }, { -1 } } },
+		{ "acff",       0, 4,  (struct patmatch[]) { { 1, 1 }, { -1 } } },
+		{ 0x0 } },
+	},
+
+	{ "abc(def|ghi)jkl", (struct b[]) {
+		{ "abcdefjkl", 0, 9, (struct patmatch[]) {{3,3},{-1}}},
+		{ "abcghijkl", 0, 9, (struct patmatch[]) {{3,3},{-1}}},
+		{ 0x0 } },
+	},
+
+	{ "abc(def)+", (struct b[]) {
+		{ "abcdefdefdef", 0, 12, (struct patmatch[]) {{3,9},{-1}}},
+		{ 0x0 } },
+	},
+
+	// posix
+	{ "a(b+)b", (struct b[]) {
+		{ "abbb", 0, 4, (struct patmatch[]) {{1,2},{-1}}},
+		{ 0x0 } },
+	},
+
+	{ "(a*)bc", (struct b[]) {
+		{ "bc", 0, 2, (struct patmatch[]) {{0,0}, {-1}}},
+		{ 0x0 } }
+	},
+
 	{ 0x0 },
 };
-
-
-
 
 size_t const tests_len = arr_len(tests);
 struct a *cur;
@@ -191,9 +217,10 @@ void cleanup() {}
 void
 loop(void)
 {
+	struct pattern pat[1] = {{0}};
 	struct a *a = 0x0;
 	struct b *b = 0x0;
-	struct pattern pat[1] = {{0}};
+	size_t i;
 
 	for (a = cur; a->pat; ++a) {
 		expect(0, pat_compile(pat, a->pat));
@@ -202,6 +229,11 @@ loop(void)
 			expect(0, pat_execute(pat, b->txt));
 			expect(b->off, pat->mat->off);
 			expect(b->ext, pat->mat->ext);
+
+			if (b->sub) for (i = 1; b->sub[i].off < (size_t)-1; ++i) {
+				expect(b->sub[i-1].off, pat->mat[i].off);
+				expect(b->sub[i-1].ext, pat->mat[i].ext);
+			}
 		}
 
 		for (b = a->reject; b && b->txt; ++b)
