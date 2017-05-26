@@ -9,6 +9,7 @@ static void do_alter(void);
 static void do_esc(void);
 static void do_qmark(void);
 static void do_star(void);
+static void do_sub(void);
 static void do_plus(void);
 static void loop(void);
 
@@ -22,6 +23,7 @@ struct b {
 	char *txt;
 	size_t off;
 	size_t ext;
+	struct patmatch *sub;
 };
 
 struct test tests[] = {
@@ -30,6 +32,7 @@ struct test tests[] = {
 	{ do_plus,  loop,      "testing the + operator", },
 	{ do_alter, loop,      "testing the | operator", },
 	{ do_esc,   loop,      "testing the \\ escapes", },
+	{ do_sub,   loop,      "testing the () submatches", },
 };
 
 struct a qmark[] = {
@@ -147,6 +150,29 @@ struct a esc[] = {
 	{ 0x0 }
 };
 
+struct a sub[] = {
+	{ "abc(def)", (struct b[]) {
+		{ "abcdef",   0, 6, (struct patmatch[]) {{ 3, 3 }} },
+		{ "123abcdef", 3, 6, (struct patmatch[]) {{ 6, 3 }} },
+		{ 0x0 } },
+	},
+
+	{ "a(b)c", (struct b[]) {
+		{ "abc", 0, 3, (struct patmatch[]) {{ 1, 1 }} },
+		{ 0x0 }, },
+	},
+
+	{ "a(b(c)d)e", (struct b[]) {
+		{ "abcde", 0, 5, (struct patmatch[]) {
+			{ 1, 3, },
+			{ 2, 1, },
+		} },
+		{ 0x0 }, },
+	},
+
+	{ 0x0 },
+};
+
 
 
 
@@ -156,6 +182,7 @@ struct a *cur;
 void do_alter(void) { cur = alter; }
 void do_qmark(void) { cur = qmark; }
 void do_star(void)  { cur = star; }
+void do_sub(void)   { cur = sub; }
 void do_plus(void)  { cur = plus; }
 void do_esc(void)   { cur = esc; }
 
