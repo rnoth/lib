@@ -211,6 +211,11 @@ struct a sub[] = {
 		{ 0x0 } }
 	},
 
+	{ "a*(.*)", (struct b[]) {
+		{ "aaabbb", 0, 6, (struct patmatch[]) {{0, 6}, {-1}} },
+		{ 0x0 } },
+	},
+
 	{ 0x0 },
 };
 
