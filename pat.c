@@ -9,14 +9,15 @@
 #include "util.h"
 #include "vec.h"
 
-enum pat_char_class {
-	class_any   = 0x0,
-	class_dot   = 0x1,
-	class_alpha = 0x2,
-	class_upper = 0x3,
-	class_lower = 0x4,
-	class_digit = 0x5,
-	class_space = 0x6,
+enum class {
+	class_none  = 0x00,
+	class_any   = 0x01,
+	class_dot   = 0x02,
+	class_alpha = 0x04,
+	class_upper = 0x08,
+	class_lower = 0x10,
+	class_digit = 0x20,
+	class_space = 0x40,
 };
 
 enum pat_sym {
