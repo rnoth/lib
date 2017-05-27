@@ -11,6 +11,7 @@ static void do_qmark(void);
 static void do_star(void);
 static void do_sub(void);
 static void do_plus(void);
+static void do_dot(void);
 static void loop(void);
 
 struct a {
@@ -33,6 +34,7 @@ struct test tests[] = {
 	{ do_alter, loop,      "testing the | operator", },
 	{ do_esc,   loop,      "testing the \\ escapes", },
 	{ do_sub,   loop,      "testing the () submatches", },
+	{ do_dot,   loop,      "testing the . metacharacter", },
 };
 
 struct a qmark[] = {
@@ -202,6 +204,20 @@ struct a sub[] = {
 	{ 0x0 },
 };
 
+struct a dot[] = {
+	{ ".oo", (struct b[]) {
+		{ "foo", 0, 3 },
+		{ "boo", 0, 3 },
+		{ 0x0 } },
+
+		(struct b[]) {
+		{ "\noo" },
+		{ 0x0 } },
+	},
+
+	{ 0x0 },
+};
+
 size_t const tests_len = arr_len(tests);
 struct a *cur;
 
@@ -211,6 +227,7 @@ void do_star(void)  { cur = star; }
 void do_sub(void)   { cur = sub; }
 void do_plus(void)  { cur = plus; }
 void do_esc(void)   { cur = esc; }
+void do_dot(void)   { cur = dot; }
 
 void cleanup() {}
 
