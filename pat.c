@@ -642,12 +642,17 @@ fail:
 int
 do_halt(struct context *ctx, struct thread *th, wchar_t const wc)
 {
+	struct patmatch term[] = {{ .off = -1, .ext = -1 }};
 	size_t ind = th - ctx->thr;
+	int err;
 
 	if (thr_cmp(ctx->fin, th) > 0) {
 		thr_remove(ctx, ind);
 		return thr_next(ctx, ind, wc);
 	}
+
+	err = vec_append(&th->mat, term);
+	if (err) return err;
 
 	thr_finish(ctx, ind);
 	return thr_next(ctx, ind, wc);

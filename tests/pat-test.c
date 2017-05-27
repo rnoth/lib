@@ -186,7 +186,7 @@ struct a sub[] = {
 	},
 
 	{ "abc(def)+", (struct b[]) {
-		{ "abcdefdefdef", 0, 12, (struct patmatch[]) {{3,9},{-1}}},
+		{ "abcdefdefdef", 0, 12, (struct patmatch[]) {{3,3}, {6,3}, {9,3},{-1}}},
 		{ 0x0 } },
 	},
 
@@ -207,7 +207,7 @@ struct a sub[] = {
 	},
 
 	{ "(.)?(a)?", (struct b[]) {
-		{ "a", 0, 1, (struct patmatch[]) {{0,1}, {0,0}, {-1}} },
+		{ "a", 0, 1, (struct patmatch[]) {{0,1}, {-1}} },
 		{ 0x0 } }
 	},
 
@@ -257,9 +257,14 @@ loop(void)
 			expect(b->off, pat->mat->off);
 			expect(b->ext, pat->mat->ext);
 
-			if (b->sub) for (i = 1; b->sub[i].off < (size_t)-1; ++i) {
-				expect(b->sub[i-1].off, pat->mat[i].off);
-				expect(b->sub[i-1].ext, pat->mat[i].ext);
+			if (b->sub) {
+				for (i = 1; b->sub[i-1].off < (size_t)-1; ++i) {
+					expect(b->sub[i-1].off, pat->mat[i].off);
+					expect(b->sub[i-1].ext, pat->mat[i].ext);
+				}
+
+				expect(-1, pat->mat[i].off);
+				expect(-1, pat->mat[i].ext);
 			}
 		}
 
