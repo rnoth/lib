@@ -120,13 +120,13 @@ static void ctx_fini(struct context *);
 
 static int get_char(char *, void *);
 
-static int ins_char(struct context *, struct thread *, wchar_t const);
-static int ins_clss(struct context *, struct thread *, wchar_t const);
-static int ins_fork(struct context *, struct thread *, wchar_t const);
-static int ins_halt(struct context *, struct thread *, wchar_t const);
-static int ins_jump(struct context *, struct thread *, wchar_t const);
-static int ins_mark(struct context *, struct thread *, wchar_t const);
-static int ins_save(struct context *, struct thread *, wchar_t const);
+static int do_char(struct context *, struct thread *, wchar_t const);
+static int do_clss(struct context *, struct thread *, wchar_t const);
+static int do_fork(struct context *, struct thread *, wchar_t const);
+static int do_halt(struct context *, struct thread *, wchar_t const);
+static int do_jump(struct context *, struct thread *, wchar_t const);
+static int do_mark(struct context *, struct thread *, wchar_t const);
+static int do_save(struct context *, struct thread *, wchar_t const);
 
 static uintptr_t mk_cat(uintptr_t, uintptr_t);
 
@@ -300,7 +300,7 @@ add_literal(struct state *st, struct token *tok)
 	if (!p) return ENOMEM;
 
 	*p = (struct ins) {
-		.op = ins_char,
+		.op = do_char,
 		.arg = { .w = tok->wc },
 	};
 
@@ -399,7 +399,7 @@ comp_alt(struct ins **dest, struct node *alt)
 
 	fork = vec_len(*dest);
 	err = vec_append(dest, (struct ins[]) {
-		{ .op = ins_fork }
+		{ .op = do_fork }
 	});
 	if (err) return err;
 
@@ -408,7 +408,7 @@ comp_alt(struct ins **dest, struct node *alt)
 
 	jump = vec_len(*dest);
 	err = vec_append(dest, (struct ins[]) {
-		{ .op = ins_jump }
+		{ .op = do_jump }
 	});
 	if (err) return err;
 
@@ -451,7 +451,7 @@ comp_class(struct ins **dest, struct node *nod)
 	p.v = to_aux(nod->chld[0]);
 
 	err = vec_append(dest, ((struct ins[]) {
-		{ .op = ins_clss, .arg = { .i = *p.c } }
+		{ .op = do_clss, .arg = { .i = *p.c } }
 	}));
 	if (err) return err;
 
@@ -464,9 +464,9 @@ comp_root(struct ins **dest, struct node *root)
 	int err = 0;
 
 	err = vec_concat_arr(dest, ((struct ins[]) {
-		[0] = { .op = ins_jump, .arg = {.f=2}, },
-		[1] = { .op = ins_clss, .arg = {.i=class_any}, },
-		[2] = { .op = ins_fork, .arg = {.f=-1}, },
+		[0] = { .op = do_jump, .arg = {.f=2}, },
+		[1] = { .op = do_clss, .arg = {.i=class_any}, },
+		[2] = { .op = do_fork, .arg = {.f=-1}, },
 	}));
 	if (err) goto finally;
 
@@ -474,7 +474,7 @@ comp_root(struct ins **dest, struct node *root)
 	if (err) goto finally;
 
 	err = vec_append(dest, ((struct ins[]) {
-		{ .op = ins_halt, .arg = {0}, },
+		{ .op = do_halt, .arg = {0}, },
 	}));
 	if (err) goto finally;
 
@@ -493,7 +493,7 @@ comp_rep(struct ins **dest, struct node *rep)
 	off = vec_len(*dest);
 
 	if (rep->type != type_rep) {
-		err = vec_append(dest, (struct ins[]) {{ .op = ins_fork }});
+		err = vec_append(dest, (struct ins[]) {{ .op = do_fork }});
 		if (err) return err;
 	}
 
@@ -504,7 +504,7 @@ comp_rep(struct ins **dest, struct node *rep)
 
 	if (rep->type != type_opt) {
 		err = vec_append(dest, ((struct ins[]) {{
-			.op = ins_fork,
+			.op = do_fork,
 			.arg = { .f = beg - vec_len(*dest) },
 		}}));
 		if (err) return err;
@@ -523,7 +523,7 @@ comp_sub(struct ins **dest, struct node *root)
 	int err;
 
 	err = vec_append(dest, ((struct ins[]) {
-		{ .op = ins_mark, .arg = {0}, },
+		{ .op = do_mark, .arg = {0}, },
 	}));
 	if (err) goto finally;
 
@@ -531,7 +531,7 @@ comp_sub(struct ins **dest, struct node *root)
 	if (err) goto finally;
 
 	err = vec_append(dest, ((struct ins[]) {
-		{ .op = ins_save, .arg = {0}, },
+		{ .op = do_save, .arg = {0}, },
 	}));
 	if (err) goto finally;
 
@@ -599,7 +599,7 @@ get_char(char *dst, void *x)
 }
 
 int
-ins_char(struct context *ctx, struct thread *th, wchar_t const wc)
+do_char(struct context *ctx, struct thread *th, wchar_t const wc)
 {
 	size_t ind = th - ctx->thr;
 
@@ -610,7 +610,7 @@ ins_char(struct context *ctx, struct thread *th, wchar_t const wc)
 }
 
 int
-ins_clss(struct context *ctx, struct thread *th, wchar_t const wc)
+do_clss(struct context *ctx, struct thread *th, wchar_t const wc)
 {
 	size_t ind = th - ctx->thr;
 	bool res;
@@ -634,7 +634,7 @@ ins_clss(struct context *ctx, struct thread *th, wchar_t const wc)
 }
 
 int
-ins_fork(struct context *ctx, struct thread *th, wchar_t const wc)
+do_fork(struct context *ctx, struct thread *th, wchar_t const wc)
 {
 	struct thread new[1] = {{0}};
 	size_t ind = th - ctx->thr;
@@ -659,7 +659,7 @@ fail:
 }
 
 int
-ins_halt(struct context *ctx, struct thread *th, wchar_t const wc)
+do_halt(struct context *ctx, struct thread *th, wchar_t const wc)
 {
 	size_t ind = th - ctx->thr;
 
@@ -673,14 +673,14 @@ ins_halt(struct context *ctx, struct thread *th, wchar_t const wc)
 }
 
 int
-ins_jump(struct context *ctx, struct thread *th, wchar_t const wc)
+do_jump(struct context *ctx, struct thread *th, wchar_t const wc)
 {
 	th->ip += th->ip->arg.f;
 	return th->ip->op(ctx, th, wc);
 }
 
 int
-ins_mark(struct context *ctx, struct thread *th, wchar_t const wc)
+do_mark(struct context *ctx, struct thread *th, wchar_t const wc)
 {
 	int err = 0;
 	struct patmatch mat = {0};
@@ -696,7 +696,7 @@ ins_mark(struct context *ctx, struct thread *th, wchar_t const wc)
 }
 
 int
-ins_save(struct context *ctx, struct thread *th, wchar_t const wc)
+do_save(struct context *ctx, struct thread *th, wchar_t const wc)
 {
 	size_t off = vec_len(th->mat);
 
