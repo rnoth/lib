@@ -839,8 +839,6 @@ thr_cmp(struct thread *lt, struct thread *rt)
 {
 	size_t min = 0;
 	ptrdiff_t cmp = 0;
-	size_t l = 0;
-	size_t r = 0;
 
 	if (!lt->mat && !rt->mat) return 0;
 	if (!lt->mat) return -1;
@@ -849,19 +847,14 @@ thr_cmp(struct thread *lt, struct thread *rt)
 	min = umin(vec_len(lt->mat), vec_len(rt->mat));
 
 	iterate(i, min) {
-		l = lt->mat[i].off;
-		r = rt->mat[i].off;
-		cmp = ucmp(l, r);
+		cmp = ucmp(lt->mat[i].off, rt->mat[i].off);
 		if (cmp) return -cmp;
-		l = lt->mat[i].ext;
-		r = rt->mat[i].ext;
-		cmp = ucmp(l, r);
+
+		cmp = ucmp(lt->mat[i].ext, rt->mat[i].ext);
 		if (cmp) return cmp;
 	}
 
-	return memcmp((size_t[]){vec_len(lt->mat)},
-	              (size_t[]){vec_len(rt->mat)},
-		      sizeof vec_len(0)); // ?
+	return 0;
 }
 
 enum class
