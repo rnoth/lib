@@ -160,39 +160,37 @@ static int  pat_parse_tree(struct state *);
 static int  pat_match(struct context *, struct pattern *);
 static int  pat_exec(struct context *);
 
-static inline
+static inline bool        eol(struct pos const *);
+static inline size_t      rem(struct pos const *);
+static inline char const *str(struct pos const *);
+
+static inline bool nomatch(struct context *);
+
+static inline void *        to_aux(uintptr_t);
+static inline struct node * to_node(uintptr_t);
+static inline struct ins *  to_leaf(uintptr_t);
+
+static inline bool is_leaf(uintptr_t);
+static inline bool is_node(uintptr_t);
+static bool is_expr(uintptr_t);
+
+static inline uintptr_t tag_aux(void *);
+static inline uintptr_t tag_node(struct node *);
+static inline uintptr_t tag_leaf(struct ins *);
+
 bool        eol(struct pos const *p) { return p->f >= p->n; }
-
-static inline
 size_t      rem(struct pos const *p) { return p->n - p->f; }
-
-static inline
 char const *str(struct pos const *p) { return p->v + p->f; }
 
-static inline
 bool nomatch(struct context *ctx) { return !ctx->fin->ip; }
 
-static inline
-enum type
-type(struct node *n) { return n ? n->type : 0x0; }
+struct node * to_node(uintptr_t u) { return (void *)(u & ~1); }
+struct ins  * to_leaf(uintptr_t u) { return (void *)u; }
+void *        to_aux(uintptr_t u) { return (void *)(u & ~2); }
 
-static inline
-struct node *
-to_node(uintptr_t u) { return (void *)(u & ~1); }
+bool is_leaf(uintptr_t u) { return u ? !(u & 3) : false; }
+bool is_node(uintptr_t u) { return u ? u & 1 : false; }
 
-static inline
-struct ins  *
-to_leaf(uintptr_t u) { return (void *)u; }
-
-static inline
-bool
-is_leaf(uintptr_t u) { return u ? !(u & 1) : false; }
-
-static inline
-bool
-is_node(uintptr_t u) { return u ? u & 1 : false; }
-
-static inline
 bool
 is_expr(uintptr_t u)
 {
@@ -211,7 +209,7 @@ is_expr(uintptr_t u)
 }
 
 uintptr_t tag_aux(void *v) { return v ? (uintptr_t)v + 2 : 0x0; }
-uintptr_t tag_leaf(struct ins *i) { return (uintptr_t)i; } 
+uintptr_t tag_leaf(struct ins *i) { return (uintptr_t)i; }
 uintptr_t tag_node(struct node *n) { return n ? (uintptr_t)n + 1 : 0x0; }
 
 static int (* const pat_add[])(struct state *, struct token *) = {
@@ -494,7 +492,7 @@ comp_rep(struct ins **dest, struct node *rep)
 
 	off = vec_len(*dest);
 
-	if (type(rep) != type_rep) {
+	if (rep->type != type_rep) {
 		err = vec_append(dest, (struct ins[]) {{ .op = ins_fork }});
 		if (err) return err;
 	}
@@ -504,7 +502,7 @@ comp_rep(struct ins **dest, struct node *rep)
 	err = comp_chld(dest, rep->chld[0]);
 	if (err) return err;
 
-	if (type(rep) != type_opt) {
+	if (rep->type != type_opt) {
 		err = vec_append(dest, ((struct ins[]) {{
 			.op = ins_fork,
 			.arg = { .f = beg - vec_len(*dest) },
@@ -512,7 +510,7 @@ comp_rep(struct ins **dest, struct node *rep)
 		if (err) return err;
 	}
 
-	if (type(rep) != type_rep) {
+	if (rep->type != type_rep) {
 		(*dest)[off].arg.f = vec_len(*dest) - off;
 	}
 
