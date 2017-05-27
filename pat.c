@@ -20,7 +20,7 @@ enum class {
 	class_space = 0x40,
 };
 
-enum pat_sym {
+enum sym {
 	sym_literal,
 	sym_dot,
 	sym_qmark,
@@ -60,9 +60,9 @@ struct node {
 };
 
 struct token {
-	int          len;
-	enum pat_sym type;
-	wchar_t      wc;
+	int      len;
+	enum sym type;
+	wchar_t  wc;
 };
 
 struct state {
