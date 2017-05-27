@@ -21,31 +21,31 @@ enum class {
 };
 
 enum sym {
-	sym_literal,
-	sym_dot,
-	sym_qmark,
-	sym_star,
-	sym_plus,
-	sym_pipe,
+	sym_bol,
 	sym_carrot,
 	sym_dollar,
-	sym_lparen,
-	sym_rparen,
-	sym_bol,
+	sym_dot,
 	sym_eol,
+	sym_literal,
+	sym_lparen,
+	sym_pipe,
+	sym_plus,
+	sym_qmark,
+	sym_rparen,
+	sym_star,
 };
 
 enum type {
 	type_null,
-	type_root,
-	type_cat,
-	type_sub,
-	type_opt,
-	type_rep_null,
-	type_rep,
 	type_alt,
-	type_leaf,
+	type_cat,
 	type_class,
+	type_leaf,
+	type_opt,
+	type_rep,
+	type_rep_null,
+	type_root,
+	type_sub,
 };
 
 struct pos {
@@ -60,9 +60,9 @@ struct node {
 };
 
 struct token {
-	int      len;
 	enum sym type;
 	wchar_t  wc;
+	int      len;
 };
 
 struct state {
@@ -72,8 +72,8 @@ struct state {
 };
 
 struct thread {
-	struct patmatch *mat;
 	struct ins      *ip;
+	struct patmatch *mat;
 };
 
 struct context {
@@ -86,9 +86,9 @@ struct context {
 
 union arg {
 	ptrdiff_t f;
-	size_t    z;
-	wchar_t   w;
 	int       i;
+	wchar_t   w;
+	size_t    z;
 };
 
 struct ins {
@@ -111,12 +111,12 @@ static int comp_alt(struct ins **, struct node *);
 static int comp_cat(struct ins **, struct node *);
 static int comp_chld(struct ins **, uintptr_t);
 static int comp_class(struct ins **, struct node *);
-static int comp_root(struct ins **, struct node *);
 static int comp_rep(struct ins **, struct node *);
+static int comp_root(struct ins **, struct node *);
 static int comp_sub(struct ins **, struct node *);
 
-static int  ctx_init(struct context *, struct pattern *);
 static void ctx_fini(struct context *);
+static int  ctx_init(struct context *, struct pattern *);
 
 static int get_char(char *, void *);
 
@@ -195,14 +195,17 @@ bool
 is_expr(uintptr_t u)
 {
 	struct node *nod = to_node(u);
+
 	switch (nod->type) {
 	case type_sub:
 		if (nod->chld[0]) return true;
 		else return false;
+
 	case type_alt:
 		if (nod->chld[0] && nod->chld[1]) {
 			return true;
 		} else return false;
+
 	default:
 		return true;
 	}
@@ -459,31 +462,6 @@ comp_class(struct ins **dest, struct node *nod)
 }
 
 int
-comp_root(struct ins **dest, struct node *root)
-{
-	int err = 0;
-
-	err = vec_concat_arr(dest, ((struct ins[]) {
-		[0] = { .op = do_jump, .arg = {.f=2}, },
-		[1] = { .op = do_clss, .arg = {.i=class_any}, },
-		[2] = { .op = do_fork, .arg = {.f=-1}, },
-	}));
-	if (err) goto finally;
-
-	err = comp_chld(dest, root->chld[0]);
-	if (err) goto finally;
-
-	err = vec_append(dest, ((struct ins[]) {
-		{ .op = do_halt, .arg = {0}, },
-	}));
-	if (err) goto finally;
-
-finally:
-	if (err) vec_truncat(dest, 0);
-	return err;
-}
-
-int
 comp_rep(struct ins **dest, struct node *rep)
 {
 	size_t beg;
@@ -518,6 +496,31 @@ comp_rep(struct ins **dest, struct node *rep)
 }
 
 int
+comp_root(struct ins **dest, struct node *root)
+{
+	int err = 0;
+
+	err = vec_concat_arr(dest, ((struct ins[]) {
+		[0] = { .op = do_jump, .arg = {.f=2}, },
+		[1] = { .op = do_clss, .arg = {.i=class_any}, },
+		[2] = { .op = do_fork, .arg = {.f=-1}, },
+	}));
+	if (err) goto finally;
+
+	err = comp_chld(dest, root->chld[0]);
+	if (err) goto finally;
+
+	err = vec_append(dest, ((struct ins[]) {
+		{ .op = do_halt, .arg = {0}, },
+	}));
+	if (err) goto finally;
+
+finally:
+	if (err) vec_truncat(dest, 0);
+	return err;
+}
+
+int
 comp_sub(struct ins **dest, struct node *root)
 {
 	int err;
@@ -543,6 +546,15 @@ finally:
 	return err;
 }
 
+void
+ctx_fini(struct context *ctx)
+{
+	struct thread *th;
+
+	vec_foreach(th, ctx->thr) vec_free(th->mat);
+	vec_free(ctx->thr);
+	vec_free(ctx->fin->mat);
+}
 
 int
 ctx_init(struct context *ctx, struct pattern *pat)
@@ -565,37 +577,6 @@ fail:
 	vec_free(th->mat);
 	vec_free(ctx->thr);
 	return err;
-}
-
-void
-ctx_fini(struct context *ctx)
-{
-	struct thread *th;
-
-	vec_foreach(th, ctx->thr) vec_free(th->mat);
-	vec_free(ctx->thr);
-	vec_free(ctx->fin->mat);
-}
-
-int
-get_char(char *dst, void *x)
-{
-	union {
-		void *p;
-		struct pos *v;
-	} str = { .p = x };
-	struct pos *p = str.v;
-	int len = 0;
-
-	if (p->f > p->n) return 0;
-	len = mblen(p->v + p->f, p->n - p->f);
-	if (len <= 0) len = 1;
-
-	memcpy(dst, p->v + p->f, len);
-
-	p->f += len;
-
-	return len;
 }
 
 int
@@ -706,6 +687,27 @@ do_save(struct context *ctx, struct thread *th, wchar_t const wc)
 
 	th->ip++;
 	return th->ip->op(ctx, th, wc);
+}
+
+int
+get_char(char *dst, void *x)
+{
+	union {
+		void *p;
+		struct pos *v;
+	} str = { .p = x };
+	struct pos *p = str.v;
+	int len = 0;
+
+	if (p->f > p->n) return 0;
+	len = mblen(p->v + p->f, p->n - p->f);
+	if (len <= 0) len = 1;
+
+	memcpy(dst, p->v + p->f, len);
+
+	p->f += len;
+
+	return len;
 }
 
 uintptr_t
