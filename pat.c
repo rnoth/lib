@@ -45,6 +45,7 @@ enum type {
 	type_rep,
 	type_alt,
 	type_leaf,
+	type_class,
 };
 
 struct pos {
@@ -96,6 +97,7 @@ struct ins {
 };
 
 static int add_alter(struct state *, struct token *);
+static int add_class(struct state *, struct token *);
 static int add_literal(struct state *, struct token *);
 static int add_repetition(struct state *, struct token *);
 static int add_submatch(struct state *, struct token *);
@@ -108,6 +110,7 @@ static int reduce_submatch(struct state *, uintptr_t, uintptr_t);
 static int comp_alt(struct ins **, struct node *);
 static int comp_cat(struct ins **, struct node *);
 static int comp_chld(struct ins **, uintptr_t);
+static int comp_class(struct ins **, struct node *);
 static int comp_root(struct ins **, struct node *);
 static int comp_rep(struct ins **, struct node *);
 static int comp_sub(struct ins **, struct node *);
@@ -138,7 +141,8 @@ static int       stk_pop_prec(uintptr_t *, struct state *, enum type);
 static int       stk_push(struct state *, uintptr_t);
 static int       stk_reduce(struct state *, uintptr_t);
 
-static enum type sym_type(struct token *);
+static enum class sym_class(struct token *);
+static enum type  sym_type(struct token *);
 
 static int  thr_cmp(struct thread *, struct thread *);
 static int  thr_init(struct thread *, struct ins *);
@@ -206,15 +210,12 @@ is_expr(uintptr_t u)
 	}
 }
 
-static inline
-uintptr_t
-tag_leaf(struct ins *i) { return (uintptr_t)i; }
-
-static inline
-uintptr_t
-tag_node(struct node *n) { return n ? (uintptr_t)n + 1 : 0x0; }
+uintptr_t tag_aux(void *v) { return v ? (uintptr_t)v + 2 : 0x0; }
+uintptr_t tag_leaf(struct ins *i) { return (uintptr_t)i; } 
+uintptr_t tag_node(struct node *n) { return n ? (uintptr_t)n + 1 : 0x0; }
 
 static int (* const pat_add[])(struct state *, struct token *) = {
+	[sym_dot]     = add_class,
 	[sym_pipe]    = add_alter,
 	[sym_literal] = add_literal,
 	[sym_qmark]   = add_repetition,
@@ -233,6 +234,7 @@ static int (* const pat_reduce[])(struct state *, uintptr_t, uintptr_t) = {
 	[type_rep]      = reduce_generic,
 	[type_leaf]     = reduce_leaf,
 	[type_sub]      = reduce_submatch,
+	[type_class]    = reduce_generic,
 };
 
 static int (* const pat_comp[])(struct ins **, struct node *) = {
@@ -243,6 +245,7 @@ static int (* const pat_comp[])(struct ins **, struct node *) = {
 	[type_rep_null] = comp_rep,
 	[type_rep]      = comp_rep,
 	[type_sub]      = comp_sub,
+	[type_class]    = comp_class,
 };
 
 static uint8_t const pat_prec[] = {
@@ -254,6 +257,11 @@ static uint8_t const pat_prec[] = {
 	[type_root]     = -1,
 	[type_sub]      = -1,
 };
+
+static enum class pat_class[] = {
+	[class_dot] = class_dot,
+};
+
 
 int
 add_alter(struct state *st, struct token *tok)
@@ -270,6 +278,19 @@ add_alter(struct state *st, struct token *tok)
 	alt->chld[0] = cat;
 
 	return stk_push(st, tag_node(alt));
+}
+
+int
+add_class(struct state *st, struct token *tok)
+{
+	struct node *nod;
+
+	nod = nod_ctor(type_class);
+	if (!nod) return ENOMEM;
+
+	nod->chld[0] = tag_aux(pat_class + sym_class(tok));
+
+	return stk_push(st, tag_node(nod));
 }
 
 int
@@ -421,6 +442,22 @@ comp_chld(struct ins **dest, uintptr_t n)
 	if (is_leaf(n)) return vec_append(dest, to_leaf(n));
 	struct node *nod = to_node(n);
 	return pat_comp[nod->type](dest, nod);
+}
+
+int
+comp_class(struct ins **dest, struct node *nod)
+{
+	int err;
+	union { void *v; enum class *c; } p;
+
+	p.v = to_aux(nod->chld[0]);
+
+	err = vec_append(dest, ((struct ins[]) {
+		{ .op = ins_clss, .arg = { .i = *p.c } }
+	}));
+	if (err) return err;
+
+	return comp_chld(dest, nod->chld[1]);
 }
 
 int
@@ -708,7 +745,7 @@ nod_dtor(struct node *nod)
 
 	arr_foreach(u, nod->chld) {
 		if (is_leaf(u)) free(to_leaf(u));
-		else nod_dtor(to_node(u));
+		else if (is_node(u)) nod_dtor(to_node(u));
 	}
 
 	free(nod);
@@ -820,6 +857,16 @@ thr_cmp(struct thread *lt, struct thread *rt)
 	return memcmp((size_t[]){vec_len(lt->mat)},
 	              (size_t[]){vec_len(rt->mat)},
 		      sizeof vec_len(0)); // ?
+}
+
+enum class
+sym_class(struct token *tok)
+{
+	enum class const tab[] = {
+		[sym_dot] = class_dot,
+	};
+
+	return tab[tok->type];
 }
 
 enum type
