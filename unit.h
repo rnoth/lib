@@ -1,6 +1,5 @@
 #ifndef _test_
 #define _test_
-#include <assert.h>
 #include <signal.h>
 #include <setjmp.h>
 #include <stdbool.h>
@@ -11,40 +10,33 @@
 
 // TODO this all should be cleaned up
 
-#define ok(TEST) do {                                       \
-	if (!unit_has_init) unit_init();                    \
-	volatile char paren[64];                            \
-	int sig = sigsetjmp(env, 1);                        \
-	bool res = -1;                                      \
-	alarm(3);                                           \
-	if (!sig) res = (TEST);                             \
-	alarm(0);                                           \
-	if (!sig && res) break;                             \
-	if (!sig) paren[0] = 0;                             \
-	else snprintf((char*)paren, 64, "-- %s ",           \
-		      sigtostr(sig));                       \
-	ok_failed(#TEST, (char*)paren, __LINE__);           \
-	raise(SIGTRAP);                                     \
-	siglongjmp(checkpoint, 1);                          \
+#define ok(TEST) do {                         \
+	if (!unit_has_init) unit_init();      \
+	int _signal = sigsetjmp(env, 1);      \
+	int _result = -1;                     \
+	alarm(3);                             \
+	if (!_signal) _result = (TEST);       \
+	alarm(0);                             \
+	if (!_signal && _result) break;       \
+	ok_failed(#TEST, __LINE__, _signal);  \
+	raise(SIGTRAP);                       \
+	siglongjmp(checkpoint, 1);            \
 } while (0)
 
 #define try(ACT) ok((ACT, 1))
-#define expect(VAL, TEST) do {                              \
-	if (!unit_has_init) unit_init();                    \
-	volatile char expected[64] = "";                    \
-	int sig = sigsetjmp(env, 1);                        \
-	int res = -1;                                       \
-	alarm(3);                                           \
-	if (!sig) res = (TEST);                             \
-	alarm(0);                                           \
-	int hope = (VAL);                                   \
-	if (!sig && res == hope) break;                     \
-	if (!sig) snprintf((char*)expected, 64, "%d", res); \
-	else snprintf((char*)expected, 64, "%s",            \
-			sigtostr(sig));                     \
-	expect_failed(#TEST,hope,(char*)expected, __LINE__);\
-	raise(SIGTRAP);                                     \
-	siglongjmp(checkpoint, 1);                          \
+#define expect(VAL, TEST) do {                      \
+	if (!unit_has_init) unit_init();            \
+	int _signal = sigsetjmp(env, 1);            \
+	int _result = -1;                           \
+	alarm(3);                                   \
+	int _expect = (VAL);                        \
+	if (!_signal) _result = (TEST);             \
+	alarm(0);                                   \
+	if (!_signal && _result == _expect) break;  \
+	expect_failed(#TEST,__LINE__,               \
+	              _expect,_result,_signal);     \
+	raise(SIGTRAP);                             \
+	siglongjmp(checkpoint, 1);                  \
 } while (0)
 
 #define on_failure if (sigsetjmp(checkpoint, 1))
@@ -68,9 +60,8 @@ extern sigjmp_buf env;
 extern sigjmp_buf checkpoint;
 extern size_t total_failures;
 
-void expect_failed(char *, int , char *, int);
+void expect_failed(char *, int , int, int, int);
 void unit_init(void);
-void ok_failed(char *, char *, int);
-char *sigtostr(int);
+void ok_failed(char *, int, int);
 
 #endif

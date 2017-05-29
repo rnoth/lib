@@ -7,6 +7,7 @@ sigjmp_buf checkpoint;
 size_t total_failures;
 
 static void fault(int);
+static char *sigtostr(int);
 
 char *
 sigtostr(int src)
@@ -16,40 +17,70 @@ sigtostr(int src)
 	case SIGBUS:  return "bus error";
 	case SIGABRT: return "abort";
 	case SIGALRM: return "timeout";
-	default:
-		assert(!"I will never be reached");
 	}
+
+	return "INTERNAL ERROR";
 }
 
 void
-expect_failed(char *expr, int expected, char *got, int lineno)
+test_failed(char *test)
+{
+	int err;
+	err = printf("!!! test failed: ``%s'' ", test);
+	if (err < 0) die("printf failed");
+}
+
+void
+print_lineno(int lineno)
+{
+	int err;
+	err = printf("(#%d)", lineno);
+	if (err < 0) die("printf failed");
+}
+
+void
+expect_failed(char *test, int lineno, int expected, int actual,int signum)
 {
 	int err = 0;
-	err = printf("\r\033[K!!! test failed: ``%s''; expected %d, got %s (#%d)\n",
-			expr, expected, got, lineno);
-	if (err < 0) {
-		perror("printf");
-		exit(1);
-	}
+	char got[64];
+
+	test_failed(test);
+
+	if (signum) sprintf(got, "%s", sigtostr(signum));
+	else sprintf(got, "%d", actual);
+
+	err = printf("-- expected %d, got %s ", expected, got);
+	if (err < 0) die("printf failed");
+
+	print_lineno(lineno);
+
+	printf("\n");
+
+	err = fflush(stdout);
+	if (err == -1) die("fflush failed");
 
 	++total_failures;
 }
 
 void
-ok_failed(char *expr, char *sigmsg, int lineno)
+ok_failed(char *test, int lineno, int signum)
 {
 	int err = 0;
-	err = printf("\r\033[K!!! test failed: ``%s'' %s(#%d)\n", expr, sigmsg, lineno);
-	if (err < 0) {
-		perror("printf");
-		exit(1);
+
+	err = printf("!!! test failed: ``%s'' ", test);
+	if (err < 0) die("printf failed");
+
+	if (signum) {
+		err = printf("-- %s", sigtostr(signum));
+		if (err < 0)  die("printf failed");
 	}
 
+	print_lineno(lineno);
+
+	printf("\n");
+
 	err = fflush(stdout);
-	if (err == -1) {
-		perror("fflush");
-		exit(1);
-	}
+	if (err == -1) die("fflush failed");
 
 	++total_failures;
 }
