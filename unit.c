@@ -1,4 +1,5 @@
-#include "unit.h"
+#include <unit.h>
+#include <util.h>
 
 sigjmp_buf env;
 sigjmp_buf checkpoint;
@@ -13,6 +14,7 @@ sigtostr(int src)
 	case SIGSEGV: return "segfault";
 	case SIGBUS:  return "bus error";
 	case SIGABRT: return "abort";
+	case SIGALRM: return "timeout";
 	default:
 		assert(!"I will never be reached");
 	}
@@ -60,7 +62,7 @@ fault(int sig)
 void
 init_test(void)
 {
-	struct sigaction sa = {0};
+	struct sigaction sa[1] = {0};
 
 	// enable x86 alignment check
 	// commented out as it causes most stdlibs to crash
@@ -68,28 +70,16 @@ init_test(void)
 	//        "orl $0x40000, (%rsp)\n"  
 	//        "popf"); 
 
-	sa.sa_handler = fault;
+	sa->sa_handler = fault;
 
-	if (sigaction(SIGSEGV, &sa, 0x0)) {
-		perror("sigaction");
-		abort();
-	}
+	if (sigaction(SIGSEGV, sa, 0x0)) die("sigaction failed");
+	if (sigaction(SIGALRM, sa, 0x0)) die("sigaction failed");
 
 	// mostly useless without alignment checks
-	if (sigaction(SIGBUS, &sa, 0x0)) {
-		perror("sigaction");
-		abort();
-	}
+	if (sigaction(SIGBUS, sa, 0x0)) die("sigaction failed");
+	if (sigaction(SIGABRT, sa, 0x0)) die("sigaction failed");
 
-	if (sigaction(SIGABRT, &sa, 0x0)) {
-		perror("sigaction");
-		abort();
-	}
-
-	sa.sa_handler = SIG_IGN;
-	if (sigaction(SIGTRAP, &sa, 0x0)) {
-		perror("sigaction");
-		abort();
-	}
+	sa->sa_handler = SIG_IGN;
+	if (sigaction(SIGTRAP, sa, 0x0)) die("sigaction failed");
 
 }

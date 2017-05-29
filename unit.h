@@ -7,6 +7,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
+
+// TODO this all should be cleaned up
 
 #define ok(TEST) do {                                       \
 	volatile char paren[64];                            \
@@ -27,7 +30,9 @@
 	volatile char expected[64] = "";                    \
 	int sig = sigsetjmp(env, 1);                        \
 	int res = -1;                                       \
+	alarm(3);                                           \
 	if (!sig) res = (TEST);                             \
+	alarm(0);                                           \
 	int hope = (VAL);                                   \
 	if (!sig && res == hope) break;                     \
 	if (!sig) snprintf((char*)expected, 64, "%d", res); \
