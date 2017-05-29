@@ -1,42 +1,43 @@
-include config.mk
+include proj.mk
 
-all: obj bin
-obj: $(OBJ)
-bin: obj $(BIN)
+compile     = $(shell $(CC) $(CFLAGS) -c -o $1 $2)
+makedeps    = $(shell makedepend -Y. -o.c.o -f - $2 2>/dev/null | sed 1,2d > $1)
+add-syms    = $(call add-defs,$1,$2) $(call add-undefs,$1,$2)
+link        = $(info $(CC) $(CFLAGS) -o $1 $2 $(call resolve,$2))
+
+add-defs    = $(shell printf 'defs-%s := %s\n' "$2" "$(call  make-defs,$2)" >> $1)
+add-undefs  = $(shell printf 'undefs-%s := %s\n' "$2" "$(call  make-undefs,$2)" >> $1)
+
+make-defs   = $(eval defs-$1 := $(call scan-defs,$1)) $(defs-$1)
+make-undefs = $(eval undefs-$1 := $(call scan-undefs,$1)) $(undefs-$1)
+
+scan-defs   = $(shell nm -g $1 | awk '/^[^ ]+ [^U]/ { print $$3 }' | tr '\n' ' ')
+scan-undefs = $(shell nm -u $1 | awk '{ print $$2 }' | tr '\n' ' ')
+
+resolve     = $(sort $(foreach obj,$(OBJ),$(call if-deps,$1,$(obj), $(obj) $(call deps,$(obj)))))
+if-deps     = $(if $(call depends,$1,$2),$(if $(call conflicts,$1,$2),,$3))
+conflicts   = $(filter $(defs-$1), $(defs-$2))
+depends     = $(filter $(defs-$2), $(undefs-$1)),
+deps        = $(foreach obj,$(OBJ),$(call if-deps,$1,$(obj), $(obj)))
+
+all: $(OBJ) $(BIN)
 
 -include $(DEP)
 
-deps	= $(eval deps-undef := $(shell cat $(1:.o=.u))) \
-	  $(foreach obj, $(OBJ) \
-	  	, $(if $(filter $(deps-undef), $(shell cat $(obj:.o=.f))) \
-		  , $(obj)))
-
-resolve = $(eval undef := $(shell cat $(1:.o=.u))) \
-	  $(sort $(foreach obj, $(filter-out $1, $(OBJ)) \
-	  	   , $(if $(filter $(undef), $(shell cat $(obj:.o=.f))) \
-		     , $(obj) $(call deps,$(obj)))))
+clean:
+	find . -name '*.c.*' -delete
+	find . -executable -delete
 
 %.c.o: %.c
-	@makedepend -Y -o.c.o -f - $< 2>/dev/null | sed 1,2d > $*.c.d
-	@echo CC $<
-	@$(CC) $(CFLAGS) -c -o $@ $<
-	@nm -u $@ | awk '{ print $$2 }' | sort > $*.c.u
-	@nm -g $@ | awk '/0+ [^U]/ { print $$3 }' | sort > $*.c.f
+	@$(info CC $<)
+	@$(call makedeps,$*.c.mk,$<)
+	@$(call compile,$@,$<)
+	@$(call add-syms,$*.c.mk,$@)
 
-tests/%-test: tests/%-test.c.o skel.c.o
-	@$(eval res := $(call resolve, $<))
-	@printf '%s: %s\n' $@ '$(res)' > $@.d
-	@echo LD -o $@
-	@$(CC) $(CFLAGS) -o $@ $< skel.c.o $(res) $(LDFLAGS)
-	@$@ || true
-	@echo
+test-%: test-%.c.o
+	@$(info LD -o $@)
+	@$(call link,$@,$<)
 
-test:
-	@for test in tests/*-test; do "$$test"; echo; done;
-
-clean:
-	@find . -regex '.*\.o\|.*\.d\|.*\.f\|.*\.u' -delete
-	@rm -f tests/*-test core vgcore.*
-	@echo cleaning
-
-.PHONY: clean test all obj bin
+run-test-%: test-%
+	@$(info TEST $(patsubst test-%,%, $@))
+	@$@
