@@ -3,7 +3,7 @@ include proj.mk
 compile     = $(shell $(CC) $(CFLAGS) -c -o $1 $2)
 makedeps    = $(shell makedepend -Y. -o.c.o -f - $2 2>/dev/null | sed 1,2d > $1)
 add-syms    = $(call add-defs,$1,$2) $(call add-undefs,$1,$2)
-link        = $(info $(CC) $(CFLAGS) -o $1 $2 $(call resolve,$2))
+link        = $(shell $(CC) $(CFLAGS) -o $1 $2 $3 $(call resolve,$2))
 
 add-defs    = $(shell printf 'defs-%s := %s\n' "$2" "$(call  make-defs,$2)" >> $1)
 add-undefs  = $(shell printf 'undefs-%s := %s\n' "$2" "$(call  make-undefs,$2)" >> $1)
@@ -14,19 +14,22 @@ make-undefs = $(eval undefs-$1 := $(call scan-undefs,$1)) $(undefs-$1)
 scan-defs   = $(shell nm -g $1 | awk '/^[^ ]+ [^U]/ { print $$3 }' | tr '\n' ' ')
 scan-undefs = $(shell nm -u $1 | awk '{ print $$2 }' | tr '\n' ' ')
 
-resolve     = $(sort $(foreach obj,$(OBJ),$(call if-deps,$1,$(obj), $(obj) $(call deps,$(obj)))))
-if-deps     = $(if $(call depends,$1,$2),$(if $(call conflicts,$1,$2),,$3))
-conflicts   = $(filter $(defs-$1), $(defs-$2))
-depends     = $(filter $(defs-$2), $(undefs-$1)),
-deps        = $(foreach obj,$(OBJ),$(call if-deps,$1,$(obj), $(obj)))
+resolve       = $(eval res :=) $(call do-resolve,$1) $(res)
+do-resolve    = $(foreach obj,$(filter-out $(obj) $(res),$(OBJ)), $(call try-res,$1,$(obj)))
+try-res       = $(if $(call depends,$1,$2), $(call add-with-deps,$(obj)))
+add-with-deps = $(eval res += $1) $(eval res += $(call do-resolve,$1))
+depends       = $(filter $(defs-$2), $(undefs-$1))
 
-all: $(OBJ) $(BIN)
+add-deps      = $(shell printf '%s: %s\n' $2 "$res" >$1)
+
+all: $(OBJ) $(BIN) $(TESTS)
 
 -include $(DEP)
 
 clean:
-	find . -name '*.c.*' -delete
-	find . -executable -delete
+	@echo cleaning
+	@find . -maxdepth 2 -name '*.c.*' -delete
+	@find . -type f -maxdepth 2 -executable -delete
 
 %.c.o: %.c
 	@$(info CC $<)
@@ -34,10 +37,10 @@ clean:
 	@$(call compile,$@,$<)
 	@$(call add-syms,$*.c.mk,$@)
 
-test-%: test-%.c.o
+%-test: %-test.c.o skel.c.o
 	@$(info LD -o $@)
-	@$(call link,$@,$<)
-
-run-test-%: test-%
+	@$(call link,$@,$<,skel.c.o)
+	@$(call add-deps, $*-test.mk, $@)
 	@$(info TEST $(patsubst test-%,%, $@))
 	@$@
+	@echo
