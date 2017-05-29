@@ -12,10 +12,13 @@
 // TODO this all should be cleaned up
 
 #define ok(TEST) do {                                       \
+	if (!unit_has_init) unit_init();                    \
 	volatile char paren[64];                            \
 	int sig = sigsetjmp(env, 1);                        \
 	bool res = -1;                                      \
+	alarm(3);                                           \
 	if (!sig) res = (TEST);                             \
+	alarm(0);                                           \
 	if (!sig && res) break;                             \
 	if (!sig) paren[0] = 0;                             \
 	else snprintf((char*)paren, 64, "-- %s ",           \
@@ -27,6 +30,7 @@
 
 #define try(ACT) ok((ACT, 1))
 #define expect(VAL, TEST) do {                              \
+	if (!unit_has_init) unit_init();                    \
 	volatile char expected[64] = "";                    \
 	int sig = sigsetjmp(env, 1);                        \
 	int res = -1;                                       \
@@ -59,12 +63,13 @@ extern char filename[];
 void cleanup(void);
 
 // provided
+extern bool unit_has_init;
 extern sigjmp_buf env;
 extern sigjmp_buf checkpoint;
 extern size_t total_failures;
 
 void expect_failed(char *, int , char *, int);
-void init_test(void);
+void unit_init(void);
 void ok_failed(char *, char *, int);
 char *sigtostr(int);
 
