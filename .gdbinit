@@ -19,6 +19,8 @@ skip file vec.c
 
 skip ctx_init
 skip ctx_fini
+
+handle SIGALRM ignore
 set logging off
 
 define print-prog
