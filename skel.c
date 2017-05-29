@@ -5,7 +5,7 @@ main()
 {
 	size_t i = 0;
 
-	init_test();
+	unit_init();
 
 	printf("testing %s\n", filename);
 
