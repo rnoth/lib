@@ -1,9 +1,10 @@
 include proj.mk
 
-compile     = $(shell $(CC) $(CFLAGS) -c -o $1 $2)
+compile     = $(shell $(CC) $(CFLAGS) -c -o $1 $2 || echo false)
 makedeps    = $(shell makedepend -Y. -o.c.o -f - $2 2>/dev/null | sed 1,2d > $1)
-add-syms    = $(call add-defs,$1,$2) $(call add-undefs,$1,$2)
-link        = $(shell $(CC) $(CFLAGS) -o $1 $2 $3 $(call resolve,$2))
+add-syms    = $(if $(wildcard $2), $(call do-syms,$1,$2))
+do-syms     = $(call add-defs,$1,$2) $(call add-undefs,$1,$2)
+link        = $(shell $(CC) $(CFLAGS) -o $1 $2 $3 $(call resolve,$2) || echo false)
 
 add-defs    = $(shell printf 'defs-%s := %s\n' "$2" "$(call  make-defs,$2)" >> $1)
 add-undefs  = $(shell printf 'undefs-%s := %s\n' "$2" "$(call  make-undefs,$2)" >> $1)
@@ -20,7 +21,7 @@ try-res       = $(if $(call depends,$1,$2), $(call add-with-deps,$(obj)))
 add-with-deps = $(eval res += $1) $(eval res += $(call do-resolve,$1))
 depends       = $(filter $(defs-$2), $(undefs-$1))
 
-add-deps      = $(shell printf '%s: %s\n' $2 "$res" >$1)
+add-deps      = $(shell printf '%s: %s\n' $2 "$(res)" >$1)
 
 all: $(OBJ) $(BIN) $(TESTS)
 

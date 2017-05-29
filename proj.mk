@@ -8,15 +8,15 @@ LDFLAGS += -lc -Wl,--sort-section=alignment -Wl,--sort-common
 
 SRC	:= $(wildcard *.c tests/*.c)
 OBJ	:= $(SRC:.c=.c.o)
-DEP	:= $(shell find . -name "*.c.mk")
+DEP	:= $(shell find . -name "*.mk")
 BIN	:= $(patsubst %.c, %, $(filter %-test.c, $(SRC)))
 #TESTS	:= $(patsubst %.c, %-run, $(filter %-test.c, $(SRC)))
 
 #ifndef NDEBUG
-CFLAGS	+= -O0 -g #-Werror
+CFLAGS	+= -O0 -g -Werror
 CFLAGS	+= -Wunreachable-code \
 	   -Wno-missing-field-initializers -Wno-unused-parameter \
-	   -Warray-bounds -Wno-switch -Wmissing-prototypes
+	   -Warray-bounds
 #else
 #LDFLAGS += -Wl,--gc-section
 #CFLAGS += -O3 -flto
