@@ -71,7 +71,7 @@ test_clone(void)
 {
 	int *cln = vec_clone(intvec);
 
-	ok(cln);
+	ok(!!cln);
 
 	ok(vec_len(cln) == vec_len(intvec));
 	ok(!memcmp(cln, intvec, vec_len(cln) * sizeof *cln));
