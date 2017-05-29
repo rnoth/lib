@@ -1,6 +1,7 @@
 #include <unit.h>
 #include <util.h>
 
+bool unit_has_init;
 sigjmp_buf env;
 sigjmp_buf checkpoint;
 size_t total_failures;
@@ -60,9 +61,11 @@ fault(int sig)
 }
 
 void
-init_test(void)
+unit_init(void)
 {
-	struct sigaction sa[1] = {0};
+	struct sigaction sa[1] = {{0}};
+
+	if (unit_has_init) return;
 
 	// enable x86 alignment check
 	// commented out as it causes most stdlibs to crash
@@ -82,4 +85,5 @@ init_test(void)
 	sa->sa_handler = SIG_IGN;
 	if (sigaction(SIGTRAP, sa, 0x0)) die("sigaction failed");
 
+	unit_has_init = true;
 }
