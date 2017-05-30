@@ -85,14 +85,14 @@ uint8_t
 key_index(struct key *k, size_t i)
 {
 	if (i >> 3 >= k->len) return 0;
-	return !!(k->src[i >> 3] & 1 << (i & 7));
+	return !!(k->src[i >> 3] & 128 >> (i & 7));
 }
 
 uint8_t
 key_index_or_eol(struct key *k, size_t i)
 {
 	if (i >> 3 >= k->len) return -1;
-	return !!(k->src[i >> 3] & 1 << (i & 7));
+	return !!(k->src[i >> 3] & 128 >> (i & 7));
 }
 
 bool
@@ -150,7 +150,7 @@ nod_compare(struct external *new, struct key *key)
 	if (diff & 0x0c) diff >>= 2, off |= 2;
 	if (diff & 0x02) diff >>= 1, off |= 1;
 
-	return (pos << 3) + off;
+	return (pos << 3) + 7 - off;
 }
 
 int
