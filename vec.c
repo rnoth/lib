@@ -1,22 +1,21 @@
 #include <assert.h>
 #include <errno.h>
 #include <limits.h>
-#include <stdio.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 
 #include "util.h"
 #include "vec.h"
 
-#define VECSIZ 8
-#define HEADER (sizeof (size_t))
-
 #undef vec_mem
 #undef vec_new
 
+#undef vec_alloc
 #undef vec_append
 #undef vec_clone
 #undef vec_concat
+#undef vec_ctor
 #undef vec_copy
 #undef vec_delete
 #undef vec_elim
@@ -30,47 +29,30 @@
 #undef vec_transfer
 #undef vec_truncat
 
+size_t const vec_header_size = sizeof (size_t) * 2;
+
 union vec {
 	size_t        **z;
 	void const     *p;
 	unsigned char **v;
 };
 
-size_t
-vec_mem(void const *v, size_t size)
+#define vec(p) { .p = p }
+
+void *
+vec_alloc(size_t size, size_t len)
 {
-	size_t off = vec_len(v) * size;
-	union {
-		void const *v;
-		unsigned char const *y;
-	} vec = { .v = v };
+	size_t mem;
+	size_t *ret;
 
-	while (vec.y[off] != 0xff) ++off;
+	mem = size * len + vec_header_size;
 
-	return -~off;
-}
+	ret = calloc(1, mem);
+	if (!ret) return 0x0;
 
+	ret[0] = size * len;
 
-int
-vec_alloc(void *vecp, size_t size)
-{
-	size_t siz = 0;
-	union vec vec = {.p = vecp};
-
-	if (mulz_overflows(VECSIZ, size)) return EOVERFLOW;
-	siz = VECSIZ * size;
-
-	if (addz_overflows(HEADER, siz)) return EOVERFLOW;
-	siz = HEADER + siz;
-
-	*vec.v = calloc(1, siz);
-	if (!*vec.v) return ENOMEM;
-
-	*vec.v = *vec.v + HEADER;
-
-	(*vec.v)[VECSIZ * size - 1] = 0xff;
-
-	return 0;
+	return ret + 2;
 }
 
 int
@@ -85,8 +67,9 @@ vec_clone(void const *vec, size_t size)
 {
 	void *ret = 0x0;
 
-	if (vec_alloc(&ret, size))
-		return 0x0;
+	ret = vec_alloc(size, umax(vec_len(vec), 8));
+
+	if (!ret) return 0;
 
 	if (vec_join(&ret, vec, size)) {
 		vec_free(ret);
@@ -97,6 +80,13 @@ vec_clone(void const *vec, size_t size)
 }
 
 int
+vec_concat(void *destp, void const *src, size_t nmemb, size_t size)
+{
+	union vec dest = {.p = destp};
+	return vec_splice(destp, vec_len(*dest.v), src, nmemb, size);
+}
+
+int
 vec_copy(void *destp, void *src, size_t size)
 {
 	vec_truncat(destp, 0, size);
@@ -104,10 +94,15 @@ vec_copy(void *destp, void *src, size_t size)
 }
 
 int
-vec_concat(void *destp, void const *src, size_t nmemb, size_t size)
+vec_ctor(void *vecp, size_t size)
 {
-	union vec dest = {.p = destp};
-	return vec_splice(destp, vec_len(*dest.v), src, nmemb, size);
+	union vec vec = {.p = vecp};
+	void *res = vec_alloc(size, 8);
+
+	if (!res) return ENOMEM;
+
+	*vec.v = res;
+	return 0;
 }
 
 void
@@ -119,10 +114,10 @@ vec_delete(void *vecp, size_t which, size_t size)
 void
 vec_elim(void *vecp, size_t ind, size_t nmemb, size_t size)
 {
+	union vec vec = {.p = vecp};
 	size_t len = 0;
 	size_t ext = 0;
 	size_t off = 0;
-	union vec vec = {.p = vecp};
 
 	if (ind > vec_len(*vec.v)) return;
 
@@ -156,7 +151,7 @@ void
 vec_free(void *vec)
 {
 	if (!vec) return;
-	free((char *)vec - HEADER);
+	free((char *)vec - vec_header_size);
 }
 
 void *
@@ -164,7 +159,7 @@ vec_new(size_t size)
 {
 	void *ret;
 
-	vec_alloc(&ret, size);
+	vec_ctor(&ret, size);
 
 	return ret;
 }
@@ -174,7 +169,6 @@ vec_pop(void *dest, void *srcp, size_t size)
 {
 	union vec src = {.p = srcp};
 	size_t ext = 0;
-
 
 	ext = (vec_len(*src.v) - 1) * size;
 	
@@ -191,23 +185,19 @@ vec_resize(void *vecp, size_t new, size_t size)
 	unsigned char *tmp = 0x0;
 	size_t ext = 0;
 
+	old = *vec.v - vec_header_size;
 
-	old = *vec.v - HEADER;
-
-	(*vec.v)[vec_mem(*vec.v, size) - 1] = 0;
-
-	tmp = calloc(1, new + HEADER);
+	tmp = calloc(1, new + vec_header_size);
 	if (!tmp) return ENOMEM;
 
-	ext = umin(new, vec_len(*vec.v) * size);
-	ext += HEADER;
+	ext = vec_len(*vec.v) * size + vec_header_size;
 
 	memcpy(tmp, old, ext);
 	free(old);
 
-	*vec.v = tmp + HEADER;
+	*vec.v = tmp + vec_header_size;
 
-	(*vec.v)[new - 1] = 0xff;
+	(*vec.z)[-2] = new;
 	return 0;
 }
 
@@ -221,12 +211,11 @@ vec_shift(void *vecp, size_t off, size_t size)
 void
 vec_slice(void *vecp, size_t beg, size_t nmemb, size_t size)
 {
+	union vec vec = {.p = vecp};
 	size_t ext = 0;
 	size_t off = 0;
 	size_t len = 0;
 	size_t min = 0;
-	union vec vec = {.p = vecp};
-
 
 	if (beg >= vec_len(*vec.v)) {
 		vec_truncat(vecp, 0, size);
@@ -239,7 +228,6 @@ vec_slice(void *vecp, size_t beg, size_t nmemb, size_t size)
 	off = beg * size;
 	len = vec_len(*vec.v) * size;
 
-
 	memmove(*vec.v, *vec.v + off, ext);
 	memset(*vec.v + ext, 0, len - ext);
 
@@ -249,26 +237,23 @@ vec_slice(void *vecp, size_t beg, size_t nmemb, size_t size)
 int
 vec_splice(void *destp, size_t pos, void const *src, size_t nmemb, size_t size)
 {
-	int err = 0;
+	union vec dest = {.p = destp};
 	size_t ext = 0;
 	size_t len = 0;
 	size_t off = 0;
 	size_t mem = 0;
-	union vec dest = {.p = destp};
-
+	int err = 0;
 
 	if (off > vec_len(*dest.v)) return EINVAL;
-
-	if (addz_overflows(vec_len(*dest.v), nmemb))
-		return EOVERFLOW;
 
 	ext = nmemb * size;
 	len = vec_len(*dest.v) * size;
 	off = pos * size;
 
-	if (len + ext >= vec_mem(*dest.v, size)) {
-		mem = vec_mem(*dest.v, size);
+	if (len + ext >= vec_mem(*dest.v)) {
+		mem = vec_mem(*dest.v);
 		while (mem <= len + ext) mem *= 2;
+
 		err = vec_resize(dest.v, mem, size);
 		if (err) return err;
 	}
