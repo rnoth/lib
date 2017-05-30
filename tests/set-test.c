@@ -18,14 +18,16 @@ void test_query(void);
 void test_remove(void);
 void test_fixed(void);
 void test_prefix(void);
+void test_large_add(void);
 
 struct test tests[] = {
-	{ 0x0,         test_alloc,     "allocating a set", },
-	{ 0x0,         test_add,       "inserting a string", },
-	{ test_add,    test_query,     "querying the set", },
-	{ test_add,    test_remove,    "removing an element", },
-	{ test_add,    test_fixed,     "querying with a fixed-size buffer", },
-	{ test_add,    test_prefix,    "testing the prefix check", },
+	{ 0x0,         test_alloc,       "allocating a set", },
+	{ 0x0,         test_add,         "inserting a string", },
+	{ test_add,    test_query,       "querying the set", },
+	{ test_add,    test_remove,      "removing an element", },
+	{ test_add,    test_fixed,       "querying with a fixed-size buffer", },
+	{ test_add,    test_prefix,      "testing the prefix check", },
+	{ test_alloc,  test_large_add,   "adding a large number of strings", },
 };
 
 size_t const tests_len = arr_len(tests);
@@ -96,6 +98,14 @@ test_remove(void)
 }
 
 void
+test_prefix(void)
+{
+	ok(set_prefix_string(set, "f"));
+	ok(set_prefix_string(set, "q"));
+	ok(set_prefix_string(set, "b"));
+}
+
+void
 test_fixed(void)
 {
 	char **arr = calloc(3, sizeof *arr);
@@ -109,9 +119,21 @@ test_fixed(void)
 }
 
 void
-test_prefix(void)
+test_large_add(void)
 {
-	ok(set_prefix_string(set, "f"));
-	ok(set_prefix_string(set, "q"));
-	ok(set_prefix_string(set, "b"));
+	char word[256];
+	FILE *wordlist;
+
+	wordlist = fopen("opt/words", "r");
+	ok(!!wordlist);
+
+	while (fgets(word, 256, wordlist)) {
+		expect(0, set_add_string(set, word));
+	}
+
+	expect(0, fseek(wordlist, 0, SEEK_SET));
+
+	while (fgets(word, 256, wordlist)) {
+		ok(set_contains_string(set, word));
+	}
 }
