@@ -12,13 +12,12 @@ DEP	:= $(shell find . -name "*.mk")
 BIN	:= $(patsubst %.c, %, $(filter %-test.c, $(SRC)))
 #TESTS	:= $(patsubst %.c, %-run, $(filter %-test.c, $(SRC)))
 
-#ifndef NDEBUG
+ifndef NDEBUG
 CFLAGS	+= -O0 -g -Werror
 CFLAGS	+= -Wunreachable-code \
 	   -Wno-missing-field-initializers -Wno-unused-parameter \
 	   -Warray-bounds
-#else
-#LDFLAGS += -Wl,--gc-section
-#CFLAGS += -O3 -flto
-#endif
-
+else
+LDFLAGS += -Wl,--gc-section
+CFLAGS += -O3
+endif
