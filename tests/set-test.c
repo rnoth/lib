@@ -1,3 +1,4 @@
+#include <errno.h>
 #include <stdio.h>
 #include <string.h>
 #include <assert.h>
@@ -19,6 +20,7 @@ void test_remove(void);
 void test_fixed(void);
 void test_prefix(void);
 void test_large_add(void);
+void test_dup(void);
 
 struct test tests[] = {
 	{ 0x0,         test_alloc,       "allocating a set", },
@@ -28,6 +30,7 @@ struct test tests[] = {
 	{ test_add,    test_fixed,       "querying with a fixed-size buffer", },
 	{ test_add,    test_prefix,      "testing the prefix check", },
 	{ test_alloc,  test_large_add,   "adding a large number of strings", },
+	{ test_add,    test_dup,         "attempting to add duplicate strings" },
 };
 
 size_t const tests_len = arr_len(tests);
@@ -136,4 +139,10 @@ test_large_add(void)
 	while (fgets(word, 256, wordlist)) {
 		ok(set_contains_string(set, word));
 	}
+}
+
+void
+test_dup(void)
+{
+	expect(EEXIST, set_add_string(set, "foo"));
 }
