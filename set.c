@@ -136,15 +136,15 @@ leaf_ctor(struct key *key)
 }
 
 size_t
-nod_compare(struct external *new, struct key *key)
+nod_compare(struct external *ex, struct key *key)
 {
 	size_t pos = 0;
 	uint8_t off = 0;
 	uint8_t diff = 0;
 
-	while (new->elem[pos] == key->src[pos]) ++pos;
+	while (ex->elem[pos] == key->src[pos]) ++pos;
 
-	diff = new->elem[pos] ^ key->src[pos];
+	diff = ex->elem[pos] ^ key->src[pos];
 
 	if (diff & 0xf0) diff >>= 4, off |= 4;
 	if (diff & 0x0c) diff >>= 2, off |= 2;
