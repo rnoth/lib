@@ -350,6 +350,8 @@ set_do_add(uintptr_t *dest, struct key *key)
 
 	ex = nod_traverse(*dest, key);
 
+	if (key_match(key, ex)) return EEXIST;
+
 	nod = malloc(sizeof *nod);
 	if (!nod) goto nomem;
 
