@@ -3,7 +3,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
-#include <wctype.h>
+#include <ctype.h>
 
 #include "pat.h"
 #include "util.h"
@@ -61,7 +61,7 @@ struct node {
 
 struct token {
 	enum sym type;
-	wchar_t  wc;
+	wchar_t  ch;
 	int      len;
 };
 
@@ -87,12 +87,12 @@ struct context {
 union arg {
 	ptrdiff_t f;
 	int       i;
-	wchar_t   w;
+	char      b;
 	size_t    z;
 };
 
 struct ins {
-        int      (*op)(struct context *, struct thread *, wchar_t const);
+        int      (*op)(struct context *, struct thread *, char const);
 	union arg arg;
 };
 
@@ -120,13 +120,13 @@ static int  ctx_init(struct context *, struct pattern *);
 
 static int get_char(char *, void *);
 
-static int do_char(struct context *, struct thread *, wchar_t const);
-static int do_clss(struct context *, struct thread *, wchar_t const);
-static int do_fork(struct context *, struct thread *, wchar_t const);
-static int do_halt(struct context *, struct thread *, wchar_t const);
-static int do_jump(struct context *, struct thread *, wchar_t const);
-static int do_mark(struct context *, struct thread *, wchar_t const);
-static int do_save(struct context *, struct thread *, wchar_t const);
+static int do_char(struct context *, struct thread *, char const);
+static int do_clss(struct context *, struct thread *, char const);
+static int do_fork(struct context *, struct thread *, char const);
+static int do_halt(struct context *, struct thread *, char const);
+static int do_jump(struct context *, struct thread *, char const);
+static int do_mark(struct context *, struct thread *, char const);
+static int do_save(struct context *, struct thread *, char const);
 
 static uintptr_t mk_cat(uintptr_t, uintptr_t);
 
@@ -161,7 +161,7 @@ static int  pat_match(struct context *, struct pattern *);
 static int  pat_exec(struct context *);
 
 static inline bool        eol(struct pos const *);
-static inline size_t      rem(struct pos const *);
+//static inline size_t      rem(struct pos const *);
 static inline char const *str(struct pos const *);
 
 static inline bool nomatch(struct context *);
@@ -179,7 +179,7 @@ static inline uintptr_t tag_node(struct node *);
 static inline uintptr_t tag_leaf(struct ins *);
 
 bool        eol(struct pos const *p) { return p->f >= p->n; }
-size_t      rem(struct pos const *p) { return p->n - p->f; }
+//size_t      rem(struct pos const *p) { return p->n - p->f; }
 char const *str(struct pos const *p) { return p->v + p->f; }
 
 bool nomatch(struct context *ctx) { return !ctx->fin->ip; }
@@ -304,7 +304,7 @@ add_literal(struct state *st, struct token *tok)
 
 	*p = (struct ins) {
 		.op = do_char,
-		.arg = { .w = tok->wc },
+		.arg = { .b = tok->ch },
 	};
 
 	return stk_push(st, tag_leaf(p));
@@ -580,30 +580,30 @@ fail:
 }
 
 int
-do_char(struct context *ctx, struct thread *th, wchar_t const wc)
+do_char(struct context *ctx, struct thread *th, char const ch)
 {
 	size_t ind = th - ctx->thr;
 
-	if (th->ip->arg.w != wc) thr_remove(ctx, th - ctx->thr), --ind;
+	if (th->ip->arg.b != ch) thr_remove(ctx, th - ctx->thr), --ind;
 	else ++th->ip;
 
-	return thr_next(ctx, ind + 1, wc);
+	return thr_next(ctx, ind + 1, ch);
 }
 
 int
-do_clss(struct context *ctx, struct thread *th, wchar_t const wc)
+do_clss(struct context *ctx, struct thread *th, char const ch)
 {
 	size_t ind = th - ctx->thr;
 	bool res;
 
 	switch (th->ip->arg.i) {
 	case class_any: res = true; break;
-	case class_dot: res = wc != L'\n' && wc != L'\0'; break;
-	case class_alpha: res = iswalpha(wc); break;
-	case class_upper: res = iswupper(wc); break;
-	case class_lower: res = iswlower(wc); break;
-	case class_space: res = iswspace(wc); break;
-	case class_digit: res = iswdigit(wc); break;
+	case class_dot: res = ch != L'\n' && ch != L'\0'; break;
+	case class_alpha: res = isalpha(ch); break;
+	case class_upper: res = isupper(ch); break;
+	case class_lower: res = islower(ch); break;
+	case class_space: res = isspace(ch); break;
+	case class_digit: res = isdigit(ch); break;
 	default:
 		return -1; // XXX
 	}
@@ -611,11 +611,11 @@ do_clss(struct context *ctx, struct thread *th, wchar_t const wc)
 	if (!res) thr_remove(ctx, ind), --ind;
 	else ++th->ip;
 
-	return thr_next(ctx, ind + 1, wc);
+	return thr_next(ctx, ind + 1, ch);
 }
 
 int
-do_fork(struct context *ctx, struct thread *th, wchar_t const wc)
+do_fork(struct context *ctx, struct thread *th, char const ch)
 {
 	struct thread new[1] = {{0}};
 	size_t ind = th - ctx->thr;
@@ -623,7 +623,6 @@ do_fork(struct context *ctx, struct thread *th, wchar_t const wc)
 
 	err = thr_fork(new, th);
 	if (err) goto fail;
-
 	new->ip += th->ip->arg.f;
 
 	err = vec_insert(&ctx->thr, new, ind + 1);
@@ -632,7 +631,7 @@ do_fork(struct context *ctx, struct thread *th, wchar_t const wc)
 	th = ctx->thr + ind;
 
 	++th->ip;
-	return th->ip->op(ctx, th, wc);
+	return th->ip->op(ctx, th, ch);
 
 fail:
 	vec_free(new->mat);
@@ -640,7 +639,7 @@ fail:
 }
 
 int
-do_halt(struct context *ctx, struct thread *th, wchar_t const wc)
+do_halt(struct context *ctx, struct thread *th, char const ch)
 {
 	struct patmatch term[] = {{ .off = -1, .ext = -1 }};
 	size_t ind = th - ctx->thr;
@@ -648,25 +647,25 @@ do_halt(struct context *ctx, struct thread *th, wchar_t const wc)
 
 	if (thr_cmp(ctx->fin, th) > 0) {
 		thr_remove(ctx, ind);
-		return thr_next(ctx, ind, wc);
+		return thr_next(ctx, ind, ch);
 	}
 
 	err = vec_append(&th->mat, term);
 	if (err) return err;
 
 	thr_finish(ctx, ind);
-	return thr_next(ctx, ind, wc);
+	return thr_next(ctx, ind, ch);
 }
 
 int
-do_jump(struct context *ctx, struct thread *th, wchar_t const wc)
+do_jump(struct context *ctx, struct thread *th, char const ch)
 {
 	th->ip += th->ip->arg.f;
-	return th->ip->op(ctx, th, wc);
+	return th->ip->op(ctx, th, ch);
 }
 
 int
-do_mark(struct context *ctx, struct thread *th, wchar_t const wc)
+do_mark(struct context *ctx, struct thread *th, char const ch)
 {
 	int err = 0;
 	struct patmatch mat = {0};
@@ -678,11 +677,11 @@ do_mark(struct context *ctx, struct thread *th, wchar_t const wc)
 	if (err) return err;
 
 	++th->ip;
-	return th->ip->op(ctx, th, wc);
+	return th->ip->op(ctx, th, ch);
 }
 
 int
-do_save(struct context *ctx, struct thread *th, wchar_t const wc)
+do_save(struct context *ctx, struct thread *th, char const ch)
 {
 	size_t off = vec_len(th->mat);
 
@@ -691,7 +690,7 @@ do_save(struct context *ctx, struct thread *th, wchar_t const wc)
 	th->mat[off].ext = ctx->pos - th->mat[off].off;
 
 	th->ip++;
-	return th->ip->op(ctx, th, wc);
+	return th->ip->op(ctx, th, ch);
 }
 
 int
@@ -1042,10 +1041,8 @@ pat_lex(struct token *tok, struct state *st)
 
 	default:
 		tok->type = sym_literal;
-		tok->len = mbtowc(&tok->wc, str(pos), rem(pos));
-
-		if (tok->len == -1) tok->wc = pos->v[0], tok->len = 1;
-		else if (tok->len == 0) tok->len = 1;
+		tok->ch   = str(pos)[0];
+		tok->len  = 1;
 	}
  
  	pos->f += tok->len;
@@ -1055,12 +1052,8 @@ esc:  // XXX
 	switch (pos->v[pos->f + 1]) {
 	default:
 		tok->type = sym_literal;
-		int tmp = mbtowc(&tok->wc, str(pos) + 1, rem(pos) - 1);
-
-		if (tmp == -1) tmp = 1, tok->wc = pos->v[0];
-		else if (tmp == 0) tmp = 1;
-
-		tok->len += tmp;
+		tok->ch = str(pos)[1];
+		tok->len = 2;
 	}
 
  	pos->f += tok->len;
