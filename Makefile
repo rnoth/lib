@@ -15,11 +15,11 @@ make-undefs = $(eval undefs-$1 := $(call scan-undefs,$1)) $(undefs-$1)
 scan-defs   = $(shell nm -g $1 | awk '/^[^ ]+ [^U]/ { print $$3 }' | tr '\n' ' ')
 scan-undefs = $(shell nm -u $1 | awk '{ print $$2 }' | tr '\n' ' ')
 
-resolve       = $(eval res := $1) $(call do-resolve,$1) $(res)
+resolve       = $(eval res := $1) $(eval defs := $($1-defs)) $(call do-resolve,$1) $(res)
 do-resolve    = $(foreach obj,$(filter-out $(obj) $(res),$(OBJ)), $(call try-res,$1,$(obj)))
 try-res       = $(if $(call depends,$1,$2), $(call add-with-deps,$(obj)))
-add-with-deps = $(eval res += $1) $(eval res += $(call do-resolve,$1))
-depends       = $(filter $(defs-$2), $(undefs-$1))
+add-with-deps = $(eval res += $1) $(defs += $($1-defs)) $(eval res += $(call do-resolve,$1))
+depends       = $(filter $(defs-$2), $(filter-out $(defs), $(undefs-$1)))
 
 add-deps      = $(shell printf '%s: %s\n' $2 "$(res)" >$1)
 
