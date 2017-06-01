@@ -6,9 +6,9 @@ CFLAGS	+= -pipe -I. -D_POSIX_C_SOURCE -std=c99 -pedantic -Wall -Wextra \
 	   -fno-stack-protector
 LDFLAGS += -lc -Wl,--sort-section=alignment -Wl,--sort-common
 
-SRC	:= $(shell find . -name '*.c')
+SRC	:= $(wildcard *.c */*.c)
 OBJ	:= $(SRC:.c=.c.o)
-DEP	:= $(shell find . -name "*.d")
+DEP	:= $(wildcard *.d */*.d)
 BIN	:= $(patsubst %.c, %, $(filter %-test.c, $(SRC)))
 #TESTS	:= $(patsubst %.c, %-run, $(filter %-test.c, $(SRC)))
 

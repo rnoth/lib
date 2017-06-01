@@ -7,8 +7,9 @@ all: $(OBJ) $(BIN) $(TESTS)
 
 clean:
 	@echo cleaning
-	@find . -maxdepth 2 -name '*.c.*' -delete
-	@find . -type f -maxdepth 2 -executable -delete
+	@find . -name '*.c.o' -delete
+	@find . -type f -executable -delete
+	@find . -name '*.d' -delete
 
 %.c.o: %.c
 	@$(info CC $<)
@@ -19,7 +20,9 @@ clean:
 %-test: %-test.c.o skel.c.o
 	@$(info LD -o $@)
 	@$(call link,$@,$< skel.c.o)
-	@$(call add-deps, $*-test.d, $@)
+	@$(call write-deps, $*-test.d, $@)
 	@$(info TEST $(patsubst test-%,%, $@))
 	@$@
 	@echo
+
+.PHONY: clean
