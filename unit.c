@@ -13,6 +13,7 @@ char *
 sigtostr(int src)
 {
 	switch (src) {
+	case SIGILL:  return "illegal instruction";
 	case SIGSEGV: return "segfault";
 	case SIGBUS:  return "bus error";
 	case SIGABRT: return "abort";
@@ -108,6 +109,7 @@ unit_init(void)
 
 	if (sigaction(SIGSEGV, sa, 0x0)) die("sigaction failed");
 	if (sigaction(SIGALRM, sa, 0x0)) die("sigaction failed");
+	if (sigaction(SIGILL,  sa, 0x0)) die("sigaction failed");
 
 	// mostly useless without alignment checks
 	if (sigaction(SIGBUS, sa, 0x0)) die("sigaction failed");
