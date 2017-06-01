@@ -10,6 +10,7 @@ static void do_esc(void);
 static void do_qmark(void);
 static void do_star(void);
 static void do_sub(void);
+static void do_plain(void);
 static void do_plus(void);
 static void do_dot(void);
 static void loop(void);
@@ -28,13 +29,22 @@ struct b {
 };
 
 struct test tests[] = {
-	{ do_qmark, loop,      "testing the ? operator", },
-	{ do_star,  loop,      "testing the * operator", },
-	{ do_plus,  loop,      "testing the + operator", },
-	{ do_alter, loop,      "testing the | operator", },
-	{ do_esc,   loop,      "testing the \\ escapes", },
-	{ do_sub,   loop,      "testing the () submatches", },
-	{ do_dot,   loop,      "testing the . metacharacter", },
+	{ do_plain, loop,  "testing plaintext matching" },
+	{ do_qmark, loop,  "testing the ? operator", },
+	{ do_star,  loop,  "testing the * operator", },
+	{ do_plus,  loop,  "testing the + operator", },
+	{ do_alter, loop,  "testing the | operator", },
+	{ do_esc,   loop,  "testing the \\ escapes", },
+	{ do_sub,   loop,  "testing the () submatches", },
+	{ do_dot,   loop,  "testing the . metacharacter", },
+};
+
+struct a plain[] = {
+	{ "abc", (struct b[]) {
+		{ "abc", 0, 3 },
+		{ 0x0 }, },
+	},
+	{ 0x0 }
 };
 
 struct a qmark[] = {
@@ -240,6 +250,7 @@ void do_alter(void) { cur = alter; }
 void do_qmark(void) { cur = qmark; }
 void do_star(void)  { cur = star; }
 void do_sub(void)   { cur = sub; }
+void do_plain(void) { cur = plain; }
 void do_plus(void)  { cur = plus; }
 void do_esc(void)   { cur = esc; }
 void do_dot(void)   { cur = dot; }
