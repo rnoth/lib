@@ -13,10 +13,10 @@ BIN	:= $(patsubst %.c, %, $(filter %-test.c, $(SRC)))
 #TESTS	:= $(patsubst %.c, %-run, $(filter %-test.c, $(SRC)))
 
 ifndef NDEBUG
-CFLAGS	+= -O0 -g -Werror
+CFLAGS	+= -O0 -g #-Werror
 CFLAGS	+= -Wunreachable-code \
 	   -Wno-missing-field-initializers -Wno-unused-parameter \
-	   -Warray-bounds
+	   -Warray-bounds -Wno-missing-braces
 else
 LDFLAGS += -Wl,--gc-section
 CFLAGS += -O3
