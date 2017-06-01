@@ -2,7 +2,7 @@
 .*.swp
 vgcore.*
 *.o
-*.mk
+*.d
 !proj.mk
 core
 tags
