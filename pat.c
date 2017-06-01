@@ -172,7 +172,6 @@ static int pat_match(struct context *, struct pattern *);
 
 void       step(struct pos *p) { ++p->f; }
 bool        eol(struct pos const *p) { return p->f >= p->n; }
-bool        bol(struct pos const *p) { return p->f == 0; }
 char const *str(struct pos const *p) { return p->v + p->f; }
 
 bool nomatch(struct context *ctx) { return !ctx->fin->ip; }
