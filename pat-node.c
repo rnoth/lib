@@ -5,6 +5,7 @@ bool
 is_open(uintptr_t u)
 {
 	struct node *nod;
+
 	if (is_leaf(u)) return false;
 	nod = to_node(u);
 	if (nod->type != type_sub) {
@@ -23,16 +24,27 @@ mk_cat(uintptr_t lef, uintptr_t rit)
 		cat->type = type_cat;
 		cat->chld[0] = lef;
 		cat->chld[1] = rit;
-		cat->type = nod_len(lef) + nod_len(rit);
+		cat->len = nod_len(lef) + nod_len(rit);
 	}
 
 	return tag_node(cat);
 }
 
 uintptr_t
+mk_open(void)
+{
+	struct node *ret;
+
+	ret = calloc(1, sizeof *ret);
+	if (ret) ret->type = type_sub;
+	return tag_node(ret);
+}
+
+uintptr_t
 nod_attach(uintptr_t lef, uintptr_t rit)
 {
 	uintptr_t cat;
+	if (!rit) return lef;
 	if (is_node(lef)) {
 		to_node(lef)->chld[0] = rit;
 		return lef;
