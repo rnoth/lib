@@ -10,7 +10,9 @@ SRC	:= $(wildcard *.c */*.c)
 OBJ	:= $(SRC:.c=.c.o)
 DEP	:= $(wildcard *.d */*.d)
 BIN	:= $(patsubst %.c, %, $(filter %-test.c, $(SRC)))
-#TESTS	:= $(patsubst %.c, %-run, $(filter %-test.c, $(SRC)))
+TESTS	:= $(patsubst %.c, %, $(filter %-test.c, $(SRC)))
+
+$(TESTS): skel.c.o
 
 ifndef NDEBUG
 CFLAGS	+= -O0 -g #-Werror

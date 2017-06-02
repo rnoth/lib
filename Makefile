@@ -1,9 +1,13 @@
+all: obj bin tests
+
 include proj.mk
 include build.mk
 
-all: $(OBJ) $(BIN) $(TESTS)
-
 -include $(DEP)
+
+obj: $(OBJ)
+bin: $(BIN)
+tests: $(TESTS)
 
 clean:
 	@echo cleaning
@@ -25,4 +29,4 @@ clean:
 	@$@
 	@echo
 
-.PHONY: clean
+.PHONY: clean obj bin tests
