@@ -11,15 +11,6 @@
 #include <pat.h>
 #include <pat.ih>
 
-struct state {
-	struct pos   src[1];
-	enum token   tok;
-	uint8_t     *stk;
-	uint8_t     *ir;
-	uint8_t     *aux;
-	uintptr_t   *trv;
-};
-
 int
 pat_compile(struct pattern *dst, char const *src)
 {
