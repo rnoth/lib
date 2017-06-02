@@ -10,7 +10,7 @@ SRC	:= $(wildcard *.c */*.c)
 OBJ	:= $(SRC:.c=.c.o)
 DEP	:= $(wildcard *.d */*.d)
 BIN	:= $(patsubst %.c, %, $(filter %-test.c, $(SRC)))
-TESTS	:= $(patsubst %.c, %, $(filter %-test.c, $(SRC)))
+TESTS	:= $(patsubst %.c, %, $(filter test-%.c, $(SRC)))
 
 $(TESTS): skel.c.o
 
@@ -18,7 +18,7 @@ ifndef NDEBUG
 CFLAGS	+= -O0 -g #-Werror
 CFLAGS	+= -Wunreachable-code \
 	   -Wno-missing-field-initializers -Wno-unused-parameter \
-	   -Warray-bounds -Wno-missing-braces
+	   -Warray-bounds -Wno-missing-braces -Wno-parentheses
 else
 LDFLAGS += -Wl,--gc-section
 CFLAGS += -O3

@@ -21,7 +21,7 @@ clean:
 	@$(call compile,$@,$<)
 	@$(call add-syms,$*.c.d,$@)
 
-%-test: %-test.c.o skel.c.o
+test-%: test-%.c.o
 	@$(info LD -o $@)
 	@$(call link,$@,$< skel.c.o)
 	@$(call write-deps, $*-test.d, $@)
