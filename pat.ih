@@ -1,0 +1,177 @@
+#ifndef _lib_pat_ih_
+#define _lib_pat_ih_
+#include <stdint.h>
+#include <pat.h>
+
+#define tag_node(n) ((umin((uintptr_t)((void*){0} = n),-1)+1))
+#define tag_leaf(n) ((uintptr_t)((void*){0} = n))
+
+#define to_node(n) ((struct node *)(((uintptr_t[]){0}[0] = n) - 1))
+#define to_leaf(n) ((char *)((uintptr_t[]){0}[0] = n))
+
+enum class {
+	class_none  = 0x00,
+	class_any   = 0x01,
+	class_dot   = 0x02,
+	class_alpha = 0x04,
+	class_upper = 0x08,
+	class_lower = 0x10,
+	class_digit = 0x20,
+	class_space = 0x40,
+};
+
+enum token {
+	tok_bol,
+	tok_carrot,
+	tok_dollar,
+	tok_dot,
+	tok_eol,
+	tok_liter,
+	tok_lparen,
+	tok_pipe,
+	tok_plus,
+	tok_qmark,
+	tok_rparen,
+	tok_star,
+};
+
+enum type {
+	type_null,
+	type_alt,
+	type_cat,
+	type_class,
+	type_leaf,
+	type_opt,
+	type_rep,
+	type_rep_null,
+	type_sub,
+};
+
+struct thread {
+	struct ins      *ip;
+	struct patmatch *mat;
+};
+
+struct context {
+	int          (*cb)(char *, void *);
+	void          *cbx;
+	size_t         pos;
+	struct thread *thr;
+	struct thread  fin[1];
+};
+
+union arg {
+	ptrdiff_t f;
+	int       i;
+	char      b;
+	size_t    z;
+};
+
+struct ins {
+        int      (*op)(struct context *, struct thread *, char const);
+	union arg arg;
+};
+
+struct node {
+	uintptr_t chld[2];
+	size_t    len;
+	enum type type;
+};
+
+struct pos {
+	char   const *v;
+	size_t const  n;
+	size_t        f;
+};
+
+struct state {
+	struct pos   src[1];
+	enum token   tok;
+	uint8_t     *stk;
+	uint8_t     *ir;
+	uint8_t     *aux;
+	uintptr_t   *trv;
+};
+
+static inline void       step(struct pos *);
+static inline bool        eol(struct pos const *);
+static inline char const *str(struct pos const *);
+
+static inline
+bool nomatch(struct context *);
+
+static inline bool is_leaf(uintptr_t);
+static inline bool is_node(uintptr_t);
+
+int comp_alt(struct ins **, struct node *);
+int comp_cat(struct ins **, struct node *);
+int comp_chld(struct ins **, uintptr_t);
+//int comp_class(struct ins **, struct node *);
+int comp_leaf(struct ins **, uintptr_t);
+int comp_rep(struct ins **, struct node *);
+int comp_sub(struct ins **, struct node *);
+
+void ctx_fini(struct context *);
+int  ctx_init(struct context *, struct pattern *);
+
+int do_char(struct context *, struct thread *, char const);
+int do_clss(struct context *, struct thread *, char const);
+int do_fork(struct context *, struct thread *, char const);
+int do_halt(struct context *, struct thread *, char const);
+int do_jump(struct context *, struct thread *, char const);
+int do_mark(struct context *, struct thread *, char const);
+int do_save(struct context *, struct thread *, char const);
+
+int get_char(char *, void *);
+
+int grow_cat(struct state *);
+int grow_char(struct state *);
+int grow_close(struct state *);
+int grow_escape(struct state *);
+int grow_open(struct state *);
+
+bool is_open(uintptr_t);
+
+uintptr_t mk_cat(uintptr_t, uintptr_t);
+uintptr_t mk_open(void);
+
+uintptr_t   nod_attach(uintptr_t, uintptr_t);
+void       nod_dtor(uintptr_t);
+size_t     nod_len(uintptr_t);
+enum type  nod_type(uintptr_t);
+
+int shift_close(struct state *);
+int shift_escape(struct state *);
+int shift_liter(struct state *);
+int shift_token(struct state *);
+
+int  st_init(struct state *, char const *);
+void st_fini(struct state *);
+
+int  thr_cmp(struct thread *, struct thread *);
+int  thr_init(struct thread *, struct ins *);
+void thr_finish(struct context *, size_t);
+int  thr_fork(struct thread *, struct thread *);
+int  thr_next(struct context *, size_t, wchar_t const);
+void thr_prune(struct context *, size_t);
+int  thr_start(struct context *, wchar_t const);
+void thr_remove(struct context *, size_t);
+
+int pat_exec(struct context *);
+int pat_grow(struct state *);
+int pat_shunt(struct state *);
+int pat_marshal(struct pattern *, uintptr_t);
+int pat_parse(uintptr_t *, struct state *st);
+int pat_process(struct state *st);
+int pat_match(struct context *, struct pattern *);
+
+void       step(struct pos *p) { ++p->f; }
+bool        eol(struct pos const *p) { return p->f >= p->n; }
+char const *str(struct pos const *p) { return p->v + p->f; }
+
+bool nomatch(struct context *ctx) { return !ctx->fin->ip; }
+
+bool is_leaf(uintptr_t u) { return u ? !(u & 1) : false; }
+bool is_node(uintptr_t u) { return u ? u & 1 : false; }
+
+#endif
