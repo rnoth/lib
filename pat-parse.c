@@ -62,9 +62,11 @@ grow_char(struct state *st)
 
 	if (!is_leaf(prev)) {
 		if (vec_len(st->aux)) vec_put(st->aux, (uint8_t[]){0});
+
 		res = st->aux + vec_len(st->aux);
 		vec_put(st->aux, st->ir);
 		vec_put(st->trv, (uintptr_t[]){tag_leaf(res)});
+
 	} else vec_put(st->aux, st->ir);
 
 	++st->ir;
@@ -75,26 +77,27 @@ grow_char(struct state *st)
 int
 grow_close(struct state *st)
 {
-	uintptr_t lef;
-	uintptr_t rit;
-	uintptr_t res;
+	uintptr_t lef = 0;
+	uintptr_t rit = 0;
 
 again:
-	vec_get(&rit, st->trv);
-	if (is_open(rit)) {
-		vec_put(st->trv, &rit);
-		return pat_grow(st);
+	vec_get(&lef, st->trv);
+	if (!is_open(lef)) {
+		rit = nod_attach(lef, rit);
+		if (!rit) goto nomem;
+		goto again;
 	}
 
-	vec_get(&lef, st->trv);
-	res = nod_attach(lef, rit);
+	nod_attach(lef, rit);
 
-	vec_put(st->trv, &res);
-
-	if (nod_type(res) != type_sub) goto again;
+	vec_put(st->trv, &lef);
 
 	++st->ir;
 	return pat_grow(st);
+nomem:
+	if (lef) vec_put(st->trv, &lef);
+	if (rit) vec_put(st->trv, &rit);
+	return ENOMEM;
 }
 
 int
@@ -107,13 +110,12 @@ grow_escape(struct state *st)
 int
 grow_open(struct state *st)
 {
-	struct node *nod;
+	uintptr_t res;
 
-	nod = calloc(1, sizeof *nod);
-	if (!nod) return ENOMEM;
+	res = mk_open();
+	if (!res) return ENOMEM;
 
-	nod->type = type_sub;
-	vec_append(&st->trv, (uintptr_t[]){tag_node(nod)});
+	vec_put(st->trv, &res);
 
 	++st->ir;
 	return pat_grow(st);
