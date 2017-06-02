@@ -7,6 +7,33 @@
 #include <pat.h>
 #include <pat.ih>
 
+struct state {
+	struct pos   src[1];
+	enum token   tok;
+	uint8_t     *stk;
+	uint8_t     *ir;
+	uint8_t     *aux;
+	uintptr_t   *trv;
+};
+
+static int grow_cat(struct state *);
+static int grow_char(struct state *);
+static int grow_close(struct state *);
+static int grow_escape(struct state *);
+static int grow_open(struct state *);
+
+static int shift_close(struct state *);
+static int shift_escape(struct state *);
+static int shift_liter(struct state *);
+static int shift_token(struct state *);
+
+static int  st_init(struct state *, char const *);
+static void st_fini(struct state *);
+
+static int pat_grow(struct state *);
+static int pat_process(struct state *st);
+static int pat_shunt(struct state *);
+
 static int (* const tab_shift[])(struct state *) = {
 	['\\'] = shift_escape,
 	['*']  = shift_token,
@@ -253,17 +280,22 @@ pat_shunt(struct state *st)
 }
 
 int
-pat_parse(uintptr_t *dst, struct state *st)
+pat_parse(uintptr_t *dst, char const *src)
 {
+	struct state st[1] = {{0}};
 	int err;
 
+	err = st_init(st, src);
+
 	err = pat_process(st);
-	if (err) return err;
+	if (err) goto finally;
 
 	err = pat_grow(st);
-	if (err) return err;
+	if (err) goto finally;
 
 	*dst = st->trv[0];
 
+finally:
+	st_fini(st);
 	return 0;
 }

@@ -11,20 +11,25 @@
 #include <pat.h>
 #include <pat.ih>
 
+struct state {
+	struct pos   src[1];
+	enum token   tok;
+	uint8_t     *stk;
+	uint8_t     *ir;
+	uint8_t     *aux;
+	uintptr_t   *trv;
+};
+
 int
 pat_compile(struct pattern *dst, char const *src)
 {
-	struct state st[1] = {{0}};
 	uintptr_t root = 0;
 	int err = 0;
 
 	if (!dst) return EFAULT;
 	if (!src) return EFAULT;
 
-	err = st_init(st, src);
-	if (err) goto finally;
-
-	err = pat_parse(&root, st);
+	err = pat_parse(&root, src);
 	if (err) goto finally;
 
 	err = vec_ctor(dst->prog);
@@ -34,7 +39,6 @@ pat_compile(struct pattern *dst, char const *src)
 	if (err) goto finally;
 
 finally:
-	st_fini(st);
 	nod_dtor(root);
 	return err;
 }
