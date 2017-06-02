@@ -15,7 +15,7 @@ int
 pat_compile(struct pattern *dst, char const *src)
 {
 	struct state st[1] = {{0}};
-	uintptr_t root;
+	uintptr_t root = 0;
 	int err = 0;
 
 	if (!dst) return EFAULT;

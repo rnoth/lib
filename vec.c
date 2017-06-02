@@ -157,7 +157,7 @@ vec_free(void *vec)
 void *
 vec_new(size_t size)
 {
-	void *ret;
+	void *ret = 0;
 
 	vec_ctor(&ret, size);
 
