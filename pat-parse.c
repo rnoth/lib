@@ -46,7 +46,7 @@ grow_cat(struct state *st)
 		return ENOMEM;
 	}
 
-	vec_put(&st->trv, (uintptr_t[]){tag_node(cat)});
+	vec_put(st->trv, (uintptr_t[]){cat});
 
 	++st->ir;
 	return pat_grow(st);
