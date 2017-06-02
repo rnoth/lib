@@ -266,6 +266,11 @@ loop(void)
 	size_t i;
 
 	for (a = cur; a->pat; ++a) {
+		on_failure {
+			pat_free(pat);
+			return;
+		}
+
 		expect(0, pat_compile(pat, a->pat));
 
 		for (b = a->accept; b && b->txt; ++b) {
