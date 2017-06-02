@@ -1,7 +1,7 @@
-#include "../unit.h"
-#include "../pat.h"
-#include "../util.h"
-#include "../vec.h"
+#include <unit.h>
+#include <pat.h>
+#include <util.h>
+#include <vec.h>
 
 char filename[] = "pat.c";
 
@@ -246,6 +246,8 @@ struct a dot[] = {
 size_t const tests_len = arr_len(tests);
 struct a *cur;
 
+struct pattern pat[1];
+
 void do_alter(void) { cur = alter; }
 void do_qmark(void) { cur = qmark; }
 void do_star(void)  { cur = star; }
@@ -255,22 +257,18 @@ void do_plus(void)  { cur = plus; }
 void do_esc(void)   { cur = esc; }
 void do_dot(void)   { cur = dot; }
 
-void cleanup() {}
-
-void
-loop(void)
+void cleanup()
 {
-	struct pattern pat[1] = {{0}};
+	pat_free(pat);
+}
+
+void loop(void)
+{
 	struct a *a = 0x0;
 	struct b *b = 0x0;
 	size_t i;
 
 	for (a = cur; a->pat; ++a) {
-		on_failure {
-			pat_free(pat);
-			return;
-		}
-
 		expect(0, pat_compile(pat, a->pat));
 
 		for (b = a->accept; b && b->txt; ++b) {
@@ -291,7 +289,5 @@ loop(void)
 
 		for (b = a->reject; b && b->txt; ++b)
 			expect(-1, pat_execute(pat, b->txt));
-
-		pat_free(pat);
 	}
 }

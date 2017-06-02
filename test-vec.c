@@ -1,6 +1,6 @@
-#include "../unit.h"
-#include "../vec.h"
-#include "../util.h"
+#include <unit.h>
+#include <util.h>
+#include <vec.h>
 
 char filename[] = "vec.c";
 
@@ -248,8 +248,6 @@ test_pop(void)
 void
 test_put(void)
 {
-	int i;
-
 	iterate(i, 7) {
 		expect(i, vec_len(intvec));
 		try(vec_put(intvec, (int[]){i}));

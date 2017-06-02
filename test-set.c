@@ -4,9 +4,9 @@
 #include <assert.h>
 #include <stdlib.h>
 
-#include "../unit.h"
-#include "../set.h"
-#include "../util.h"
+#include <unit.h>
+#include <set.h>
+#include <util.h>
 
 char filename[] = "set.c";
 
