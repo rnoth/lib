@@ -1,10 +1,6 @@
-*~
-.*.swp
-vgcore.*
-*.o
-*.d
+*
+!*.c
+!README.mk
 !proj.mk
-core
-tags
-vgcore.*
-tests/*-test
+!build.mk
+!Makefile
