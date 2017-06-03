@@ -260,6 +260,7 @@ void do_dot(void)   { cur = dot; }
 void cleanup()
 {
 	pat_free(pat);
+	memset(pat, 0, sizeof *pat);
 }
 
 void loop(void)
