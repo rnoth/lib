@@ -9,8 +9,6 @@ struct test tests[] = {
 size_t const tests_len = arr_len(tests);
 char filename[] = "pat-parse.c";
 
-struct state st[1];
-
 void cleanup() {}
 
 void test_process(void)
