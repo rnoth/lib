@@ -11,10 +11,8 @@ char filename[] = "pat-parse.c";
 
 struct state st[1];
 
-void cleanup() { st_fini(st); }
+void cleanup() {}
 
 void test_process(void)
 {
-	st_init(st, "foo");
-	pat_process(st);
 }
