@@ -76,13 +76,11 @@ comp_leaf(struct ins **dest, uintptr_t lea)
 {
 	char *s = to_leaf(lea);
 	int err;
-	do {
-		err = vec_append(dest, ((struct ins[]) {{
-			.op = do_char,
-			.arg = {.b = *s},
-		}}));
-		if (err) return err;
-	} while (*++s);
+	err = vec_append(dest, ((struct ins[]) {{
+		.op = do_char,
+		.arg = {.b = *s},
+	}}));
+	if (err) return err;
 
 	return 0;
 }
