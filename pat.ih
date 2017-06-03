@@ -3,8 +3,8 @@
 #include <stdint.h>
 #include <pat.h>
 
-#define tag_node(n) ((umin((uintptr_t)((void*){0} = n),-1)+1))
-#define tag_leaf(n) ((uintptr_t)((void*){0} = n))
+#define tag_node(n) (((uintptr_t)((void const*){0} = n) + 1))
+#define tag_leaf(n) ((uintptr_t)((void const*){0} = n))
 
 #define to_node(n) ((struct node *)(((uintptr_t[]){0}[0] = n) - 1))
 #define to_leaf(n) ((char *)((uintptr_t[]){0}[0] = n))
