@@ -55,7 +55,7 @@ str_chomp(char **str)
 
 	do if (*s == '\n') nl = s; while (*s++);
 	vec_truncat(str, nl - s);
-	*nl = 0;
+	if (nl) *nl = 0;
 }
 
 void
