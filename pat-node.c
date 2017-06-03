@@ -14,6 +14,13 @@ is_open(uintptr_t u)
 	return !nod->chld[0];
 }
 
+bool
+is_str(uintptr_t u)
+{
+	if (is_leaf(u)) return false;
+	return to_node(u)->type == type_str;
+}
+
 uintptr_t
 mk_cat(uintptr_t lef, uintptr_t rit)
 {
