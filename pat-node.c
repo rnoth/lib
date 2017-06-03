@@ -27,12 +27,12 @@ mk_cat(uintptr_t lef, uintptr_t rit)
 	struct node *cat = 0;
 
 	cat = calloc(1, sizeof *cat);
-	if (cat) {
-		cat->type = type_cat;
-		cat->chld[0] = lef;
-		cat->chld[1] = rit;
-		cat->len = nod_len(lef) + nod_len(rit);
-	}
+	if (!cat) return 0;
+
+	cat->type = type_cat;
+	cat->chld[0] = lef;
+	cat->chld[1] = rit;
+	cat->len = nod_len(lef) + nod_len(rit);
 
 	return tag_node(cat);
 }
