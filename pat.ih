@@ -20,21 +20,6 @@ enum class {
 	class_space = 0x40,
 };
 
-enum token {
-	tok_bol,
-	tok_carrot,
-	tok_dollar,
-	tok_dot,
-	tok_eol,
-	tok_liter,
-	tok_lparen,
-	tok_pipe,
-	tok_plus,
-	tok_qmark,
-	tok_rparen,
-	tok_star,
-};
-
 enum type {
 	type_null,
 	type_alt,
@@ -44,6 +29,7 @@ enum type {
 	type_opt,
 	type_rep,
 	type_rep_null,
+	type_str,
 	type_sub,
 };
 
@@ -116,6 +102,7 @@ int do_save(struct context *, struct thread *, char const);
 int get_char(char *, void *);
 
 bool is_open(uintptr_t);
+bool is_str(uintptr_t);
 
 uintptr_t mk_cat(uintptr_t, uintptr_t);
 uintptr_t mk_open(void);
