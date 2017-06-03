@@ -8,18 +8,18 @@
 #include <pat.h>
 #include <pat.ih>
 
-static int grow_cat(uintptr_t *, uint8_t *, uint8_t const *);
-static int grow_char(uintptr_t *, uint8_t *, uint8_t const *);
-static int grow_close(uintptr_t *, uint8_t *, uint8_t const *);
-static int grow_escape(uintptr_t *, uint8_t *, uint8_t const *);
-static int grow_open(uintptr_t *, uint8_t *, uint8_t const *);
+static int grow_cat(uintptr_t *, uint8_t const *);
+static int grow_char(uintptr_t *, uint8_t const *);
+static int grow_close(uintptr_t *, uint8_t const *);
+static int grow_escape(uintptr_t *, uint8_t const *);
+static int grow_open(uintptr_t *, uint8_t const *);
 
 static int shift_close(uint8_t *, uint8_t *, char const *);
 static int shift_escape(uint8_t *, uint8_t *, char const *);
 static int shift_liter(uint8_t *, uint8_t *, char const *);
 static int shift_token(uint8_t *, uint8_t *, char const *);
 
-static int pat_grow(uintptr_t *, uint8_t *, uint8_t const *);
+static int pat_grow(uintptr_t *, uint8_t const *);
 static int pat_flush(uint8_t *, uint8_t *);
 static int pat_process(uint8_t *, uint8_t *, char const *);
 static int pat_shunt(uint8_t *, uint8_t *, char const *);
@@ -34,7 +34,7 @@ static int (* const tab_shunt[])(uint8_t *, uint8_t *, char const *) = {
 	[255]  = 0,
 };
 
-static int (* const tab_grow[])(uintptr_t *res, uint8_t *aux, uint8_t const *stk) = {
+static int (* const tab_grow[])(uintptr_t *res, uint8_t const *stk) = {
 	['\\'] = grow_escape,
 	['_']  = grow_cat,
 	['(']  = grow_open,
@@ -43,7 +43,7 @@ static int (* const tab_grow[])(uintptr_t *res, uint8_t *aux, uint8_t const *stk
 };
 
 int
-grow_cat(uintptr_t *res, uint8_t *aux, uint8_t const *stk)
+grow_cat(uintptr_t *res, uint8_t const *stk)
 {
 	uintptr_t cat;
 	uintptr_t lef;
@@ -61,34 +61,26 @@ grow_cat(uintptr_t *res, uint8_t *aux, uint8_t const *stk)
 
 	vec_put(res, &cat);
 
-	++stk;
-	return pat_grow(res, aux, stk);
+	return pat_grow(res, ++stk);
 }
 
 int
-grow_char(uintptr_t *res, uint8_t *aux, uint8_t const *stk)
+grow_char(uintptr_t *res, uint8_t const *stk)
 {
-	uintptr_t prev;
 	uint8_t *ch;
 
-	prev = res[vec_len(res) - 1];
+	ch = malloc(sizeof *ch);
+	if (!ch) return ENOMEM;
 
-	if (!is_leaf(prev)) {
-		if (vec_len(aux)) vec_put(aux, (uint8_t[]){0});
+	memcpy(ch, stk, sizeof *ch);
 
-		ch = aux + vec_len(aux);
-		vec_put(aux, stk);
-		vec_put(res, (uintptr_t[]){tag_leaf(ch)});
+	vec_put(res, (uintptr_t[]){tag_leaf(ch)});
 
-	} else vec_put(aux, stk);
-
-	++stk;
-
-	return pat_grow(res, aux, stk);
+	return pat_grow(res, ++stk);
 }
 
 int
-grow_close(uintptr_t *res, uint8_t *aux, uint8_t const *stk)
+grow_close(uintptr_t *res, uint8_t const *stk)
 {
 	uintptr_t lef = 0;
 	uintptr_t rit = 0;
@@ -105,8 +97,7 @@ again:
 
 	vec_put(res, &lef);
 
-	++stk;
-	return pat_grow(res, aux, stk);
+	return pat_grow(res, ++stk);
 nomem:
 	if (lef) vec_put(res, &lef);
 	if (rit) vec_put(res, &rit);
@@ -114,14 +105,13 @@ nomem:
 }
 
 int
-grow_escape(uintptr_t *res, uint8_t *aux, uint8_t const *stk)
+grow_escape(uintptr_t *res, uint8_t const *stk)
 {
-	++stk;
-	return grow_char(res, aux, stk);
+	return grow_char(res, ++stk);
 }
 
 int
-grow_open(uintptr_t *res, uint8_t *aux, uint8_t const *stk)
+grow_open(uintptr_t *res, uint8_t const *stk)
 {
 	uintptr_t tmp;
 
@@ -130,12 +120,11 @@ grow_open(uintptr_t *res, uint8_t *aux, uint8_t const *stk)
 
 	vec_put(res, &tmp);
 
-	++stk;
-	return pat_grow(res, aux, stk);
+	return pat_grow(res, ++stk);
 }
 
 int
-grow_rep(uintptr_t *res, uint8_t *aux, uint8_t *stk)
+grow_rep(uintptr_t *res, uint8_t const *stk)
 {
 	return -1;
 }
@@ -180,7 +169,7 @@ shift_token(uint8_t *stk, uint8_t *aux, char const *src)
 }
 
 int
-pat_grow(uintptr_t *res, uint8_t *aux, uint8_t const *stk)
+pat_grow(uintptr_t *res, uint8_t const *stk)
 {
 	uint8_t ch;
 	int (*fn)();
@@ -192,8 +181,8 @@ pat_grow(uintptr_t *res, uint8_t *aux, uint8_t const *stk)
 	if (!ch) return 0;
 
 	fn = tab_grow[ch];
-	if (fn) return fn(res, aux, stk);
-	else return grow_char(res, aux, stk);
+	if (fn) return fn(res, stk);
+	else return grow_char(res, stk);
 }
 
 int
@@ -246,7 +235,7 @@ pat_parse(uintptr_t *dst, char const *src)
 
 	stk = vec_alloc(uint8_t, len * 2 + 2);
 	aux = vec_alloc(uint8_t, len * 2);
-	res = vec_alloc(uintptr_t, len);
+	res = vec_alloc(uintptr_t, len + 2);
 
 	if (!aux || !stk || !res) {
 		err = ENOMEM;
@@ -258,7 +247,7 @@ pat_parse(uintptr_t *dst, char const *src)
 
 	assert(vec_len(aux) == 0);
 
-	err = pat_grow(res, aux, stk);
+	err = pat_grow(res, stk);
 	if (err) goto finally;
 
 	*dst = res[0];
