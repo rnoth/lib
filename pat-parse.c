@@ -8,7 +8,6 @@
 #include <pat.h>
 #include <pat.ih>
 
-static int grow_cat(uintptr_t *, uint8_t const *);
 static int grow_char(uintptr_t *, uint8_t const *);
 static int grow_close(uintptr_t *, uint8_t const *);
 static int grow_escape(uintptr_t *, uint8_t const *);
@@ -36,33 +35,10 @@ static int (* const tab_shunt[])(uint8_t *, uint8_t *, char const *) = {
 
 static int (* const tab_grow[])(uintptr_t *res, uint8_t const *stk) = {
 	['\\'] = grow_escape,
-	['_']  = grow_cat,
 	['(']  = grow_open,
 	[')']  = grow_close,
 	[255]  = 0,
 };
-
-int
-grow_cat(uintptr_t *res, uint8_t const *stk)
-{
-	uintptr_t cat;
-	uintptr_t lef;
-	uintptr_t rit;
-
-	vec_get(&rit, res);
-	vec_get(&lef, res);
-
-	cat = mk_cat(lef, rit);
-	if (!cat) {
-		vec_put(res, &lef);
-		vec_put(res, &rit);
-		return ENOMEM;
-	}
-
-	vec_put(res, &cat);
-
-	return pat_grow(res, ++stk);
-}
 
 int
 grow_char(uintptr_t *res, uint8_t const *stk)
