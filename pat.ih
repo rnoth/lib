@@ -105,8 +105,8 @@ bool is_open(uintptr_t);
 bool is_str(uintptr_t);
 
 uintptr_t mk_cat(uintptr_t, uintptr_t);
+uintptr_t mk_leaf(char);
 uintptr_t mk_open(void);
-
 uintptr_t   nod_attach(uintptr_t, uintptr_t);
 void       nod_dtor(uintptr_t);
 size_t     nod_len(uintptr_t);

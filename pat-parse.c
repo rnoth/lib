@@ -43,14 +43,12 @@ static int (* const tab_grow[])(uintptr_t *res, uint8_t const *stk) = {
 int
 grow_char(uintptr_t *res, uint8_t const *stk)
 {
-	uint8_t *ch;
+	uintptr_t nod;
 
-	ch = malloc(sizeof *ch);
-	if (!ch) return ENOMEM;
+	nod = mk_leaf(*stk);
+	if (!nod) return ENOMEM;
 
-	memcpy(ch, stk, sizeof *ch);
-
-	vec_put(res, (uintptr_t[]){tag_leaf(ch)});
+	vec_put(res, &nod);
 
 	return pat_grow(res, ++stk);
 }

@@ -1,3 +1,4 @@
+#include <string.h>
 #include <pat.ih>
 #include <util.h>
 
@@ -35,6 +36,19 @@ mk_cat(uintptr_t lef, uintptr_t rit)
 	cat->len = nod_len(lef) + nod_len(rit);
 
 	return tag_node(cat);
+}
+
+uintptr_t
+mk_leaf(char ch)
+{
+	uint8_t *res;
+
+	res = malloc(1);
+	if (!res) return 0;
+
+	memcpy(res, &ch, 1);
+
+	return tag_leaf(res);
 }
 
 uintptr_t
