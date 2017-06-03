@@ -1,3 +1,4 @@
+#include <assert.h>
 #include <errno.h>
 #include <stdint.h>
 #include <stdlib.h>
@@ -6,14 +7,6 @@
 #include <util.h>
 #include <pat.h>
 #include <pat.ih>
-
-struct state {
-	struct pos   src[1];
-	uint8_t     *stk;
-	uint8_t     *ir;
-	uint8_t     *aux;
-	uintptr_t   *trv;
-};
 
 static int grow_cat(uintptr_t *, uint8_t *, uint8_t const *);
 static int grow_char(uintptr_t *, uint8_t *, uint8_t const *);
@@ -31,7 +24,7 @@ static int pat_flush(uint8_t *, uint8_t *);
 static int pat_process(uint8_t *, uint8_t *, char const *);
 static int pat_shunt(uint8_t *, uint8_t *, char const *);
 
-static int (* const tab_shift[])(uint8_t *, uint8_t *, char const *) = {
+static int (* const tab_shunt[])(uint8_t *, uint8_t *, char const *) = {
 	['\\'] = shift_escape,
 	['*']  = shift_token,
 	['?']  = shift_token,
@@ -39,10 +32,6 @@ static int (* const tab_shift[])(uint8_t *, uint8_t *, char const *) = {
 	['(']  = shift_token,
 	[')']  = shift_close,
 	[255]  = 0,
-};
-
-static int (* const tab_shunt[])(struct state *) = {
-	[255] = 0,
 };
 
 static int (* const tab_grow[])(uintptr_t *res, uint8_t *aux, uint8_t const *stk) = {
@@ -173,7 +162,7 @@ shift_liter(uint8_t *stk, uint8_t *aux, char const *src)
 	uint8_t ch; 
 
 	memcpy(&ch, src, 1);
-	if (tab_shift[ch]) {
+	if (tab_shunt[ch]) {
 		vec_put(stk, (char[]){'\\'});
 	}
 
@@ -236,7 +225,7 @@ pat_shunt(uint8_t *stk, uint8_t *aux, char const *src)
 
 	memcpy(&ch, src, 1);
 
-	fn = tab_shift[ch];
+	fn = tab_shunt[ch];
 	if (fn) return fn(stk, aux, src);
 	else return shift_liter(stk, aux, src);
 }
@@ -250,6 +239,11 @@ pat_parse(uintptr_t *dst, char const *src)
 	uintptr_t *res = 0;
 	int err;
 
+	assert(dst != 0x0);
+	assert(src != 0x0);
+
+	*dst = 0;
+
 	stk = vec_alloc(uint8_t, len * 2 + 2);
 	aux = vec_alloc(uint8_t, len * 2);
 	res = vec_alloc(uintptr_t, len);
@@ -262,6 +256,8 @@ pat_parse(uintptr_t *dst, char const *src)
 	err = pat_process(stk, aux, src);
 	if (err) goto finally;
 
+	assert(vec_len(aux) == 0);
+
 	err = pat_grow(res, aux, stk);
 	if (err) goto finally;
 
@@ -269,7 +265,8 @@ pat_parse(uintptr_t *dst, char const *src)
 
 finally:
 	vec_free(stk);
-	vec_free(aux);
+	//vec_free(aux);
 	vec_free(res);
-	return 0;
+
+	return err;
 }
