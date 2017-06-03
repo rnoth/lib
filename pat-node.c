@@ -3,6 +3,17 @@
 #include <util.h>
 
 bool
+is_subexpr(uintptr_t u)
+{
+	struct node *nod;
+	if (is_leaf(u)) return false;
+	nod = to_node(u);
+	if (nod->type != type_sub) return false;
+	if (!nod->chld[0]) return false;
+	return !nod->chld[1];
+}
+
+bool
 is_open(uintptr_t u)
 {
 	struct node *nod;

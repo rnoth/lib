@@ -101,16 +101,15 @@ int do_save(struct context *, struct thread *, char const);
 
 int get_char(char *, void *);
 
-bool is_open(uintptr_t);
-bool is_str(uintptr_t);
-
+/* pat-node.c */
+bool      is_subexpr(uintptr_t);
 uintptr_t mk_cat(uintptr_t, uintptr_t);
 uintptr_t mk_leaf(char);
 uintptr_t mk_open(void);
-uintptr_t   nod_attach(uintptr_t, uintptr_t);
-void       nod_dtor(uintptr_t);
-size_t     nod_len(uintptr_t);
-enum type  nod_type(uintptr_t);
+uintptr_t nod_attach(uintptr_t, uintptr_t);
+void      nod_dtor(uintptr_t);
+size_t    nod_len(uintptr_t);
+enum type nod_type(uintptr_t);
 
 int  thr_cmp(struct thread *, struct thread *);
 int  thr_init(struct thread *, struct ins *);
