@@ -71,6 +71,21 @@ mk_open(void)
 }
 
 uintptr_t
+mk_subexpr(uintptr_t chld)
+{
+	struct node *ret;
+
+	ret = calloc(1, sizeof *ret);
+	if (!ret) return 0;
+
+	ret->type = type_sub;
+	ret->len = to_node(chld)->len;
+	ret->chld[0] = chld;
+
+	return tag_node(ret);
+}
+
+uintptr_t
 nod_attach(uintptr_t lef, uintptr_t rit)
 {
 	uintptr_t cat;
