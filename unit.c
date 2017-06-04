@@ -6,6 +6,7 @@ sigjmp_buf env;
 sigjmp_buf checkpoint;
 size_t total_failures;
 
+static char stack[MINSIGSTKSZ];
 static void fault(int);
 static char *sigtostr(int);
 
@@ -96,8 +97,11 @@ void
 unit_init(void)
 {
 	struct sigaction sa[1] = {{0}};
+	stack_t st[1] = {{.ss_sp = stack, .ss_size = MINSIGSTKSZ}};
 
 	if (unit_has_init) return;
+
+	if (sigaltstack(st,0)) die("sigaltstack failed");
 
 	// enable x86 alignment check
 	// commented out as it causes most stdlibs to crash
@@ -106,6 +110,7 @@ unit_init(void)
 	//        "popf"); 
 
 	sa->sa_handler = fault;
+	sa->sa_flags = SA_ONSTACK;
 
 	if (sigaction(SIGSEGV, sa, 0x0)) die("sigaction failed");
 	if (sigaction(SIGALRM, sa, 0x0)) die("sigaction failed");
