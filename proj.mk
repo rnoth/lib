@@ -1,5 +1,5 @@
 CC	?= cc
-CFLAGS	+= -pipe -I. -D_POSIX_C_SOURCE -std=c99 -pedantic -Wall -Wextra \
+CFLAGS	+= -pipe -I. -D_POSIX_C_SOURCE=200809 -D_XOPEN_SOURCE=500 -std=c99 -pedantic -Wall -Wextra \
 	   -fstrict-aliasing -fstrict-overflow \
 	   -fdata-sections -ffunction-sections -fno-exceptions \
 	   -fno-unwind-tables -fno-asynchronous-unwind-tables \
