@@ -13,7 +13,7 @@ static int (* const pat_comp[])(struct ins **, struct node *) = {
 	[type_opt] = comp_rep,
 	[type_kln] = comp_rep,
 	[type_rep] = comp_rep,
-	[type_sub]  = comp_sub,
+	[type_sub] = comp_sub,
 };
 
 int
