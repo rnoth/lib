@@ -1,4 +1,3 @@
-#include <assert.h>
 #include <errno.h>
 #include <stdint.h>
 #include <stdlib.h>
@@ -27,7 +26,7 @@ static int parse_close(uintptr_t *, uint8_t const *);
 static int parse_eol(uintptr_t *);
 static int parse_escape(uintptr_t *, uint8_t const *);
 static int parse_open(uintptr_t *, uint8_t const *);
-static uintptr_t parse_subexpr(uintptr_t *, uintptr_t);
+static uintptr_t get_subexpr(uintptr_t *, uintptr_t);
 
 static int shift_close(uint8_t *, uint8_t *, char const *);
 static int shift_escape(uint8_t *, uint8_t *, char const *);
@@ -65,7 +64,6 @@ parse_cat(uintptr_t *res, uint8_t const *stk)
 	uintptr_t lef;
 	uintptr_t rit;
 
-	assert(vec_len(res) >= 2);
 	vec_get(&rit, res);
 	vec_get(&lef, res);
 
@@ -100,7 +98,7 @@ parse_close(uintptr_t *res, uint8_t const *stk)
 {
 	uintptr_t sub;
 
-	sub = parse_subexpr(res, 0);
+	sub = get_subexpr(res, 0);
 	if (!sub) return ENOMEM;
 
 	vec_put(res, &sub);
@@ -114,7 +112,7 @@ parse_eol(uintptr_t *res)
 	uintptr_t tmp;
 	uintptr_t root;
 
-	tmp = parse_subexpr(res, 0);
+	tmp = get_subexpr(res, 0);
 	if (!tmp) goto nomem;
 
 	root = mk_subexpr(tmp);
@@ -154,7 +152,7 @@ parse_rep(uintptr_t *res, uint8_t const *stk)
 }
 
 uintptr_t
-parse_subexpr(uintptr_t *res, uintptr_t rit)
+get_subexpr(uintptr_t *res, uintptr_t rit)
 {
 	uintptr_t lef;
 	uintptr_t acc;
@@ -166,7 +164,7 @@ parse_subexpr(uintptr_t *res, uintptr_t rit)
 	acc = nod_attach(lef, rit);
 	if (!acc) goto nomem;
 
-	return parse_subexpr(res, acc);
+	return get_subexpr(res, acc);
 
 nomem:
 	vec_put(res, &lef);
@@ -292,15 +290,15 @@ finally:
 int
 shunt(uint8_t *stk, uint8_t *aux, char const *src)
 {
-	int (*fn)();
+	int (*shift)();
 	uint8_t ch;
 
-	if (!*src) return flush(stk, aux);
+	if (!src[0]) return flush(stk, aux);
 
 	memcpy(&ch, src, 1);
 
-	fn = tab_shunt[ch];
-	if (fn) return fn(stk, aux, src);
+	shift = tab_shunt[ch];
+	if (shift) return shift(stk, aux, src);
 	else return shift_liter(stk, aux, src);
 }
 
@@ -310,17 +308,11 @@ pat_parse(uintptr_t *dst, char const *src)
 	uint8_t *stk;
 	int err;
 
-	assert(dst != 0x0);
-	assert(src != 0x0);
-
-	*dst = 0;
-
 	err = scan(&stk, src);
-	if (err) goto finally;
+	if (err) return err;
 
 	err = mktree(dst, stk);
-	if (err) goto finally;
+	if (err) return err;
 
-finally:
-	return err;
+	return 0;
 }
