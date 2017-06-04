@@ -1,6 +1,6 @@
 CC	?= cc
 CFLAGS	+= -pipe -I. -D_POSIX_C_SOURCE=200809 -D_XOPEN_SOURCE=500 -std=c99 -pedantic -Wall -Wextra \
-	   -fstrict-aliasing -fstrict-overflow \
+	   -fstrict-aliasing -fstrict-overflow -foptimize-sibling-calls \
 	   -fdata-sections -ffunction-sections -fno-exceptions \
 	   -fno-unwind-tables -fno-asynchronous-unwind-tables \
 	   -fno-stack-protector
@@ -15,7 +15,7 @@ TESTS	:= $(patsubst %.c, %, $(filter test-%.c, $(SRC)))
 $(TESTS): skel.c.o
 
 ifndef NDEBUG
-CFLAGS	+= -O0 -g #-Werror
+CFLAGS	+= -O0 -g -Werror
 CFLAGS	+= -Wunreachable-code \
 	   -Wno-missing-field-initializers -Wno-unused-parameter \
 	   -Warray-bounds -Wno-missing-braces -Wno-parentheses
