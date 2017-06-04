@@ -18,6 +18,7 @@ struct token {
 
 static uintptr_t get_subexpr(uintptr_t *, uintptr_t);
 
+static int parse_alt(uintptr_t *, struct token const *);
 static int parse_cat(uintptr_t *, struct token const *);
 static int parse_char(uintptr_t *, struct token const *);
 static int parse_close(uintptr_t *, struct token const *);
@@ -58,8 +59,33 @@ static int (* const tab_grow[])() = {
 	[type_rep] = parse_rep,
 	[type_sub] = parse_close,
 	[type_nop] = parse_nop,
-	[type_alt] = parse_nop,
+	[type_alt] = parse_alt,
 };
+
+int
+parse_alt(uintptr_t *res, struct token const *stk)
+{
+	uintptr_t lef;
+	uintptr_t rit;
+	uintptr_t alt;
+
+	vec_get(&rit, res);
+	vec_get(&lef, res);
+
+	alt = mk_alt(lef, rit);
+	if (!alt) goto nomem;
+
+	vec_put(res, &alt);
+
+	++stk;
+	return tab_grow[stk->id](res, stk);
+
+nomem:
+	vec_put(res, &lef);
+	vec_put(res, &rit);
+
+	return ENOMEM;
+}
 
 int
 parse_cat(uintptr_t *res, struct token const *stk)

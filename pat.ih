@@ -103,6 +103,7 @@ int get_char(char *, void *);
 
 /* pat-node.c */
 bool      is_subexpr(uintptr_t);
+uintptr_t mk_alt(uintptr_t, uintptr_t);
 uintptr_t mk_cat(uintptr_t, uintptr_t);
 uintptr_t mk_leaf(char);
 uintptr_t mk_open(void);
