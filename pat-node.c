@@ -32,6 +32,22 @@ is_subexpr(uintptr_t u)
 }
 
 uintptr_t
+mk_alt(uintptr_t lef, uintptr_t rit)
+{
+	struct node *alt = 0;
+
+	alt = calloc(1, sizeof *alt);
+	if (!alt) return 0;
+
+	alt->type = type_alt;
+	alt->chld[0] = lef;
+	alt->chld[1] = rit;
+
+	return tag_node(alt);
+}
+
+
+uintptr_t
 mk_cat(uintptr_t lef, uintptr_t rit)
 {
 	struct node *cat = 0;
@@ -42,7 +58,6 @@ mk_cat(uintptr_t lef, uintptr_t rit)
 	cat->type = type_cat;
 	cat->chld[0] = lef;
 	cat->chld[1] = rit;
-	cat->len = nod_len(lef) + nod_len(rit);
 
 	return tag_node(cat);
 }
@@ -80,7 +95,6 @@ mk_rep(enum type ty, uintptr_t chld)
 
 	ret->type = ty;
 	ret->chld[0] = chld;
-	ret->len = nod_len(chld); // XXX
 
 	return tag_node(ret);
 }
@@ -94,7 +108,6 @@ mk_subexpr(uintptr_t chld)
 	if (!ret) return 0;
 
 	ret->type = type_sub;
-	ret->len = to_node(chld)->len;
 	ret->chld[0] = chld;
 
 	return tag_node(ret);
