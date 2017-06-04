@@ -8,13 +8,12 @@
 #include <pat.h>
 
 static int (* const pat_comp[])(struct ins **, struct node *) = {
-	[type_alt]      = comp_alt,
-	[type_cat]      = comp_cat,
-	[type_opt]      = comp_rep,
-	[type_rep_null] = comp_rep,
-	[type_rep]      = comp_rep,
-	[type_sub]      = comp_sub,
-	//[type_class]    = comp_class,
+	[type_alt] = comp_alt,
+	[type_cat] = comp_cat,
+	[type_opt] = comp_rep,
+	[type_kln] = comp_rep,
+	[type_rep] = comp_rep,
+	[type_sub]  = comp_sub,
 };
 
 int
