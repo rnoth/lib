@@ -37,6 +37,17 @@ vec_mem(void const *v)
 
 static inline
 void
+vec_cat(void *d, void const *s, size_t size)
+{
+	memcpy((char*)d + vec_len(d) * size, s, size * vec_len(s));
+	memcpy((size_t*)d - 1,
+	       (size_t[]){vec_len(d) + vec_len(s)},
+	       sizeof (size_t));
+}
+
+
+static inline
+void
 vec_get(void *dst, void *src, size_t size)
 {
 	memcpy(dst,(char *)src+(vec_len(src)-1)*size, size);
@@ -92,6 +103,7 @@ void    vec_truncat  (void *, size_t, size_t);
 #define vec_put(dst, src) vec_put(dst, src, sizeof *dst)
 #define vec_get(dst, src) vec_get(dst, src, sizeof *src)
 #define vec_zero(vec)     vec_zero(vec, sizeof *vec)
+#define vec_cat(dst, src) vec_cat(dst, src, sizeof *dst)
 
 #define vec_append(vec_ptr, src)       vec_append(vec_ptr, src,               sizeof **vec_ptr)
 #define vec_clone(vec)                 vec_clone(vec,                         sizeof *vec)
