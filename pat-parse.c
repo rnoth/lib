@@ -29,7 +29,7 @@ static int shunt_char(struct token *, struct token *, char const *);
 static int shunt_close(struct token *, struct token *, char const *);
 static int shunt_escape(struct token *, struct token *, char const *);
 static int shunt_open(struct token *, struct token *, char const *);
-static int shunt_oper(struct token *, struct token *, char const *);
+static int shunt_monad(struct token *, struct token *, char const *);
 
 static int flush(struct token *, struct token *);
 static uint8_t oper(char const *);
@@ -39,9 +39,9 @@ static int shunt(struct token *, struct token *, char const *);
 
 static int (* const tab_shunt[])() = {
 	['\\'] = shunt_escape,
-	['*']  = shunt_oper,
-	['?']  = shunt_oper,
-	['+']  = shunt_oper,
+	['*']  = shunt_monad,
+	['?']  = shunt_monad,
+	['+']  = shunt_monad,
 	['(']  = shunt_open,
 	[')']  = shunt_close,
 	[255]  = 0,
@@ -214,7 +214,7 @@ shunt_open(struct token *stk, struct token *aux, char const *src)
 }
 
 int
-shunt_oper(struct token *stk, struct token *aux, char const *src)
+shunt_monad(struct token *stk, struct token *aux, char const *src)
 {
 	uint8_t op = oper(src);
 	vec_put(stk, token(op, *src));
