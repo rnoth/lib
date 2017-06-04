@@ -38,7 +38,6 @@ static int scan(uint8_t **, char const *);
 static int pat_grow(uintptr_t *, uint8_t const *);
 static int pat_flush(uint8_t *, uint8_t *);
 static int parse(uintptr_t *, uint8_t *);
-static int pat_process(uint8_t *, uint8_t *, char const *);
 static int pat_shunt(uint8_t *, uint8_t *, char const *);
 
 static int (* const tab_shunt[])(uint8_t *, uint8_t *, char const *) = {
@@ -265,19 +264,6 @@ finally:
 	if (!err) *dst = res[0];
 	vec_free(res);
 	return err;
-}
-
-int
-pat_process(uint8_t *stk, uint8_t *aux, char const *src)
-{
-	int err;
-
-	vec_put(stk, (char[]){'('});
-	err = pat_shunt(stk, aux, src);
-	if (err) return err;
-	vec_put(stk, (char[]){')'});
-
-	return 0;
 }
 
 int
