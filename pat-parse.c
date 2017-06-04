@@ -21,13 +21,13 @@ struct token {
 	uint8_t ch;
 };
 
-static int grow_cat(uintptr_t *, uint8_t const *);
-static int grow_char(uintptr_t *, uint8_t const *);
-static int grow_close(uintptr_t *, uint8_t const *);
-static int grow_eol(uintptr_t *);
-static int grow_escape(uintptr_t *, uint8_t const *);
-static int grow_open(uintptr_t *, uint8_t const *);
-static uintptr_t grow_subexpr(uintptr_t *, uintptr_t);
+static int parse_cat(uintptr_t *, uint8_t const *);
+static int parse_char(uintptr_t *, uint8_t const *);
+static int parse_close(uintptr_t *, uint8_t const *);
+static int parse_eol(uintptr_t *);
+static int parse_escape(uintptr_t *, uint8_t const *);
+static int parse_open(uintptr_t *, uint8_t const *);
+static uintptr_t parse_subexpr(uintptr_t *, uintptr_t);
 
 static int shift_close(uint8_t *, uint8_t *, char const *);
 static int shift_escape(uint8_t *, uint8_t *, char const *);
@@ -35,10 +35,10 @@ static int shift_liter(uint8_t *, uint8_t *, char const *);
 static int shift_token(uint8_t *, uint8_t *, char const *);
 
 static int scan(uint8_t **, char const *);
-static int pat_grow(uintptr_t *, uint8_t const *);
-static int pat_flush(uint8_t *, uint8_t *);
-static int parse(uintptr_t *, uint8_t *);
-static int pat_shunt(uint8_t *, uint8_t *, char const *);
+static int parse(uintptr_t *, uint8_t const *);
+static int flush(uint8_t *, uint8_t *);
+static int mktree(uintptr_t *, uint8_t *);
+static int shunt(uint8_t *, uint8_t *, char const *);
 
 static int (* const tab_shunt[])(uint8_t *, uint8_t *, char const *) = {
 	['\\'] = shift_escape,
@@ -51,15 +51,15 @@ static int (* const tab_shunt[])(uint8_t *, uint8_t *, char const *) = {
 };
 
 static int (* const tab_grow[])(uintptr_t *res, uint8_t const *stk) = {
-	['\\'] = grow_escape,
-	['_']  = grow_cat,
-	['(']  = grow_open,
-	[')']  = grow_close,
+	['\\'] = parse_escape,
+	['_']  = parse_cat,
+	['(']  = parse_open,
+	[')']  = parse_close,
 	[255]  = 0,
 };
 
 int
-grow_cat(uintptr_t *res, uint8_t const *stk)
+parse_cat(uintptr_t *res, uint8_t const *stk)
 {
 	uintptr_t cat;
 	uintptr_t lef;
@@ -74,7 +74,7 @@ grow_cat(uintptr_t *res, uint8_t const *stk)
 
 	vec_put(res, &cat);
 
-	return pat_grow(res, ++stk);
+	return parse(res, ++stk);
 
 nomem:
 	vec_put(res, &rit);
@@ -83,7 +83,7 @@ nomem:
 }
 
 int
-grow_char(uintptr_t *res, uint8_t const *stk)
+parse_char(uintptr_t *res, uint8_t const *stk)
 {
 	uintptr_t nod;
 
@@ -92,29 +92,29 @@ grow_char(uintptr_t *res, uint8_t const *stk)
 
 	vec_put(res, &nod);
 
-	return pat_grow(res, ++stk);
+	return parse(res, ++stk);
 }
 
 int
-grow_close(uintptr_t *res, uint8_t const *stk)
+parse_close(uintptr_t *res, uint8_t const *stk)
 {
 	uintptr_t sub;
 
-	sub = grow_subexpr(res, 0);
+	sub = parse_subexpr(res, 0);
 	if (!sub) return ENOMEM;
 
 	vec_put(res, &sub);
 
-	return pat_grow(res, ++stk);
+	return parse(res, ++stk);
 }
 
 int
-grow_eol(uintptr_t *res)
+parse_eol(uintptr_t *res)
 {
 	uintptr_t tmp;
 	uintptr_t root;
 
-	tmp = grow_subexpr(res, 0);
+	tmp = parse_subexpr(res, 0);
 	if (!tmp) goto nomem;
 
 	root = mk_subexpr(tmp);
@@ -129,13 +129,13 @@ nomem:
 }
 
 int
-grow_escape(uintptr_t *res, uint8_t const *stk)
+parse_escape(uintptr_t *res, uint8_t const *stk)
 {
-	return grow_char(res, ++stk);
+	return parse_char(res, ++stk);
 }
 
 int
-grow_open(uintptr_t *res, uint8_t const *stk)
+parse_open(uintptr_t *res, uint8_t const *stk)
 {
 	uintptr_t tmp;
 
@@ -144,17 +144,17 @@ grow_open(uintptr_t *res, uint8_t const *stk)
 
 	vec_put(res, &tmp);
 
-	return pat_grow(res, ++stk);
+	return parse(res, ++stk);
 }
 
 int
-grow_rep(uintptr_t *res, uint8_t const *stk)
+parse_rep(uintptr_t *res, uint8_t const *stk)
 {
 	return -1;
 }
 
 uintptr_t
-grow_subexpr(uintptr_t *res, uintptr_t rit)
+parse_subexpr(uintptr_t *res, uintptr_t rit)
 {
 	uintptr_t lef;
 	uintptr_t acc;
@@ -166,7 +166,7 @@ grow_subexpr(uintptr_t *res, uintptr_t rit)
 	acc = nod_attach(lef, rit);
 	if (!acc) goto nomem;
 
-	return grow_subexpr(res, acc);
+	return parse_subexpr(res, acc);
 
 nomem:
 	vec_put(res, &lef);
@@ -187,7 +187,7 @@ shift_escape(uint8_t *stk, uint8_t *aux, char const *src)
 	vec_put(stk, (char[]){'\\'});
 	vec_put(stk, src);
 	++src;
-	return pat_shunt(stk, aux, src);
+	return shunt(stk, aux, src);
 }
 
 int
@@ -200,7 +200,7 @@ shift_char(uint8_t *stk, uint8_t *aux, char const *src)
 
 	vec_put(stk, src);
 
-	return pat_shunt(stk, aux, ++src);
+	return shunt(stk, aux, ++src);
 }
 
 int
@@ -222,16 +222,16 @@ int
 shift_token(uint8_t *stk, uint8_t *aux, char const *src)
 {
 	vec_put(stk, src);
-	return pat_shunt(stk, aux, ++src);
+	return shunt(stk, aux, ++src);
 }
 
 int
-pat_grow(uintptr_t *res, uint8_t const *stk)
+parse(uintptr_t *res, uint8_t const *stk)
 {
 	uint8_t ch;
 	int (*fn)();
 
-	if (!*stk) return grow_eol(res);
+	if (!*stk) return parse_eol(res);
 
 	memcpy(&ch, stk, 1);
 
@@ -239,17 +239,17 @@ pat_grow(uintptr_t *res, uint8_t const *stk)
 
 	fn = tab_grow[ch];
 	if (fn) return fn(res, stk);
-	else return grow_char(res, stk);
+	else return parse_char(res, stk);
 }
 
 int
-pat_flush(uint8_t *stk, uint8_t *aux)
+flush(uint8_t *stk, uint8_t *aux)
 {
 	return 0;
 }
 
 int
-parse(uintptr_t *dst, uint8_t *stk)
+mktree(uintptr_t *dst, uint8_t *stk)
 {
 	uintptr_t *res;
 	int err;
@@ -257,7 +257,7 @@ parse(uintptr_t *dst, uint8_t *stk)
 	res = vec_alloc(uintptr_t, vec_len(stk));
 	if (!res) return ENOMEM;
 
-	err = pat_grow(res, stk);
+	err = parse(res, stk);
 	if (err) goto finally;
 
 finally:
@@ -279,7 +279,7 @@ scan(uint8_t **stk, char const *src)
 	aux = vec_alloc(uint8_t, len);
 	if (!aux) { err = ENOMEM; goto finally; }
 
-	err = pat_shunt(*stk, aux, src);
+	err = shunt(*stk, aux, src);
 	if (err) goto finally;
 
 finally:
@@ -290,12 +290,12 @@ finally:
 }
 
 int
-pat_shunt(uint8_t *stk, uint8_t *aux, char const *src)
+shunt(uint8_t *stk, uint8_t *aux, char const *src)
 {
 	int (*fn)();
 	uint8_t ch;
 
-	if (!*src) return pat_flush(stk, aux);
+	if (!*src) return flush(stk, aux);
 
 	memcpy(&ch, src, 1);
 
@@ -318,7 +318,7 @@ pat_parse(uintptr_t *dst, char const *src)
 	err = scan(&stk, src);
 	if (err) goto finally;
 
-	err = parse(dst, stk);
+	err = mktree(dst, stk);
 	if (err) goto finally;
 
 finally:
