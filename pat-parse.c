@@ -27,6 +27,7 @@ static int parse_rep(uintptr_t *, struct token const *);
 
 static int shunt_char(struct token *, struct token *, char const *);
 static int shunt_close(struct token *, struct token *, char const *);
+static int shunt_dyad(struct token *, struct token *, char const *);
 static int shunt_escape(struct token *, struct token *, char const *);
 static int shunt_open(struct token *, struct token *, char const *);
 static int shunt_monad(struct token *, struct token *, char const *);
@@ -42,6 +43,7 @@ static int (* const tab_shunt[])() = {
 	['*']  = shunt_monad,
 	['?']  = shunt_monad,
 	['+']  = shunt_monad,
+	['|']  = shunt_dyad,
 	['(']  = shunt_open,
 	[')']  = shunt_close,
 	[255]  = 0,
@@ -56,6 +58,7 @@ static int (* const tab_grow[])() = {
 	[type_rep] = parse_rep,
 	[type_sub] = parse_close,
 	[type_nop] = parse_nop,
+	[type_alt] = parse_nop,
 };
 
 int
@@ -192,6 +195,17 @@ shunt_close(struct token *stk, struct token *aux, char const *src)
 	if (aux->id != type_nop) return PAT_ERR_BADPAREN;
 	vec_cat(stk, aux);
 	vec_zero(aux);
+
+	return shunt_char(stk, aux, ++src);
+}
+
+int
+shunt_dyad(struct token *stk, struct token *aux, char const *src)
+{
+	vec_cat(stk, aux);
+	vec_zero(aux);
+
+	vec_put(aux, token(type_alt));
 
 	return shunt_char(stk, aux, ++src);
 }
