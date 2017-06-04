@@ -12,9 +12,8 @@ skip tag_leaf
 skip to_node
 skip to_leaf
 
-skip ip
 
-skip vec_len
+skip file vec.h
 skip file vec.c
 
 skip ctx_init
