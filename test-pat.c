@@ -30,11 +30,11 @@ struct b {
 
 struct test tests[] = {
 	{ do_plain, loop,  "testing plaintext matching" },
+	{ do_esc,   loop,  "testing the \\ escapes", },
 	{ do_qmark, loop,  "testing the ? operator", },
 	{ do_star,  loop,  "testing the * operator", },
 	{ do_plus,  loop,  "testing the + operator", },
 	{ do_alter, loop,  "testing the | operator", },
-	{ do_esc,   loop,  "testing the \\ escapes", },
 	{ do_sub,   loop,  "testing the () submatches", },
 	{ do_dot,   loop,  "testing the . metacharacter", },
 };
