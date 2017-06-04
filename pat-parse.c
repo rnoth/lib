@@ -33,9 +33,10 @@ static int shift_escape(uint8_t *, uint8_t *, char const *);
 static int shift_liter(uint8_t *, uint8_t *, char const *);
 static int shift_token(uint8_t *, uint8_t *, char const *);
 
+static int scan(uint8_t **, char const *);
 static int pat_grow(uintptr_t *, uint8_t const *);
 static int pat_flush(uint8_t *, uint8_t *);
-static int parse(uintptr_t *, uint8_t *, uint8_t *, char const *);
+static int parse(uintptr_t *, uint8_t *);
 static int pat_process(uint8_t *, uint8_t *, char const *);
 static int pat_shunt(uint8_t *, uint8_t *, char const *);
 
@@ -228,6 +229,24 @@ pat_flush(uint8_t *stk, uint8_t *aux)
 }
 
 int
+parse(uintptr_t *dst, uint8_t *stk)
+{
+	uintptr_t *res;
+	int err;
+
+	res = vec_alloc(uintptr_t, vec_len(stk));
+	if (!res) return ENOMEM;
+
+	err = pat_grow(res, stk);
+	if (err) goto finally;
+
+finally:
+	if (!err) *dst = res[0];
+	vec_free(res);
+	return err;
+}
+
+int
 pat_process(uint8_t *stk, uint8_t *aux, char const *src)
 {
 	int err;
@@ -238,6 +257,31 @@ pat_process(uint8_t *stk, uint8_t *aux, char const *src)
 	vec_put(stk, (char[]){')'});
 
 	return 0;
+}
+
+int
+scan(uint8_t **stk, char const *src)
+{
+	size_t const len = strlen(src) + 1;
+	uint8_t *aux = 0;
+	int err;
+
+	*stk = vec_alloc(uint8_t, len * 2);
+	aux = vec_alloc(uint8_t, len);
+
+	if (!*stk || !aux) {
+		err = ENOMEM;
+		goto finally;
+	}
+
+	err = pat_process(*stk, aux, src);
+	if (err) goto finally;
+
+finally:
+	if (err) vec_free(*stk);
+	vec_free(aux);
+
+	return err;
 }
 
 int
@@ -256,23 +300,9 @@ pat_shunt(uint8_t *stk, uint8_t *aux, char const *src)
 }
 
 int
-parse(uintptr_t *res, uint8_t *stk, uint8_t *aux, char const *src)
-{
-	int err;
-
-	err = pat_process(stk, aux, src);
-	if (err) return err;
-
-	return pat_grow(res, stk);
-}
-
-int
 pat_parse(uintptr_t *dst, char const *src)
 {
-	size_t const len = strlen(src);
-	uint8_t *stk = 0;
-	uint8_t *aux = 0;
-	uintptr_t *res = 0;
+	uint8_t *stk;
 	int err;
 
 	assert(dst != 0x0);
@@ -280,23 +310,12 @@ pat_parse(uintptr_t *dst, char const *src)
 
 	*dst = 0;
 
-	stk = vec_alloc(uint8_t, len * 2 + 2);
-	aux = vec_alloc(uint8_t, len * 2);
-	res = vec_alloc(uintptr_t, len + 2);
+	err = scan(&stk, src);
+	if (err) goto finally;
 
-	if (!aux || !stk || !res) {
-		err = ENOMEM;
-		goto finally;
-	}
-
-	err = parse(res, stk, aux, src);
-
-	*dst = res[0];
+	err = parse(dst, stk);
+	if (err) goto finally;
 
 finally:
-	vec_free(stk);
-	vec_free(aux);
-	vec_free(res);
-
 	return err;
 }
