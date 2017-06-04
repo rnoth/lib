@@ -7,58 +7,56 @@
 #include <pat.h>
 #include <pat.ih>
 
-#define token(id, ch) ((struct token[]){ .id = id, .ch = ch })
-
-enum {
-	tok_null,
-	tok_lit,
-	tok_sub,
-};
+#define token(...) tok(__VA_ARGS__, 0, 0)
+#define tok(i, c, ...) ((struct token[]){{ .id = i, .ch = c }})
+#define peek(a) ((a + vec_len(a)))
 
 struct token {
 	uint8_t id;
 	uint8_t ch;
 };
 
-static int parse_cat(uintptr_t *, uint8_t const *);
-static int parse_char(uintptr_t *, uint8_t const *);
-static int parse_close(uintptr_t *, uint8_t const *);
+static int parse_cat(uintptr_t *, struct token const *);
+static int parse_char(uintptr_t *, struct token const *);
+static int parse_close(uintptr_t *, struct token const *);
 static int parse_eol(uintptr_t *);
-static int parse_escape(uintptr_t *, uint8_t const *);
-static int parse_open(uintptr_t *, uint8_t const *);
+static int parse_open(uintptr_t *, struct token const *);
+static int parse_rep(uintptr_t *, struct token const *);
 static uintptr_t get_subexpr(uintptr_t *, uintptr_t);
 
-static int shift_close(uint8_t *, uint8_t *, char const *);
-static int shift_escape(uint8_t *, uint8_t *, char const *);
-static int shift_liter(uint8_t *, uint8_t *, char const *);
-static int shift_token(uint8_t *, uint8_t *, char const *);
+static int shunt_char(struct token *, struct token *, char const *);
+static int shunt_escape(struct token *, struct token *, char const *);
+static int shunt_oper(struct token *, struct token *, char const *);
 
-static int scan(uint8_t **, char const *);
-static int parse(uintptr_t *, uint8_t const *);
-static int flush(uint8_t *, uint8_t *);
-static int mktree(uintptr_t *, uint8_t *);
-static int shunt(uint8_t *, uint8_t *, char const *);
+static int flush(struct token *, struct token *);
+static uint8_t oper(char const *);
+static int parse(uintptr_t *, struct token const *);
+static int scan(struct token **, char const *);
+static int shunt(struct token *, struct token *, char const *);
 
-static int (* const tab_shunt[])(uint8_t *, uint8_t *, char const *) = {
-	['\\'] = shift_escape,
-	['*']  = shift_token,
-	['?']  = shift_token,
-	['+']  = shift_token,
-	['(']  = shift_token,
-	[')']  = shift_close,
+static int (* const tab_shunt[])() = {
+	['\\'] = shunt_escape,
+	['*']  = shunt_oper,
+	['?']  = shunt_oper,
+	['+']  = shunt_oper,
+	['(']  = shunt_oper,
+	[')']  = shunt_oper,
 	[255]  = 0,
 };
 
-static int (* const tab_grow[])(uintptr_t *res, uint8_t const *stk) = {
-	['\\'] = parse_escape,
-	['_']  = parse_cat,
-	['(']  = parse_open,
-	[')']  = parse_close,
-	[255]  = 0,
+static int (* const tab_grow[])() = {
+	[type_nil] = parse_eol,
+	[type_lit] = parse_char,
+	[type_cat] = parse_cat,
+	[type_sub] = parse_open,
+	[type_exp] = parse_close,
+	[type_opt] = parse_rep,
+	[type_kln] = parse_rep,
+	[type_rep] = parse_rep,
 };
 
 int
-parse_cat(uintptr_t *res, uint8_t const *stk)
+parse_cat(uintptr_t *res, struct token const *stk)
 {
 	uintptr_t cat;
 	uintptr_t lef;
@@ -72,7 +70,8 @@ parse_cat(uintptr_t *res, uint8_t const *stk)
 
 	vec_put(res, &cat);
 
-	return parse(res, ++stk);
+	++stk;
+	return tab_grow[stk->id](res, stk);
 
 nomem:
 	vec_put(res, &rit);
@@ -81,20 +80,21 @@ nomem:
 }
 
 int
-parse_char(uintptr_t *res, uint8_t const *stk)
+parse_char(uintptr_t *res, struct token const *stk)
 {
 	uintptr_t nod;
 
-	nod = mk_leaf(*stk);
+	nod = mk_leaf(stk->ch);
 	if (!nod) return ENOMEM;
 
 	vec_put(res, &nod);
 
-	return parse(res, ++stk);
+	++stk;
+	return tab_grow[stk->id](res, stk);
 }
 
 int
-parse_close(uintptr_t *res, uint8_t const *stk)
+parse_close(uintptr_t *res, struct token const *stk)
 {
 	uintptr_t sub;
 
@@ -103,7 +103,8 @@ parse_close(uintptr_t *res, uint8_t const *stk)
 
 	vec_put(res, &sub);
 
-	return parse(res, ++stk);
+	++stk;
+	return tab_grow[stk->id](res, stk);
 }
 
 int
@@ -119,6 +120,7 @@ parse_eol(uintptr_t *res)
 	if (!root) goto nomem;
 
 	vec_put(res, &root);
+
 	return 0;
 
 nomem:
@@ -127,13 +129,7 @@ nomem:
 }
 
 int
-parse_escape(uintptr_t *res, uint8_t const *stk)
-{
-	return parse_char(res, ++stk);
-}
-
-int
-parse_open(uintptr_t *res, uint8_t const *stk)
+parse_open(uintptr_t *res, struct token const *stk)
 {
 	uintptr_t tmp;
 
@@ -142,13 +138,26 @@ parse_open(uintptr_t *res, uint8_t const *stk)
 
 	vec_put(res, &tmp);
 
-	return parse(res, ++stk);
+	++stk;
+	return tab_grow[stk->id](res, stk);
 }
 
 int
-parse_rep(uintptr_t *res, uint8_t const *stk)
+parse_rep(uintptr_t *res, struct token const *stk)
 {
-	return -1;
+	uintptr_t rep;
+	uintptr_t chld;
+
+	if (!vec_len(res)) return PAT_ERR_BADREP;
+	vec_get(&chld, res);
+
+	rep = mk_rep(stk->id, chld);
+	if (!rep) return ENOMEM;
+
+	vec_put(res, &rep);
+
+	++stk;
+	return tab_grow[stk->id](res, stk);
 }
 
 uintptr_t
@@ -173,81 +182,54 @@ nomem:
 
 
 int
-shift_close(uint8_t *stk, uint8_t *aux, char const *src)
+shunt_escape(struct token *stk, struct token *aux, char const *src)
 {
-	return shift_token(stk, aux, src);
+	return shunt_char(stk, aux, ++src);
 }
 
 int
-shift_escape(uint8_t *stk, uint8_t *aux, char const *src)
+shunt_char(struct token *stk, struct token *aux, char const *src)
 {
-	++src;
-	vec_put(stk, (char[]){'\\'});
-	vec_put(stk, src);
-	++src;
-	return shunt(stk, aux, src);
+	if (vec_len(stk)) vec_put(aux, token(type_cat));
+
+	vec_put(stk, token(type_lit, *src));
+	return shunt(stk, aux, ++src);
 }
 
 int
-shift_char(uint8_t *stk, uint8_t *aux, char const *src)
+shunt_oper(struct token *stk, struct token *aux, char const *src)
 {
-	uint8_t ch; 
+	uint8_t op = oper(src);
+	vec_put(stk, token(op, *src));
+	return shunt(stk, aux, ++src);
+}
+
+int
+flush(struct token *stk, struct token *aux)
+{
+	vec_cat(stk, aux);
+	vec_zero(aux);
+	return 0;
+}
+
+uint8_t
+oper(char const *src)
+{
+	uint8_t const tab[] = {
+		['?'] = type_opt,
+		['*'] = type_kln,
+		['+'] = type_rep,
+		['('] = type_sub,
+	};
+	uint8_t ch;
 
 	memcpy(&ch, src, 1);
-	if (tab_grow[ch]) vec_put(stk,(char[]){'\\'});
 
-	vec_put(stk, src);
-
-	return shunt(stk, aux, ++src);
+	return tab[ch];
 }
 
 int
-shift_concat(uint8_t *stk, uint8_t *aux, char const *src)
-{
-	shift_char(stk, aux, src);
-	vec_put(stk,(char[]){'_'});
-	return 0;
-}
-
-int
-shift_liter(uint8_t *stk, uint8_t *aux, char const *src)
-{
-	if (vec_len(stk) == 1) return shift_char(stk, aux, src);
-	else return shift_concat(stk, aux, src);
-}
-
-int
-shift_token(uint8_t *stk, uint8_t *aux, char const *src)
-{
-	vec_put(stk, src);
-	return shunt(stk, aux, ++src);
-}
-
-int
-parse(uintptr_t *res, uint8_t const *stk)
-{
-	uint8_t ch;
-	int (*fn)();
-
-	if (!*stk) return parse_eol(res);
-
-	memcpy(&ch, stk, 1);
-
-	if (!ch) return 0;
-
-	fn = tab_grow[ch];
-	if (fn) return fn(res, stk);
-	else return parse_char(res, stk);
-}
-
-int
-flush(uint8_t *stk, uint8_t *aux)
-{
-	return 0;
-}
-
-int
-mktree(uintptr_t *dst, uint8_t *stk)
+parse(uintptr_t *dst, struct token const *stk)
 {
 	uintptr_t *res;
 	int err;
@@ -255,7 +237,7 @@ mktree(uintptr_t *dst, uint8_t *stk)
 	res = vec_alloc(uintptr_t, vec_len(stk));
 	if (!res) return ENOMEM;
 
-	err = parse(res, stk);
+	err = tab_grow[stk->id](res, stk);
 	if (err) goto finally;
 
 finally:
@@ -265,17 +247,19 @@ finally:
 }
 
 int
-scan(uint8_t **stk, char const *src)
+scan(struct token **stk, char const *src)
 {
 	size_t const len = strlen(src) + 1;
-	uint8_t *aux = 0;
+	struct token *aux = 0;
 	int err;
 
-	*stk = vec_alloc(uint8_t, len * 2);
-	if (!*stk) { err = ENOMEM; goto finally; }
+	*stk = vec_alloc(struct token, len * 2);
+	 aux = vec_alloc(struct token, len);
 
-	aux = vec_alloc(uint8_t, len);
-	if (!aux) { err = ENOMEM; goto finally; }
+	if (!*stk || !aux) {
+		err = ENOMEM;
+		goto finally;
+	}
 
 	err = shunt(*stk, aux, src);
 	if (err) goto finally;
@@ -288,7 +272,7 @@ finally:
 }
 
 int
-shunt(uint8_t *stk, uint8_t *aux, char const *src)
+shunt(struct token *stk, struct token *aux, char const *src)
 {
 	int (*shift)();
 	uint8_t ch;
@@ -299,19 +283,19 @@ shunt(uint8_t *stk, uint8_t *aux, char const *src)
 
 	shift = tab_shunt[ch];
 	if (shift) return shift(stk, aux, src);
-	else return shift_liter(stk, aux, src);
+	else return shunt_char(stk, aux, src);
 }
 
 int
 pat_parse(uintptr_t *dst, char const *src)
 {
-	uint8_t *stk;
+	struct token *stk;
 	int err;
 
 	err = scan(&stk, src);
 	if (err) return err;
 
-	err = mktree(dst, stk);
+	err = parse(dst, stk);
 	if (err) return err;
 
 	return 0;
