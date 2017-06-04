@@ -71,6 +71,21 @@ mk_open(void)
 }
 
 uintptr_t
+mk_rep(enum type ty, uintptr_t chld)
+{
+	struct node *ret;
+
+	ret = calloc(1, sizeof *ret);
+	if (!ret) return 0;
+
+	ret->type = ty;
+	ret->chld[0] = chld;
+	ret->len = nod_len(chld); // XXX
+
+	return tag_node(ret);
+}
+
+uintptr_t
 mk_subexpr(uintptr_t chld)
 {
 	struct node *ret;
@@ -120,14 +135,13 @@ nod_dtor(uintptr_t u)
 size_t
 nod_len(uintptr_t n)
 {
-	if (is_leaf(n)) return 1;
-	return to_node(n)->len;
+	return 0; // XXX
 }
 
 enum type
 nod_type(uintptr_t u)
 {
-	if (is_leaf(u)) return type_leaf;
+	if (is_leaf(u)) return type_lit;
 	else return to_node(u)->type;
 }
 
