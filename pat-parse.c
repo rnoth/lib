@@ -16,16 +16,19 @@ struct token {
 	uint8_t ch;
 };
 
+static uintptr_t get_subexpr(uintptr_t *, uintptr_t);
+
 static int parse_cat(uintptr_t *, struct token const *);
 static int parse_char(uintptr_t *, struct token const *);
 static int parse_close(uintptr_t *, struct token const *);
 static int parse_eol(uintptr_t *);
-static int parse_open(uintptr_t *, struct token const *);
+static int parse_nop(uintptr_t *, struct token const *);
 static int parse_rep(uintptr_t *, struct token const *);
-static uintptr_t get_subexpr(uintptr_t *, uintptr_t);
 
 static int shunt_char(struct token *, struct token *, char const *);
+static int shunt_close(struct token *, struct token *, char const *);
 static int shunt_escape(struct token *, struct token *, char const *);
+static int shunt_open(struct token *, struct token *, char const *);
 static int shunt_oper(struct token *, struct token *, char const *);
 
 static int flush(struct token *, struct token *);
@@ -39,8 +42,8 @@ static int (* const tab_shunt[])() = {
 	['*']  = shunt_oper,
 	['?']  = shunt_oper,
 	['+']  = shunt_oper,
-	['(']  = shunt_oper,
-	[')']  = shunt_oper,
+	['(']  = shunt_open,
+	[')']  = shunt_close,
 	[255]  = 0,
 };
 
@@ -48,11 +51,11 @@ static int (* const tab_grow[])() = {
 	[type_nil] = parse_eol,
 	[type_lit] = parse_char,
 	[type_cat] = parse_cat,
-	[type_sub] = parse_open,
-	[type_exp] = parse_close,
 	[type_opt] = parse_rep,
 	[type_kln] = parse_rep,
 	[type_rep] = parse_rep,
+	[type_sub] = parse_close,
+	[type_nop] = parse_nop,
 };
 
 int
@@ -129,15 +132,8 @@ nomem:
 }
 
 int
-parse_open(uintptr_t *res, struct token const *stk)
+parse_nop(uintptr_t *res, struct token const *stk)
 {
-	uintptr_t tmp;
-
-	tmp = mk_open();
-	if (!tmp) return ENOMEM;
-
-	vec_put(res, &tmp);
-
 	++stk;
 	return tab_grow[stk->id](res, stk);
 }
@@ -182,17 +178,38 @@ nomem:
 
 
 int
+shunt_char(struct token *stk, struct token *aux, char const *src)
+{
+	if (vec_len(stk)) vec_put(aux, token(type_cat));
+
+	vec_put(stk, token(type_lit, *src));
+	return shunt(stk, aux, ++src);
+}
+
+int
+shunt_close(struct token *stk, struct token *aux, char const *src)
+{
+	if (aux->id != type_nop) return PAT_ERR_BADPAREN;
+	vec_cat(stk, aux);
+	vec_zero(aux);
+
+	return shunt_char(stk, aux, ++src);
+}
+
+int
 shunt_escape(struct token *stk, struct token *aux, char const *src)
 {
 	return shunt_char(stk, aux, ++src);
 }
 
 int
-shunt_char(struct token *stk, struct token *aux, char const *src)
+shunt_open(struct token *stk, struct token *aux, char const *src)
 {
-	if (vec_len(stk)) vec_put(aux, token(type_cat));
+	vec_cat(stk, aux);
+	vec_zero(aux);
 
-	vec_put(stk, token(type_lit, *src));
+	vec_put(aux, token(type_nop));
+
 	return shunt(stk, aux, ++src);
 }
 

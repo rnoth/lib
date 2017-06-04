@@ -30,6 +30,7 @@ enum type {
 	type_kln,
 	type_sub,
 	type_exp,
+	type_nop,
 };
 
 struct thread {
