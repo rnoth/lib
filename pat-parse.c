@@ -24,6 +24,7 @@ struct token {
 static int grow_cat(uintptr_t *, uint8_t const *);
 static int grow_char(uintptr_t *, uint8_t const *);
 static int grow_close(uintptr_t *, uint8_t const *);
+static int grow_eol(uintptr_t *);
 static int grow_escape(uintptr_t *, uint8_t const *);
 static int grow_open(uintptr_t *, uint8_t const *);
 static uintptr_t grow_subexpr(uintptr_t *, uintptr_t);
@@ -109,6 +110,26 @@ grow_close(uintptr_t *res, uint8_t const *stk)
 }
 
 int
+grow_eol(uintptr_t *res)
+{
+	uintptr_t tmp;
+	uintptr_t root;
+
+	tmp = grow_subexpr(res, 0);
+	if (!tmp) goto nomem;
+
+	root = mk_subexpr(tmp);
+	if (!root) goto nomem;
+
+	vec_put(res, &root);
+	return 0;
+
+nomem:
+	if (tmp) vec_put(res, &tmp);
+	return ENOMEM;
+}
+
+int
 grow_escape(uintptr_t *res, uint8_t const *stk)
 {
 	return grow_char(res, ++stk);
@@ -138,18 +159,18 @@ grow_subexpr(uintptr_t *res, uintptr_t rit)
 {
 	uintptr_t lef;
 	uintptr_t acc;
-	
+
+	if (is_subexpr(rit)) return rit;
+	if (!vec_len(res)) return rit;
+
 	vec_get(&lef, res);
 	acc = nod_attach(lef, rit);
 	if (!acc) goto nomem;
 
-	if (is_subexpr(acc)) return acc;
-	else return grow_subexpr(res, acc);
+	return grow_subexpr(res, acc);
 
 nomem:
 	vec_put(res, &lef);
-	if (rit) vec_put(res, &rit);
-
 	return ENOMEM;
 }
 
@@ -211,7 +232,7 @@ pat_grow(uintptr_t *res, uint8_t const *stk)
 	uint8_t ch;
 	int (*fn)();
 
-	if (!*stk) return 0;
+	if (!*stk) return grow_eol(res);
 
 	memcpy(&ch, stk, 1);
 
@@ -267,14 +288,12 @@ scan(uint8_t **stk, char const *src)
 	int err;
 
 	*stk = vec_alloc(uint8_t, len * 2);
+	if (!*stk) { err = ENOMEM; goto finally; }
+
 	aux = vec_alloc(uint8_t, len);
+	if (!aux) { err = ENOMEM; goto finally; }
 
-	if (!*stk || !aux) {
-		err = ENOMEM;
-		goto finally;
-	}
-
-	err = pat_process(*stk, aux, src);
+	err = pat_shunt(*stk, aux, src);
 	if (err) goto finally;
 
 finally:
