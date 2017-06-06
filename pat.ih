@@ -125,7 +125,7 @@ void thr_remove(struct context *, size_t);
 
 int pat_exec(struct context *);
 int pat_marshal(struct pattern *, uintptr_t);
-int pat_parse(uintptr_t *, char const *);
+int pat_parse(uintptr_t *, void const *);
 int pat_match(struct context *, struct pattern *);
 
 void       step(struct pos *p) { ++p->f; }
