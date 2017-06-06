@@ -11,6 +11,11 @@
 #define tok(i, c, ...) ((struct token[]){{ .id = i, .ch = c }})
 #define peek(a) ((a + vec_len(a)))
 
+enum state {
+	st_init,
+	st_str,
+};
+
 struct token {
 	uint8_t id;
 	uint8_t ch;
@@ -25,25 +30,26 @@ static int parse_nop(uintptr_t *, struct token const *);
 static int parse_rep(uintptr_t *, struct token const *);
 
 static int scan(struct token **, void const *);
-static int shunt(struct token *, struct token *, uint8_t const *);
+static int shunt_init(struct token *, struct token *, uint8_t const *);
+static int shunt_str(struct token *, struct token *, uint8_t const *);
+static int shunt_next(struct token *, struct token *, uint8_t const *, enum state);
 static int shunt_alt(struct token *, struct token *, uint8_t const *);
-static int shunt_char(struct token *, struct token *, uint8_t const *);
+static int shunt_char(struct token *, struct token *, uint8_t const *, enum state);
 static int shunt_close(struct token *, struct token *, uint8_t const *);
 static int shunt_eol(struct token *, struct token *);
-static int shunt_escape(struct token *, struct token *, uint8_t const *);
-static int shunt_open(struct token *, struct token *, uint8_t const *);
-static int shunt_monad(struct token *, struct token *, uint8_t const *);
-static int shunt_string(struct token *, struct token *, uint8_t const *);
+static int shunt_esc(struct token *, struct token *, uint8_t const *, enum state);
+static int shunt_open(struct token *, struct token *, uint8_t const *, enum state);
+static int shunt_mon(struct token *, struct token *, uint8_t const *);
 
 static uint8_t oper(uint8_t const *);
 static int parse(uintptr_t *, struct token const *);
 
 static int (* const tab_shunt[])() = {
 	['\0'] = shunt_eol,
-	['\\'] = shunt_escape,
-	['*']  = shunt_monad,
-	['?']  = shunt_monad,
-	['+']  = shunt_monad,
+	['\\'] = shunt_esc,
+	['*']  = shunt_mon,
+	['?']  = shunt_mon,
+	['+']  = shunt_mon,
 	['|']  = shunt_alt,
 	['(']  = shunt_open,
 	[')']  = shunt_close,
@@ -206,7 +212,7 @@ scan(struct token **stk, void const *src)
 		goto finally;
 	}
 
-	err = shunt(*stk, aux, src);
+	err = shunt_init(*stk, aux, src);
 	if (err) goto finally;
 
 finally:
@@ -217,13 +223,25 @@ finally:
 }
 
 int
-shunt(struct token *stk, struct token *aux, uint8_t const *src)
+shunt_init(struct token *stk, struct token *aux, uint8_t const *src)
 {
-	int (*shift)();
+	return shunt_next(stk, aux, src, st_init);
+}
 
-	shift = tab_shunt[*src];
-	if (shift) return shift(stk, aux, src);
-	else return shunt_char(stk, aux, src);
+int
+shunt_next(struct token *stk, struct token *aux, uint8_t const *src, enum state st)
+{
+	int (*sh)();
+
+	sh = tab_shunt[*src];
+	if (sh) return sh(stk, aux, src, st);
+	else return shunt_char(stk, aux, src, st);
+}
+
+int
+shunt_str(struct token *stk, struct token *aux, uint8_t const *src)
+{
+	return shunt_next(stk, aux, src, st_str);
 }
 
 int
@@ -235,26 +253,26 @@ shunt_alt(struct token *stk, struct token *aux, uint8_t const *src)
 	vec_put(aux, token(type_alt));
 	vec_put(stk, token(type_nop));
 
-	return shunt_char(stk, aux, ++src);
+	return shunt_init(stk, aux, ++src);
 }
 
 int
-shunt_char(struct token *stk, struct token *aux, uint8_t const *src)
+shunt_char(struct token *stk, struct token *aux, uint8_t const *src, enum state st)
 {
-	if (vec_len(stk)) vec_put(aux, token(type_cat));
-
+	if (st == st_str) vec_put(aux, token(type_cat));
 	vec_put(stk, token(type_lit, *src));
-	return shunt_string(stk, aux, ++src);
+	return shunt_str(stk, aux, ++src);
 }
 
 int
 shunt_close(struct token *stk, struct token *aux, uint8_t const *src)
 {
+	// this whole function is wrong
 	if (aux->id != type_nop) return PAT_ERR_BADPAREN; // XXX
 	vec_cat(stk, aux);
 	vec_zero(aux);
 
-	return shunt_char(stk, aux, ++src);
+	return shunt_init(stk, aux, ++src);
 }
 
 int
@@ -266,34 +284,28 @@ shunt_eol(struct token *stk, struct token *aux)
 }
 
 int
-shunt_escape(struct token *stk, struct token *aux, uint8_t const *src)
+shunt_esc(struct token *stk, struct token *aux, uint8_t const *src, enum state st)
 {
-	return shunt_char(stk, aux, ++src);
+	return shunt_char(stk, aux, ++src, st);
 }
 
 int
-shunt_open(struct token *stk, struct token *aux, uint8_t const *src)
+shunt_open(struct token *stk, struct token *aux, uint8_t const *src, enum state st)
 {
 	vec_cat(stk, aux);
 	vec_zero(aux);
 
-	vec_put(aux, token(type_nop));
+	vec_put(aux, token(type_nop, st));
 
-	return shunt(stk, aux, ++src);
+	return shunt_init(stk, aux, ++src);
 }
 
 int
-shunt_monad(struct token *stk, struct token *aux, uint8_t const *src)
+shunt_mon(struct token *stk, struct token *aux, uint8_t const *src)
 {
 	uint8_t op = oper(src);
 	vec_put(stk, token(op, *src));
-	return shunt(stk, aux, ++src);
-}
-
-int
-shunt_string(struct token *stk, struct token *aux, uint8_t const *src)
-{
-	return shunt(stk, aux, src);
+	return shunt_str(stk, aux, ++src);
 }
 
 uint8_t
