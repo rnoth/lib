@@ -9,7 +9,6 @@
 
 #define token(...) tok(__VA_ARGS__, 0, 0)
 #define tok(i, c, ...) ((struct token[]){{ .id = i, .ch = c }})
-#define peek(a) ((a + vec_len(a)))
 
 enum state {
 	st_init,
@@ -44,6 +43,11 @@ static int shunt_mon(struct token *, struct token *, uint8_t const *);
 static uint8_t oper(uint8_t const *);
 static int parse(uintptr_t *, struct token const *);
 
+static int8_t const tab_prec[] = {
+	[type_alt] = 1,
+	[type_cat] = 2,
+};
+
 static int (* const tab_shunt[])() = {
 	['\0'] = shunt_eol,
 	['\\'] = shunt_esc,
@@ -67,6 +71,20 @@ static int (* const tab_grow[])() = {
 	[type_nop] = parse_nop,
 	[type_alt] = parse_alt,
 };
+
+void
+aux_pop(struct token *stk, struct token *aux, int8_t prec)
+{
+	struct token tok[1];
+	if (!vec_len(aux)) return;
+
+	vec_get(tok, aux);
+
+	if (tab_prec[tok->id] > prec) {
+		vec_put(stk, tok);
+		aux_pop(stk, aux, prec);
+	} else vec_put(aux, tok);
+}
 
 int
 parse_alt(uintptr_t *res, struct token const *stk)
@@ -247,11 +265,9 @@ shunt_str(struct token *stk, struct token *aux, uint8_t const *src)
 int
 shunt_alt(struct token *stk, struct token *aux, uint8_t const *src)
 {
-	vec_cat(stk, aux);
-	vec_zero(aux);
+	aux_pop(stk, aux, tab_prec[type_alt]);
 
 	vec_put(aux, token(type_alt));
-	vec_put(stk, token(type_nop));
 
 	return shunt_init(stk, aux, ++src);
 }
@@ -259,7 +275,7 @@ shunt_alt(struct token *stk, struct token *aux, uint8_t const *src)
 int
 shunt_char(struct token *stk, struct token *aux, uint8_t const *src, enum state st)
 {
-	if (st == st_str) vec_put(aux, token(type_cat));
+	if (st == st_str) vec_put(aux, token(type_cat)); // XXX
 	vec_put(stk, token(type_lit, *src));
 	return shunt_str(stk, aux, ++src);
 }
@@ -267,20 +283,25 @@ shunt_char(struct token *stk, struct token *aux, uint8_t const *src, enum state 
 int
 shunt_close(struct token *stk, struct token *aux, uint8_t const *src)
 {
-	// this whole function is wrong
-	if (aux->id != type_nop) return PAT_ERR_BADPAREN; // XXX
-	vec_cat(stk, aux);
-	vec_zero(aux);
+	struct token tok[1];
+	if (!vec_len(aux)) return PAT_ERR_BADPAREN;
 
-	return shunt_init(stk, aux, ++src);
+	vec_get(tok, aux);
+	if (tok->id == type_nop) return shunt_next(stk, aux, ++src, tok->ch);
+
+	vec_put(stk, tok);
+	return shunt_close(stk, aux, src);
 }
 
 int
 shunt_eol(struct token *stk, struct token *aux)
 {
-	vec_cat(stk, aux);
-	vec_zero(aux);
-	return 0;
+	struct token tok[1];
+	if (!vec_len(aux)) return 0;
+
+	vec_get(tok, aux);
+	vec_put(stk, tok);
+	return shunt_eol(stk, aux);
 }
 
 int
@@ -292,11 +313,7 @@ shunt_esc(struct token *stk, struct token *aux, uint8_t const *src, enum state s
 int
 shunt_open(struct token *stk, struct token *aux, uint8_t const *src, enum state st)
 {
-	vec_cat(stk, aux);
-	vec_zero(aux);
-
 	vec_put(aux, token(type_nop, st));
-
 	return shunt_init(stk, aux, ++src);
 }
 
