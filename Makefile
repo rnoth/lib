@@ -29,4 +29,7 @@ test-%: test-%.c.o
 	@$@
 	@echo
 
-.PHONY: clean obj bin tests
+test: 
+	@for test in test-*; do [ -x "$$test" ] && "$$test" && echo; done ||true
+
+.PHONY: clean obj bin test
