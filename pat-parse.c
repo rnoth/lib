@@ -34,7 +34,7 @@ static int shunt_str(struct token *, struct token *, uint8_t const *);
 static int shunt_next(struct token *, struct token *, uint8_t const *, enum state);
 static int shunt_alt(struct token *, struct token *, uint8_t const *);
 static int shunt_char(struct token *, struct token *, uint8_t const *, enum state);
-static int shunt_close(struct token *, struct token *, uint8_t const *);
+static int shunt_close(struct token *, struct token *, uint8_t const *, enum state);
 static int shunt_eol(struct token *, struct token *);
 static int shunt_esc(struct token *, struct token *, uint8_t const *, enum state);
 static int shunt_open(struct token *, struct token *, uint8_t const *, enum state);
@@ -44,8 +44,11 @@ static uint8_t oper(uint8_t const *);
 static int parse(uintptr_t *, struct token const *);
 
 static int8_t const tab_prec[] = {
+	[type_sub] = 0,
+	[type_nop] = 0,
 	[type_alt] = 1,
 	[type_cat] = 2,
+	[255]=0,
 };
 
 static int (* const tab_shunt[])() = {
@@ -84,6 +87,20 @@ aux_pop(struct token *stk, struct token *aux, int8_t prec)
 		vec_put(stk, tok);
 		aux_pop(stk, aux, prec);
 	} else vec_put(aux, tok);
+}
+
+void
+tok_put(struct token *stk, struct token *aux, struct token *tok)
+{
+	struct token *top;
+
+	if (!vec_len(aux)) { vec_put(aux, tok); return; }
+
+	top = aux + vec_len(aux) - 1;
+
+	if (tab_prec[top->id] <= tab_prec[tok->id]) {
+		vec_put(aux, tok);
+	} else vec_put(stk, tok);
 }
 
 int
@@ -275,22 +292,27 @@ shunt_alt(struct token *stk, struct token *aux, uint8_t const *src)
 int
 shunt_char(struct token *stk, struct token *aux, uint8_t const *src, enum state st)
 {
-	if (st == st_str) vec_put(aux, token(type_cat)); // XXX
 	vec_put(stk, token(type_lit, *src));
+	if (st == st_str) vec_put(aux, token(type_cat, '_'));
 	return shunt_str(stk, aux, ++src);
 }
 
 int
-shunt_close(struct token *stk, struct token *aux, uint8_t const *src)
+shunt_close(struct token *stk, struct token *aux, uint8_t const *src, enum state st)
 {
 	struct token tok[1];
 	if (!vec_len(aux)) return PAT_ERR_BADPAREN;
 
 	vec_get(tok, aux);
-	if (tok->id == type_nop) return shunt_next(stk, aux, ++src, tok->ch);
+
+	if (tok->id == type_nop) {
+		vec_put(stk, token(type_sub));
+		if (st == st_str) vec_put(aux, token(type_cat, '_'));
+		return shunt_next(stk, aux, ++src, tok->ch);
+	}
 
 	vec_put(stk, tok);
-	return shunt_close(stk, aux, src);
+	return shunt_close(stk, aux, src, st);
 }
 
 int
