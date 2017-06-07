@@ -211,6 +211,20 @@ struct a sub[] = {
 		{ 0x0 } }
 	},
 
+	{ 0x0 },
+};
+
+struct a dot[] = {
+	{ ".oo", (struct b[]) {
+		{ "foo", 0, 3 },
+		{ "boo", 0, 3 },
+		{ 0x0 } },
+
+		(struct b[]) {
+		{ "\noo" },
+		{ 0x0 } },
+	},
+
 	{ "(..)|(.)(.)", (struct b[]) {
 		{ "ab", 0, 2, (struct patmatch[]) {{0,2}, {-1}} },
 		{ 0x0 } }
@@ -223,20 +237,6 @@ struct a sub[] = {
 
 	{ "a*(.*)", (struct b[]) {
 		{ "aaabbb", 0, 6, (struct patmatch[]) {{0, 6}, {-1}} },
-		{ 0x0 } },
-	},
-
-	{ 0x0 },
-};
-
-struct a dot[] = {
-	{ ".oo", (struct b[]) {
-		{ "foo", 0, 3 },
-		{ "boo", 0, 3 },
-		{ 0x0 } },
-
-		(struct b[]) {
-		{ "\noo" },
 		{ 0x0 } },
 	},
 

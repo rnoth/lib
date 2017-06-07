@@ -307,8 +307,8 @@ shunt_close(struct token *stk, struct token *aux, uint8_t const *src, enum state
 
 	if (tok->id == type_nop) {
 		vec_put(stk, token(type_sub));
-		if (st == st_str) vec_put(aux, token(type_cat, '_'));
-		return shunt_next(stk, aux, ++src, tok->ch);
+		if (tok->ch == st_str) vec_put(aux, token(type_cat, '_'));
+		return shunt_next(stk, aux, ++src, st_str);
 	}
 
 	vec_put(stk, tok);
