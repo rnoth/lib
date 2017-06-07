@@ -12,7 +12,7 @@ static void do_star(void);
 static void do_sub(void);
 static void do_plain(void);
 static void do_plus(void);
-static void do_dot(void);
+//static void do_dot(void);
 static void loop(void);
 
 struct a {
@@ -36,7 +36,7 @@ struct test tests[] = {
 	{ do_plus,  loop,  "testing the + operator", },
 	{ do_alter, loop,  "testing the | operator", },
 	{ do_sub,   loop,  "testing the () submatches", },
-	{ do_dot,   loop,  "testing the . metacharacter", },
+	//{ do_dot,   loop,  "testing the . metacharacter", },
 };
 
 struct a plain[] = {
