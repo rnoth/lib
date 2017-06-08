@@ -33,7 +33,7 @@ struct test tests[] = {
 	{ test_add,    test_dup,         "attempting to add duplicate strings" },
 };
 
-size_t const tests_len = arr_len(tests);
+size_t const tests_len = array_len(tests);
 
 char *strings[] = { "foo", "bar", "baz", "quux", };
 
@@ -58,7 +58,7 @@ test_add(void)
 
 	set = set_alloc();
 
-	for (i = 0; i < arr_len(strings); ++i) {
+	for (i = 0; i < array_len(strings); ++i) {
 		expect(0, set_add_string(set, strings[i]));
 		expect(true, set_contains_string(set, strings[i]));
 	}
@@ -93,7 +93,7 @@ test_remove(void)
 {
 	size_t i = 0;
 
-	for (i = 0; i < arr_len(strings); ++i) {
+	for (i = 0; i < array_len(strings); ++i) {
 		expect(0, set_remove_string(set, strings[i]));
 		expect(false, set_contains_string(set, strings[i]));
 		expect(0, set_query_string(0x0, 0, set, strings[i]));

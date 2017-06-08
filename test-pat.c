@@ -243,7 +243,7 @@ struct a dot[] = {
 	{ 0x0 },
 };
 
-size_t const tests_len = arr_len(tests);
+size_t const tests_len = array_len(tests);
 struct a *cur;
 
 struct pattern pat[1];

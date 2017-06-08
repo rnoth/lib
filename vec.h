@@ -97,7 +97,7 @@ int     vec_transfer (void *, void const *, size_t, size_t);
 void    vec_truncat  (void *, size_t, size_t);
 
 #define vec_alloc(type, len) vec_alloc(sizeof (type), len)
-#define vec_concat_arr(dest_ptr, src) vec_concat(dest_ptr, src, arr_len(src))
+#define vec_concat_arr(dest_ptr, src) vec_concat(dest_ptr, src, array_len(src))
 #define vec_ctor(INST) vec_ctor(&(INST), sizeof *INST)
 #define vec_new(type) vec_new(sizeof (type))
 #define vec_put(dst, src) vec_put(dst, src, sizeof *dst)

@@ -44,7 +44,7 @@ struct test tests[] = {
 	{ test_large_insert,  test_get,           "getting elements from a vector" },
 };
 
-size_t const tests_len = arr_len(tests);
+size_t const tests_len = array_len(tests);
 
 static int *intvec;
 

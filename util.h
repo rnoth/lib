@@ -5,7 +5,7 @@
 #include <wchar.h>
 
 /* safe macros */
-#define arr_len(arr)    (sizeof arr / sizeof *arr)
+#define array_len(arr)  (sizeof arr / sizeof *arr)
 #define bit(off)        (1UL << (off))
 #define cpy(dest,src)   (memcpy((dest), (src), sizeof *(dest)))
 #define die(blame)      do { perror(blame); exit(1); } while (0);
