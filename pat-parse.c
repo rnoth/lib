@@ -94,20 +94,6 @@ tok_pop_greater(struct token *stk, struct token *op, int8_t pr)
 	tok_pop_greater(stk, op, pr);
 }
 
-void
-tok_put(struct token *stk, struct token *op, struct token *tok)
-{
-	struct token *top;
-
-	if (!arr_len(op)) { arr_put(op, tok); return; }
-
-	top = op + arr_len(op) - 1;
-
-	if (tab_prec[top->id] <= tab_prec[tok->id]) {
-		arr_put(op, tok);
-	} else arr_put(stk, tok);
-}
-
 int
 parse_alt(uintptr_t *res, struct token const *stk)
 {
