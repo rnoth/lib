@@ -1,6 +1,6 @@
 all: obj bin tests
 
-include proj.mk
+include conf.mk
 include build.mk
 
 -include $(DEP)
