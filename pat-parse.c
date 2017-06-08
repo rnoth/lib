@@ -22,6 +22,7 @@ struct token {
 	uint8_t ch;
 };
 
+static int parse(uintptr_t *, struct token const *);
 static int parse_alt(uintptr_t *, struct token const *);
 static int parse_cat(uintptr_t *, struct token const *);
 static int parse_char(uintptr_t *, struct token const *);
@@ -43,7 +44,6 @@ static int shunt_open(struct token *, struct token *, uint8_t const *, enum stat
 static int shunt_mon(struct token *, struct token *, uint8_t const *);
 
 static uint8_t oper(uint8_t const *);
-static int parse(uintptr_t *, struct token const *);
 
 static int8_t const tab_prec[] = {
 	[type_sub] = 0,
