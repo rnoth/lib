@@ -78,16 +78,20 @@ static int (* const tab_grow[])() = {
 };
 
 void
-op_flush(struct token *stk, struct token *op, int8_t pr)
+tok_pop_greater(struct token *stk, struct token *op, int8_t pr)
 {
-	struct token tok[1];
+	struct token *top;
 
-	if (!arr_len(op)) return;
+	if (arr_len(op) == 0) return;
 
-	arr_get(tok, op);
+	top = arr_peek(op);
 
-	if (prec(tok) < pr) arr_put(op, tok);
-	else arr_put(stk, tok), op_flush(stk, op, pr);
+	if (prec(top) < pr) return;
+
+	arr_put(stk, top);
+	arr_rm(op, arr_len(op)-1);
+
+	tok_pop_greater(stk, op, pr);
 }
 
 void
@@ -283,7 +287,7 @@ shunt_str(struct token *stk, struct token *op, uint8_t const *src)
 int
 shunt_alt(struct token *stk, struct token *op, uint8_t const *src)
 {
-	op_flush(stk, op, tab_prec[type_alt]);
+	tok_pop_greater(stk, op, tab_prec[type_alt]);
 
 	arr_put(op, token(type_alt));
 
