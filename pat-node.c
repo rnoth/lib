@@ -131,16 +131,14 @@ void
 nod_dtor(uintptr_t u)
 {
 	struct node *nod;
-	uintptr_t chld;
 
 	if (!u) return;
 	if (is_leaf(u)) return;
 
 	nod = to_node(u);
 
-	arr_foreach(chld, nod->chld) {
-		if (is_node(chld)) nod_dtor(chld);
-	}
+	if (is_node(nod->chld[0])) nod_dtor(nod->chld[0]);
+	if (is_node(nod->chld[1])) nod_dtor(nod->chld[1]);
 
 	free(nod);
 }
