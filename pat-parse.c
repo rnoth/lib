@@ -2,13 +2,15 @@
 #include <stdint.h>
 #include <stdlib.h>
 
-#include <vec.h>
+#include <arr.h>
 #include <util.h>
 #include <pat.h>
 #include <pat.ih>
 
 #define token(...) tok(__VA_ARGS__, 0, 0)
 #define tok(i, c, ...) ((struct token[]){{ .id = i, .ch = c }})
+
+#define prec(tok) (tab_prec[(tok)->id])
 
 enum state {
 	st_init,
@@ -76,31 +78,30 @@ static int (* const tab_grow[])() = {
 };
 
 void
-aux_pop(struct token *stk, struct token *aux, int8_t prec)
+op_flush(struct token *stk, struct token *op, int8_t pr)
 {
 	struct token tok[1];
-	if (!vec_len(aux)) return;
 
-	vec_get(tok, aux);
+	if (!arr_len(op)) return;
 
-	if (tab_prec[tok->id] > prec) {
-		vec_put(stk, tok);
-		aux_pop(stk, aux, prec);
-	} else vec_put(aux, tok);
+	arr_get(tok, op);
+
+	if (prec(tok) < pr) arr_put(op, tok);
+	else arr_put(stk, tok), op_flush(stk, op, pr);
 }
 
 void
-tok_put(struct token *stk, struct token *aux, struct token *tok)
+tok_put(struct token *stk, struct token *op, struct token *tok)
 {
 	struct token *top;
 
-	if (!vec_len(aux)) { vec_put(aux, tok); return; }
+	if (!arr_len(op)) { arr_put(op, tok); return; }
 
-	top = aux + vec_len(aux) - 1;
+	top = op + arr_len(op) - 1;
 
 	if (tab_prec[top->id] <= tab_prec[tok->id]) {
-		vec_put(aux, tok);
-	} else vec_put(stk, tok);
+		arr_put(op, tok);
+	} else arr_put(stk, tok);
 }
 
 int
@@ -110,20 +111,20 @@ parse_alt(uintptr_t *res, struct token const *stk)
 	uintptr_t rit;
 	uintptr_t alt;
 
-	vec_get(&rit, res);
-	vec_get(&lef, res);
+	arr_get(&rit, res);
+	arr_get(&lef, res);
 
 	alt = mk_alt(lef, rit);
 	if (!alt) goto nomem;
 
-	vec_put(res, &alt);
+	arr_put(res, &alt);
 
 	++stk;
 	return tab_grow[stk->id](res, stk);
 
 nomem:
-	vec_put(res, &lef);
-	vec_put(res, &rit);
+	arr_put(res, &lef);
+	arr_put(res, &rit);
 
 	return ENOMEM;
 }
@@ -135,20 +136,20 @@ parse_cat(uintptr_t *res, struct token const *stk)
 	uintptr_t lef;
 	uintptr_t rit;
 
-	vec_get(&rit, res);
-	vec_get(&lef, res);
+	arr_get(&rit, res);
+	arr_get(&lef, res);
 
 	cat = mk_cat(lef, rit);
 	if (!cat) goto nomem;
 
-	vec_put(res, &cat);
+	arr_put(res, &cat);
 
 	++stk;
 	return tab_grow[stk->id](res, stk);
 
 nomem:
-	vec_put(res, &rit);
-	vec_put(res, &lef);
+	arr_put(res, &rit);
+	arr_put(res, &lef);
 	return ENOMEM;
 }
 
@@ -160,7 +161,7 @@ parse_char(uintptr_t *res, struct token const *stk)
 	nod = mk_leaf(stk->ch);
 	if (!nod) return ENOMEM;
 
-	vec_put(res, &nod);
+	arr_put(res, &nod);
 
 	++stk;
 	return tab_grow[stk->id](res, stk);
@@ -172,18 +173,18 @@ parse_close(uintptr_t *res, struct token const *stk)
 	uintptr_t chld;
 	uintptr_t sub;
 
-	vec_get(&chld, res);
+	arr_get(&chld, res);
 
 	sub = mk_subexpr(chld);
 	if (!sub) goto nomem;
 
-	vec_put(res, &sub);
+	arr_put(res, &sub);
 
 	++stk;
 	return tab_grow[stk->id](res, stk);
 
 nomem:
-	vec_put(res, &chld);
+	arr_put(res, &chld);
 	return ENOMEM;
 }
 
@@ -193,17 +194,17 @@ parse_eol(uintptr_t *res)
 	uintptr_t chld;
 	uintptr_t root;
 
-	vec_get(&chld, res);
+	arr_get(&chld, res);
 
 	root = mk_subexpr(chld);
 	if (!root) goto nomem;
 
-	vec_put(res, &root);
+	arr_put(res, &root);
 
 	return 0;
 
 nomem:
-	vec_put(res, &chld);
+	arr_put(res, &chld);
 	return ENOMEM;
 }
 
@@ -220,13 +221,13 @@ parse_rep(uintptr_t *res, struct token const *stk)
 	uintptr_t rep;
 	uintptr_t chld;
 
-	if (!vec_len(res)) return PAT_ERR_BADREP;
-	vec_get(&chld, res);
+	if (!arr_len(res)) return PAT_ERR_BADREP;
+	arr_get(&chld, res);
 
 	rep = mk_rep(stk->id, chld);
 	if (!rep) return ENOMEM;
 
-	vec_put(res, &rep);
+	arr_put(res, &rep);
 
 	++stk;
 	return tab_grow[stk->id](res, stk);
@@ -236,115 +237,115 @@ int
 scan(struct token **stk, void const *src)
 {
 	size_t const len = strlen(src) + 1;
-	struct token *aux = 0;
+	struct token *op = 0;
 	int err;
 
-	*stk = vec_alloc(struct token, len * 2);
-	 aux = vec_alloc(struct token, len);
+	*stk = arr_alloc(sizeof **stk, len * 2);
+	 op = arr_alloc(sizeof *op, len);
 
-	if (!*stk || !aux) {
+	if (!*stk || !op) {
 		err = ENOMEM;
 		goto finally;
 	}
 
-	err = shunt_init(*stk, aux, src);
+	err = shunt_init(*stk, op, src);
 	if (err) goto finally;
 
 finally:
-	if (err) vec_free(*stk);
-	vec_free(aux);
+	if (err) arr_free(*stk);
+	arr_free(op);
 
 	return err;
 }
 
 int
-shunt_init(struct token *stk, struct token *aux, uint8_t const *src)
+shunt_init(struct token *stk, struct token *op, uint8_t const *src)
 {
-	return shunt_next(stk, aux, src, st_init);
+	return shunt_next(stk, op, src, st_init);
 }
 
 int
-shunt_next(struct token *stk, struct token *aux, uint8_t const *src, enum state st)
+shunt_next(struct token *stk, struct token *op, uint8_t const *src, enum state st)
 {
 	int (*sh)();
 
 	sh = tab_shunt[*src];
-	if (sh) return sh(stk, aux, src, st);
-	else return shunt_char(stk, aux, src, st);
+	if (sh) return sh(stk, op, src, st);
+	else return shunt_char(stk, op, src, st);
 }
 
 int
-shunt_str(struct token *stk, struct token *aux, uint8_t const *src)
+shunt_str(struct token *stk, struct token *op, uint8_t const *src)
 {
-	return shunt_next(stk, aux, src, st_str);
+	return shunt_next(stk, op, src, st_str);
 }
 
 int
-shunt_alt(struct token *stk, struct token *aux, uint8_t const *src)
+shunt_alt(struct token *stk, struct token *op, uint8_t const *src)
 {
-	aux_pop(stk, aux, tab_prec[type_alt]);
+	op_flush(stk, op, tab_prec[type_alt]);
 
-	vec_put(aux, token(type_alt));
+	arr_put(op, token(type_alt));
 
-	return shunt_init(stk, aux, ++src);
+	return shunt_init(stk, op, ++src);
 }
 
 int
-shunt_char(struct token *stk, struct token *aux, uint8_t const *src, enum state st)
+shunt_char(struct token *stk, struct token *op, uint8_t const *src, enum state st)
 {
-	vec_put(stk, token(type_lit, *src));
-	if (st == st_str) vec_put(aux, token(type_cat, '_'));
-	return shunt_str(stk, aux, ++src);
+	arr_put(stk, token(type_lit, *src));
+	if (st == st_str) arr_put(op, token(type_cat, '_'));
+	return shunt_str(stk, op, ++src);
 }
 
 int
-shunt_close(struct token *stk, struct token *aux, uint8_t const *src, enum state st)
+shunt_close(struct token *stk, struct token *op, uint8_t const *src, enum state st)
 {
 	struct token tok[1];
-	if (!vec_len(aux)) return PAT_ERR_BADPAREN;
+	if (!arr_len(op)) return PAT_ERR_BADPAREN;
 
-	vec_get(tok, aux);
+	arr_get(tok, op);
 
 	if (tok->id == type_nop) {
-		vec_put(stk, token(type_sub));
-		if (tok->ch == st_str) vec_put(aux, token(type_cat, '_'));
-		return shunt_next(stk, aux, ++src, st_str);
+		arr_put(stk, token(type_sub));
+		if (tok->ch == st_str) arr_put(op, token(type_cat, '_'));
+		return shunt_next(stk, op, ++src, st_str);
 	}
 
-	vec_put(stk, tok);
-	return shunt_close(stk, aux, src, st);
+	arr_put(stk, tok);
+	return shunt_close(stk, op, src, st);
 }
 
 int
-shunt_eol(struct token *stk, struct token *aux)
+shunt_eol(struct token *stk, struct token *op)
 {
 	struct token tok[1];
-	if (!vec_len(aux)) return 0;
+	if (!arr_len(op)) return 0;
 
-	vec_get(tok, aux);
-	vec_put(stk, tok);
-	return shunt_eol(stk, aux);
+	arr_get(tok, op);
+	arr_put(stk, tok);
+	return shunt_eol(stk, op);
 }
 
 int
-shunt_esc(struct token *stk, struct token *aux, uint8_t const *src, enum state st)
+shunt_esc(struct token *stk, struct token *op, uint8_t const *src, enum state st)
 {
-	return shunt_char(stk, aux, ++src, st);
+	return shunt_char(stk, op, ++src, st);
 }
 
 int
-shunt_open(struct token *stk, struct token *aux, uint8_t const *src, enum state st)
+shunt_open(struct token *stk, struct token *op, uint8_t const *src, enum state st)
 {
-	vec_put(aux, token(type_nop, st));
-	return shunt_init(stk, aux, ++src);
+	arr_put(op, token(type_nop, st));
+	return shunt_init(stk, op, ++src);
 }
 
 int
-shunt_mon(struct token *stk, struct token *aux, uint8_t const *src)
+shunt_mon(struct token *stk, struct token *op, uint8_t const *src)
 {
-	uint8_t op = oper(src);
-	vec_put(stk, token(op, *src));
-	return shunt_str(stk, aux, ++src);
+	uint8_t ty = oper(src);
+	arr_put(stk, token(ty, *src));
+	return shunt_str(stk, op, ++src);
 }
 
 uint8_t
@@ -365,7 +366,7 @@ parse(uintptr_t *dst, struct token const *stk)
 	uintptr_t *res;
 	int err;
 
-	res = vec_alloc(uintptr_t, vec_len(stk));
+	res = arr_alloc(sizeof *res, arr_len(stk));
 	if (!res) return ENOMEM;
 
 	err = tab_grow[stk->id](res, stk);
@@ -373,7 +374,7 @@ parse(uintptr_t *dst, struct token const *stk)
 
 finally:
 	if (!err) *dst = res[0];
-	vec_free(res);
+	arr_free(res);
 	return err;
 }
 

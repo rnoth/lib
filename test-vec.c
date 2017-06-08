@@ -13,11 +13,9 @@ static void test_copy(void);
 static void test_delete(void);
 static void test_elim(void);
 static void test_insert(void);
-static void test_get(void);
 static void test_fun(void);
 static void test_large_insert(void);
 static void test_pop(void);
-static void test_put(void);
 static void test_shift(void);
 static void test_slice(void);
 static void test_splice(void);
@@ -40,8 +38,6 @@ struct test tests[] = {
 	{ test_large_insert,  test_splice,        "splicing a vector with an array", },
 	{ test_large_insert,  test_transfer,      "transfering elements to an array", },
 	{ test_large_insert,  test_pop,           "popping elements from a vector" },
-	{ test_alloc,         test_put,           "putting elements into a vector" },
-	{ test_large_insert,  test_get,           "getting elements from a vector" },
 };
 
 size_t const tests_len = array_len(tests);
@@ -179,17 +175,6 @@ test_insert(void)
 }
 
 void
-test_get(void)
-{
-	int j;
-	iterate(i, 10) {
-		try(vec_get(&j, intvec));
-		expect(999 - i, vec_len(intvec));
-		expect(999 - i, j);
-	}
-}
-
-void
 test_fun(void)
 {
 	// FIXME: does not test nested loops
@@ -243,16 +228,6 @@ test_pop(void)
 	vec_pop(&i, &intvec);
 	expect(999, vec_len(intvec));
 	expect(999, i);
-}
-
-void
-test_put(void)
-{
-	iterate(i, 7) {
-		expect(i, vec_len(intvec));
-		try(vec_put(intvec, (int[]){i}));
-		expect(i, intvec[i]);
-	}
 }
 
 void
