@@ -29,15 +29,11 @@ arr_len(void const *a)
 }
 
 static inline
-void
-arr_cat(void *d, void const *s, size_t size)
+void *
+arr_peek(void const *a, size_t size)
 {
-	memcpy((char*)d + arr_len(d) * size, s, size * arr_len(s));
-	memcpy((size_t*)d - 1,
-	       (size_t[]){arr_len(d) + arr_len(s)},
-	       sizeof (size_t));
+	return (char *)a + (arr_len(a) - 1) * size;
 }
-
 
 static inline
 void
@@ -62,15 +58,15 @@ arr_put(void *dst, void const *src, size_t size)
 
 static inline
 void
-arr_zero(void *arr, size_t size)
+arr_rm(void *a, size_t w, size_t z)
 {
-	memset((size_t*)arr-1,
-	       0,
-	       sizeof(size_t)+(arr_len(arr)-1)*size);
+	memmove((char*)a+w*z, (char*)a+w*z+z, arr_len(a)-w-1);
+	memcpy((size_t*)a-1, (size_t[]){arr_len(a)-1},sizeof (size_t));
 }
 
 #define arr_cat(d, s) arr_cat(d, s, sizeof *d)
 #define arr_get(d, s) arr_get(d, s, sizeof *s)
 #define arr_put(d, s) arr_put(d, s, sizeof *d)
-#define arr_zero(a)   arr_zero(a, sizeof *a)
+#define arr_peek(a)   arr_peek(a, sizeof *a)
+#define arr_rm(a, w)  arr_rm(a, w, sizeof *a)
 #endif /* _lib_arr_h_ */
