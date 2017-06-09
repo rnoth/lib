@@ -83,7 +83,6 @@ static inline bool is_node(uintptr_t);
 int comp_alt(struct ins **, struct node *);
 int comp_cat(struct ins **, struct node *);
 int comp_chld(struct ins **, uintptr_t);
-//int comp_class(struct ins **, struct node *);
 int comp_leaf(struct ins **, uintptr_t);
 int comp_rep(struct ins **, struct node *);
 int comp_sub(struct ins **, struct node *);
@@ -103,6 +102,8 @@ int get_char(char *, void *);
 
 /* pat-node.c */
 bool      is_subexpr(uintptr_t);
+uintptr_t nod_alloc(void);
+void      nod_init(uintptr_t, enum type, uintptr_t, uintptr_t);
 uintptr_t mk_alt(uintptr_t, uintptr_t);
 uintptr_t mk_cat(uintptr_t, uintptr_t);
 uintptr_t mk_leaf(char);
