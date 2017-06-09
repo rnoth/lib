@@ -63,7 +63,7 @@ static int (* const tab_shunt[])() = {
 	[255]  = 0,
 };
 
-static int (* const tab_grow[])() = {
+static int (* const tab_parse[])() = {
 	[type_nil] = parse_eol,
 	[type_lit] = parse_char,
 	[type_cat] = parse_cat,
@@ -93,6 +93,24 @@ tok_pop_greater(struct token *stk, struct token *op, int8_t pr)
 }
 
 int
+parse(uintptr_t *dst, struct token const *stk)
+{
+	uintptr_t *res;
+	int err;
+
+	res = arr_alloc(sizeof *res, arr_len(stk));
+	if (!res) return ENOMEM;
+
+	err = tab_parse[stk->id](res, stk);
+	if (err) goto finally;
+
+finally:
+	if (!err) *dst = res[0];
+	arr_free(res);
+	return err;
+}
+
+int
 parse_alt(uintptr_t *res, struct token const *stk)
 {
 	uintptr_t lef;
@@ -108,7 +126,7 @@ parse_alt(uintptr_t *res, struct token const *stk)
 	arr_put(res, &alt);
 
 	++stk;
-	return tab_grow[stk->id](res, stk);
+	return tab_parse[stk->id](res, stk);
 
 nomem:
 	arr_put(res, &lef);
@@ -133,7 +151,7 @@ parse_cat(uintptr_t *res, struct token const *stk)
 	arr_put(res, &cat);
 
 	++stk;
-	return tab_grow[stk->id](res, stk);
+	return tab_parse[stk->id](res, stk);
 
 nomem:
 	arr_put(res, &rit);
@@ -152,7 +170,7 @@ parse_char(uintptr_t *res, struct token const *stk)
 	arr_put(res, &nod);
 
 	++stk;
-	return tab_grow[stk->id](res, stk);
+	return tab_parse[stk->id](res, stk);
 }
 
 int
@@ -169,7 +187,7 @@ parse_close(uintptr_t *res, struct token const *stk)
 	arr_put(res, &sub);
 
 	++stk;
-	return tab_grow[stk->id](res, stk);
+	return tab_parse[stk->id](res, stk);
 
 nomem:
 	arr_put(res, &chld);
@@ -200,7 +218,7 @@ int
 parse_nop(uintptr_t *res, struct token const *stk)
 {
 	++stk;
-	return tab_grow[stk->id](res, stk);
+	return tab_parse[stk->id](res, stk);
 }
 
 int
@@ -218,7 +236,7 @@ parse_rep(uintptr_t *res, struct token const *stk)
 	arr_put(res, &rep);
 
 	++stk;
-	return tab_grow[stk->id](res, stk);
+	return tab_parse[stk->id](res, stk);
 }
 
 int
@@ -260,9 +278,7 @@ int
 shunt_alt(struct token *stk, struct token *op, uint8_t const *src)
 {
 	tok_pop_greater(stk, op, tab_prec[type_alt]);
-
 	arr_put(op, token(type_alt));
-
 	return shunt_next(stk, op, ++src, st_init);
 }
 
@@ -296,6 +312,7 @@ int
 shunt_eol(struct token *stk, struct token *op)
 {
 	struct token tok[1];
+
 	if (!arr_len(op)) return 0;
 
 	arr_get(tok, op);
@@ -334,24 +351,6 @@ oper(uint8_t const *src)
 		['('] = type_sub,
 	};
 	return tab[*src];
-}
-
-int
-parse(uintptr_t *dst, struct token const *stk)
-{
-	uintptr_t *res;
-	int err;
-
-	res = arr_alloc(sizeof *res, arr_len(stk));
-	if (!res) return ENOMEM;
-
-	err = tab_grow[stk->id](res, stk);
-	if (err) goto finally;
-
-finally:
-	if (!err) *dst = res[0];
-	arr_free(res);
-	return err;
 }
 
 int
