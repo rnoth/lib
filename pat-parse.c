@@ -32,8 +32,6 @@ static int parse_nop(uintptr_t *, struct token const *);
 static int parse_rep(uintptr_t *, struct token const *);
 
 static int scan(struct token **, void const *);
-static int shunt_init(struct token *, struct token *, uint8_t const *);
-static int shunt_str(struct token *, struct token *, uint8_t const *);
 static int shunt_next(struct token *, struct token *, uint8_t const *, enum state);
 static int shunt_alt(struct token *, struct token *, uint8_t const *);
 static int shunt_char(struct token *, struct token *, uint8_t const *, enum state);
@@ -50,7 +48,7 @@ static int8_t const tab_prec[] = {
 	[type_nop] = 0,
 	[type_alt] = 1,
 	[type_cat] = 2,
-	[255]=0,
+	[255] = 0,
 };
 
 static int (* const tab_shunt[])() = {
@@ -238,7 +236,7 @@ scan(struct token **stk, void const *src)
 		goto finally;
 	}
 
-	err = shunt_init(*stk, op, src);
+	err = shunt_next(*stk, op, src, st_init);
 	if (err) goto finally;
 
 finally:
@@ -246,12 +244,6 @@ finally:
 	arr_free(op);
 
 	return err;
-}
-
-int
-shunt_init(struct token *stk, struct token *op, uint8_t const *src)
-{
-	return shunt_next(stk, op, src, st_init);
 }
 
 int
@@ -265,19 +257,13 @@ shunt_next(struct token *stk, struct token *op, uint8_t const *src, enum state s
 }
 
 int
-shunt_str(struct token *stk, struct token *op, uint8_t const *src)
-{
-	return shunt_next(stk, op, src, st_str);
-}
-
-int
 shunt_alt(struct token *stk, struct token *op, uint8_t const *src)
 {
 	tok_pop_greater(stk, op, tab_prec[type_alt]);
 
 	arr_put(op, token(type_alt));
 
-	return shunt_init(stk, op, ++src);
+	return shunt_next(stk, op, ++src, st_init);
 }
 
 int
@@ -285,7 +271,7 @@ shunt_char(struct token *stk, struct token *op, uint8_t const *src, enum state s
 {
 	arr_put(stk, token(type_lit, *src));
 	if (st == st_str) arr_put(op, token(type_cat, '_'));
-	return shunt_str(stk, op, ++src);
+	return shunt_next(stk, op, ++src, st_str);
 }
 
 int
@@ -327,7 +313,7 @@ int
 shunt_open(struct token *stk, struct token *op, uint8_t const *src, enum state st)
 {
 	arr_put(op, token(type_nop, st));
-	return shunt_init(stk, op, ++src);
+	return shunt_next(stk, op, ++src, st_init);
 }
 
 int
@@ -335,7 +321,7 @@ shunt_mon(struct token *stk, struct token *op, uint8_t const *src)
 {
 	uint8_t ty = oper(src);
 	arr_put(stk, token(ty, *src));
-	return shunt_str(stk, op, ++src);
+	return shunt_next(stk, op, ++src, st_str);
 }
 
 uint8_t
