@@ -24,7 +24,14 @@
 } while (0)
 
 #define try(ACT) ok((ACT, 1))
-#define expect(VAL, TEST) do {                      \
+#define expect(VAL, TEST) expectm(VAL, TEST, #TEST)
+#define expectf(VAL, TEST, ...) do {    \
+	char buf[256];                  \
+	snprintf(buf, 256, __VA_ARGS__);\
+	expectm(VAL, TEST, buf);       \
+} while (0)
+
+#define expectm(VAL, TEST, MSG) do {                \
 	if (!unit_has_init) unit_init();            \
 	int _signal = sigsetjmp(env, 1);            \
 	int _result = -1;                           \
@@ -33,7 +40,7 @@
 	if (!_signal) _result = (TEST);             \
 	alarm(0);                                   \
 	if (!_signal && _result == _expect) break;  \
-	expect_failed(#TEST,__LINE__,               \
+	expect_failed(MSG,__LINE__,                 \
 	              _expect,_result,_signal);     \
 	raise(SIGTRAP);                             \
 	siglongjmp(checkpoint, 1);                  \
