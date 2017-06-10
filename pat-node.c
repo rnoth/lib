@@ -114,6 +114,25 @@ mk_subexpr(uintptr_t chld)
 }
 
 uintptr_t
+nod_alloc(void)
+{
+	struct node *ret;
+
+	ret = calloc(1, sizeof *ret);
+
+	return ret ? tag_node(ret) : 0;
+}
+
+void
+nod_init(uintptr_t dest, enum type ty, uintptr_t chld[static 2])
+{
+	struct node *nod = to_node(dest);
+
+	nod->type = ty;
+	memcpy(nod->chld, chld, sizeof nod->chld);
+}
+
+uintptr_t
 nod_attach(uintptr_t lef, uintptr_t rit)
 {
 	uintptr_t cat;

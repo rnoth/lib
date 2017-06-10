@@ -5,6 +5,7 @@
 #include <string.h>
 #include <ctype.h>
 
+#include <arr.h>
 #include <util.h>
 #include <vec.h>
 
@@ -15,15 +16,16 @@ int
 pat_compile(struct pattern *dst, char const *src)
 {
 	uintptr_t root = 0;
+	struct token *tok;
 	int err = 0;
 
 	if (!dst) return EFAULT;
 	if (!src) return EFAULT;
 
-	err = pat_parse(&root, src);
+	err = pat_scan(&tok, src);
 	if (err) goto finally;
 
-	err = vec_ctor(dst->prog);
+	err = pat_parse(&root, tok);
 	if (err) goto finally;
 
 	err = pat_marshal(dst, root);
@@ -31,6 +33,7 @@ pat_compile(struct pattern *dst, char const *src)
 
 finally:
 	nod_dtor(root);
+	arr_free(tok);
 	return err;
 }
 

@@ -9,6 +9,8 @@
 #define to_node(n) ((struct node *)(((uintptr_t[]){0}[0] = n) - 1))
 #define to_leaf(n) ((char *)((uintptr_t[]){0}[0] = n))
 
+#define chld(l, r) ((uintptr_t[]){l, r})
+
 enum class {
 	class_none  = 0x00,
 	class_any   = 0x01,
@@ -31,6 +33,11 @@ enum type {
 	type_sub,
 	type_exp,
 	type_nop,
+};
+
+struct token {
+	uint8_t id;
+	uint8_t ch;
 };
 
 struct thread {
@@ -100,10 +107,19 @@ int do_save(struct context *, struct thread *, char const);
 
 int get_char(char *, void *);
 
+int  thr_cmp(struct thread *, struct thread *);
+int  thr_init(struct thread *, struct ins *);
+void thr_finish(struct context *, size_t);
+int  thr_fork(struct thread *, struct thread *);
+int  thr_next(struct context *, size_t, wchar_t const);
+void thr_prune(struct context *, size_t);
+int  thr_start(struct context *, wchar_t const);
+void thr_remove(struct context *, size_t);
+
 /* pat-node.c */
 bool      is_subexpr(uintptr_t);
 uintptr_t nod_alloc(void);
-void      nod_init(uintptr_t, enum type, uintptr_t, uintptr_t);
+void      nod_init(uintptr_t, enum type, uintptr_t[static 2]);
 uintptr_t mk_alt(uintptr_t, uintptr_t);
 uintptr_t mk_cat(uintptr_t, uintptr_t);
 uintptr_t mk_leaf(char);
@@ -115,18 +131,14 @@ void      nod_dtor(uintptr_t);
 size_t    nod_len(uintptr_t);
 enum type nod_type(uintptr_t);
 
-int  thr_cmp(struct thread *, struct thread *);
-int  thr_init(struct thread *, struct ins *);
-void thr_finish(struct context *, size_t);
-int  thr_fork(struct thread *, struct thread *);
-int  thr_next(struct context *, size_t, wchar_t const);
-void thr_prune(struct context *, size_t);
-int  thr_start(struct context *, wchar_t const);
-void thr_remove(struct context *, size_t);
+/* pat-scan.c */
+int pat_scan(struct token **, void const *);
+
+/* pat-parse.c */
+int pat_parse(uintptr_t *, struct token const *);
 
 int pat_exec(struct context *);
 int pat_marshal(struct pattern *, uintptr_t);
-int pat_parse(uintptr_t *, void const *);
 int pat_match(struct context *, struct pattern *);
 
 void       step(struct pos *p) { ++p->f; }

@@ -167,6 +167,9 @@ pat_marshal(struct pattern *dest, uintptr_t root)
 {
 	int err = 0;
 
+	err = vec_ctor(dest->prog);
+	if (err) return ENOMEM;
+
 	err = vec_concat_arr(&dest->prog, ((struct ins[]) {
 		[0] = { .op = do_jump, .arg = {.f=2}, },
 		[1] = { .op = do_clss, .arg = {.i=class_any}, },
