@@ -31,6 +31,9 @@ pat_compile(struct pattern *dst, char const *src)
 	err = pat_marshal(dst, root);
 	if (err) goto finally;
 
+	err = vec_ctor(dst->mat);
+	if (err) goto finally;
+
 finally:
 	nod_dtor(root);
 	arr_free(tok);
@@ -63,9 +66,6 @@ pat_execute_callback(struct pattern *pat, int (*cb)(char *, void *), void *cbx)
 	if (!cb)  return EFAULT;
 
 	err = ctx_init(ctx, pat);
-	if (err) goto finally;
-
-	err = vec_ctor(pat->mat);
 	if (err) goto finally;
 
 	err = pat_match(ctx, pat);
