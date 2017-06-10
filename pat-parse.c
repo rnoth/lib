@@ -106,7 +106,7 @@ parse_close(uintptr_t *res, uintptr_t nod, struct token const *stk)
 	nod_init(nod, type_sub, chld(chld, 0x0));
 	arr_put(res, &nod);
 
-	return parse_next(res, nod, ++stk);
+	return parse_next(res, 0x0, ++stk);
 }
 
 int
