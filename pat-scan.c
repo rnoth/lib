@@ -18,8 +18,6 @@ struct scanner {
 	enum state     st;
 };
 
-static uint8_t oper(uint8_t const *);
-
 static int shunt_step(  struct token *, struct scanner *sc);
 static int shunt_next(  struct token *, struct scanner *sc);
 static int shunt_alt(   struct token *, struct scanner *sc);
@@ -41,6 +39,15 @@ static int8_t const tab_prec[] = {
 	[255] = 0,
 };
 
+static uint8_t const tab_oper[] = {
+	['?'] = type_opt,
+	['*'] = type_kln,
+	['+'] = type_rep,
+	['('] = type_sub,
+	['.'] = class_dot,
+};
+
+
 static int (* const tab_shunt[])() = {
 	['\0'] = shunt_eol,
 	['\\'] = shunt_esc,
@@ -53,19 +60,6 @@ static int (* const tab_shunt[])() = {
 	[')']  = shunt_close,
 	[255]  = 0,
 };
-
-uint8_t
-oper(uint8_t const *src)
-{
-	uint8_t const tab[] = {
-		['?'] = type_opt,
-		['*'] = type_kln,
-		['+'] = type_rep,
-		['('] = type_sub,
-		['.'] = class_dot,
-	};
-	return tab[*src];
-}
 
 int
 pat_scan(struct token **res, void const *src)
@@ -158,7 +152,7 @@ shunt_close(struct token *res, struct scanner *sc)
 int
 shunt_dot(struct token *res, struct scanner *sc)
 {
-	arr_put(res, token(type_cls, oper(sc->src)));
+	arr_put(res, token(type_cls, tab_oper[*sc->src]));
 	return shunt_string(res, sc);
 }
 
@@ -192,7 +186,7 @@ shunt_open(struct token *res, struct scanner *sc)
 int
 shunt_mon(struct token *res, struct scanner *sc)
 {
-	uint8_t ty = oper(sc->src);
+	uint8_t ty = tab_oper[*sc->src];
 	arr_put(res, token(ty, *sc->src));
 	return shunt_next(res, sc);
 }
