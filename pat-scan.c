@@ -2,7 +2,7 @@
 #include <arr.h>
 #include <pat.ih>
 
-#define prec(tok) (tab_prec[(tok)->id])
+#define prec(tok) (tab_prec[((struct token*){0}=(tok))->id])
 
 #define token(...) tok(__VA_ARGS__, 0, 0)
 #define tok(i, c, ...) ((struct token[]){{ .id = i, .ch = c }})
@@ -194,16 +194,9 @@ shunt_mon(struct token *res, struct scanner *sc)
 void
 tok_pop_greater(struct token *res, struct token *stk, int8_t pr)
 {
-	struct token *top;
-
 	if (arr_len(stk) == 0) return;
+	if (prec(arr_peek(stk)) < pr) return;
 
-	top = arr_peek(stk);
-
-	if (prec(top) < pr) return;
-
-	arr_put(res, top);
-	arr_rm(stk, arr_len(stk) - 1);
-
+	arr_pop(res, stk);
 	tok_pop_greater(res, stk, pr);
 }
