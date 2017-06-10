@@ -5,14 +5,14 @@
 
 char filename[] = "pat.c";
 
-static void do_alter(void);
-static void do_esc(void);
-static void do_qmark(void);
-static void do_star(void);
-static void do_sub(void);
-static void do_plain(void);
-static void do_plus(void);
-//static void do_dot(void);
+static void test_alter(void);
+static void test_esc(void);
+static void test_qmark(void);
+static void test_star(void);
+static void test_sub(void);
+static void test_plain(void);
+static void test_plus(void);
+static void test_dot(void);
 static void loop(void);
 
 struct a {
@@ -29,14 +29,14 @@ struct b {
 };
 
 struct test tests[] = {
-	{ do_plain, loop,  "testing plaintext matching" },
-	{ do_esc,   loop,  "testing the \\ escapes", },
-	{ do_qmark, loop,  "testing the ? operator", },
-	{ do_star,  loop,  "testing the * operator", },
-	{ do_plus,  loop,  "testing the + operator", },
-	{ do_alter, loop,  "testing the | operator", },
-	{ do_sub,   loop,  "testing the () submatches", },
-	//{ do_dot,   loop,  "testing the . metacharacter", },
+	{ test_plain, loop,  "testing plaintext matching" },
+	{ test_esc,   loop,  "testing the \\ escapes", },
+	{ test_qmark, loop,  "testing the ? operator", },
+	{ test_star,  loop,  "testing the * operator", },
+	{ test_plus,  loop,  "testing the + operator", },
+	{ test_alter, loop,  "testing the | operator", },
+	{ test_sub,   loop,  "testing the () submatches", },
+	{ test_dot,   loop,  "testing the . metacharacter", },
 };
 
 struct a plain[] = {
@@ -248,14 +248,14 @@ struct a *cur;
 
 struct pattern pat[1];
 
-void do_alter(void) { cur = alter; }
-void do_qmark(void) { cur = qmark; }
-void do_star(void)  { cur = star; }
-void do_sub(void)   { cur = sub; }
-void do_plain(void) { cur = plain; }
-void do_plus(void)  { cur = plus; }
-void do_esc(void)   { cur = esc; }
-void do_dot(void)   { cur = dot; }
+void test_alter(void) { cur = alter; }
+void test_qmark(void) { cur = qmark; }
+void test_star(void)  { cur = star; }
+void test_sub(void)   { cur = sub; }
+void test_plain(void) { cur = plain; }
+void test_plus(void)  { cur = plus; }
+void test_esc(void)   { cur = esc; }
+void test_dot(void)   { cur = dot; }
 
 void cleanup()
 {
