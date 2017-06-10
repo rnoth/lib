@@ -259,7 +259,7 @@ void test_dot(void)   { cur = dot; }
 
 void cleanup()
 {
-	pat_free(pat);
+	try(pat_free(pat));
 	memset(pat, 0, sizeof *pat);
 }
 
@@ -270,6 +270,7 @@ void loop(void)
 	size_t i;
 
 	for (a = cur; a->pat; ++a) {
+		try(pat_free(pat));
 		expectf(0, pat_compile(pat, a->pat), "failed to compile: '%s'", a->pat);
 
 		for (b = a->accept; b && b->txt; ++b) {
