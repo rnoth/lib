@@ -270,10 +270,11 @@ void loop(void)
 	size_t i;
 
 	for (a = cur; a->pat; ++a) {
-		expectf(0, pat_compile(pat, a->pat), "failed to compile: `%s'", a->pat);
+		expectf(0, pat_compile(pat, a->pat), "failed to compile: '%s'", a->pat);
 
 		for (b = a->accept; b && b->txt; ++b) {
-			expectf(0, pat_execute(pat, b->txt), "failed to match `%s' over `%s'", a->pat, b->txt);
+			expectf(0, pat_execute(pat, b->txt),
+			        "failed to match '%s' over '%s'", a->pat, b->txt);
 			expect(b->off, pat->mat->off);
 			expect(b->ext, pat->mat->ext);
 

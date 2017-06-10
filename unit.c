@@ -28,7 +28,7 @@ void
 test_failed(char *test)
 {
 	int err;
-	err = printf("!!! test failed: ``%s'' ", test);
+	err = printf("!!! test failed: %s ", test);
 	if (err < 0) die("printf failed");
 }
 
@@ -69,8 +69,7 @@ ok_failed(char *test, int lineno, int signum)
 {
 	int err = 0;
 
-	err = printf("!!! test failed: ``%s'' ", test);
-	if (err < 0) die("printf failed");
+	test_failed(test);
 
 	if (signum) {
 		err = printf("-- %s", sigtostr(signum));
