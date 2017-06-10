@@ -58,6 +58,15 @@ arr_put(void *dst, void const *src, size_t size)
 
 static inline
 void
+arr_pop(void *dst, void *src, size_t size)
+{
+	char tmp[size];
+	arr_get(tmp, src, size);
+	arr_put(dst, tmp, size);
+}
+
+static inline
+void
 arr_rm(void *a, size_t w, size_t z)
 {
 	memmove((char*)a+w*z, (char*)a+w*z+z, arr_len(a)-w-1);
@@ -66,6 +75,7 @@ arr_rm(void *a, size_t w, size_t z)
 
 #define arr_cat(d, s) arr_cat(d, s, sizeof *d)
 #define arr_get(d, s) arr_get(d, s, sizeof *s)
+#define arr_pop(d, s) arr_pop(d, s, sizeof *d)
 #define arr_put(d, s) arr_put(d, s, sizeof *d)
 #define arr_peek(a)   arr_peek(a, sizeof *a)
 #define arr_rm(a, w)  arr_rm(a, w, sizeof *a)
