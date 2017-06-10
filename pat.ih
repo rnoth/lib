@@ -7,7 +7,7 @@
 #define tag_leaf(n) ((uintptr_t)((void const*){0} = n))
 
 #define to_node(n) ((struct node *)(((uintptr_t[]){0}[0] = n) - 1))
-#define to_leaf(n) ((char *)((uintptr_t[]){0}[0] = n))
+#define to_leaf(n) ((uint8_t *)((uintptr_t[]){0}[0] = n))
 
 #define chld(l, r) ((uintptr_t[]){l, r})
 
@@ -26,6 +26,7 @@ enum type {
 	type_nil,
 	type_alt,
 	type_cat,
+	type_cls,
 	type_lit,
 	type_opt,
 	type_rep,
@@ -36,8 +37,8 @@ enum type {
 };
 
 struct token {
-	uint8_t id;
 	uint8_t ch;
+	uint8_t id;
 };
 
 struct thread {
@@ -86,13 +87,6 @@ bool nomatch(struct context *);
 
 static inline bool is_leaf(uintptr_t);
 static inline bool is_node(uintptr_t);
-
-int comp_alt(struct ins **, struct node *);
-int comp_cat(struct ins **, struct node *);
-int comp_chld(struct ins **, uintptr_t);
-int comp_leaf(struct ins **, uintptr_t);
-int comp_rep(struct ins **, struct node *);
-int comp_sub(struct ins **, struct node *);
 
 void ctx_fini(struct context *);
 int  ctx_init(struct context *, struct pattern *);

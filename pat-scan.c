@@ -62,6 +62,7 @@ oper(uint8_t const *src)
 		['*'] = type_kln,
 		['+'] = type_rep,
 		['('] = type_sub,
+		['.'] = class_dot,
 	};
 	return tab[*src];
 }
@@ -157,7 +158,7 @@ shunt_close(struct token *res, struct scanner *sc)
 int
 shunt_dot(struct token *res, struct scanner *sc)
 {
-	arr_put(res, token(type_cls, *sc->src));
+	arr_put(res, token(type_cls, oper(sc->src)));
 	return shunt_string(res, sc);
 }
 

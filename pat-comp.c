@@ -7,9 +7,18 @@
 #include <pat.ih>
 #include <pat.h>
 
+static int comp_alt(struct ins **, struct node *);
+static int comp_cat(struct ins **, struct node *);
+static int comp_class(struct ins **, struct node *);
+static int comp_chld(struct ins **, uintptr_t);
+static int comp_leaf(struct ins **, uintptr_t);
+static int comp_rep(struct ins **, struct node *);
+static int comp_sub(struct ins **, struct node *);
+
 static int (* const pat_comp[])(struct ins **, struct node *) = {
 	[type_alt] = comp_alt,
 	[type_cat] = comp_cat,
+	[type_cls] = comp_class,
 	[type_opt] = comp_rep,
 	[type_kln] = comp_rep,
 	[type_rep] = comp_rep,
@@ -63,9 +72,7 @@ int
 comp_chld(struct ins **dest, uintptr_t n)
 {
 	if (!n) return 0;
-	if (is_leaf(n)) {
-		return comp_leaf(dest, n);
-	}
+	if (is_leaf(n)) return comp_leaf(dest, n);
 	struct node *nod = to_node(n);
 	return pat_comp[nod->type](dest, nod);
 }
@@ -73,34 +80,29 @@ comp_chld(struct ins **dest, uintptr_t n)
 int
 comp_leaf(struct ins **dest, uintptr_t lea)
 {
-	char *s = to_leaf(lea);
 	int err;
+
 	err = vec_append(dest, ((struct ins[]) {{
 		.op = do_char,
-		.arg = {.b = *s},
+		.arg = {.b = *to_leaf(lea)},
 	}}));
 	if (err) return err;
 
 	return 0;
 }
 
-#if 0
 int
 comp_class(struct ins **dest, struct node *nod)
 {
 	int err;
-	union { void *v; enum class *c; } p;
-
-	p.v = to_aux(nod->chld[0]);
 
 	err = vec_append(dest, ((struct ins[]) {
-		{ .op = do_clss, .arg = { .i = *p.c } }
+		{.op = do_clss, .arg = {.i = *to_leaf(nod->chld[0])}}
 	}));
 	if (err) return err;
 
 	return comp_chld(dest, nod->chld[1]);
 }
-#endif
 
 int
 comp_rep(struct ins **dest, struct node *rep)

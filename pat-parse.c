@@ -12,6 +12,7 @@ static int parse_alt(uintptr_t *, uintptr_t, struct token const *);
 static int parse_cat(uintptr_t *, uintptr_t, struct token const *);
 static int parse_char(uintptr_t *, uintptr_t, struct token const *);
 static int parse_close(uintptr_t *, uintptr_t, struct token const *);
+static int parse_class(uintptr_t *, uintptr_t, struct token const *);
 static int parse_eol(uintptr_t *, uintptr_t);
 static int parse_rep(uintptr_t *, uintptr_t, struct token const *);
 
@@ -25,6 +26,7 @@ static int (* const tab_parse[])() = {
 	[type_sub] = parse_close,
 	[type_nop] = parse_next,
 	[type_alt] = parse_alt,
+	[type_cls] = parse_class,
 };
 
 int
@@ -87,13 +89,7 @@ parse_cat(uintptr_t *res, uintptr_t nod, struct token const *stk)
 int
 parse_char(uintptr_t *res, uintptr_t nod, struct token const *stk)
 {
-	uintptr_t leaf;
-
-	leaf = mk_leaf(stk->ch);
-	if (!leaf) return ENOMEM;
-
-	arr_put(res, &leaf);
-
+	arr_put(res, (uintptr_t[]){tag_leaf(&stk->ch)});
 	return parse_next(res, nod, ++stk);
 }
 
@@ -106,6 +102,14 @@ parse_close(uintptr_t *res, uintptr_t nod, struct token const *stk)
 	nod_init(nod, type_sub, chld(chld, 0x0));
 	arr_put(res, &nod);
 
+	return parse_next(res, 0x0, ++stk);
+}
+
+int
+parse_class(uintptr_t *res, uintptr_t nod, struct token const *stk)
+{
+	nod_init(nod, type_cls, chld(tag_leaf(&stk->ch),0x0));
+	arr_put(res, &nod);
 	return parse_next(res, 0x0, ++stk);
 }
 
