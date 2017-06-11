@@ -21,6 +21,8 @@ struct scanner {
 	enum state     st;
 };
 
+static enum type oper(uint8_t const *);
+
 static int scan_next(   struct scanner *sc);
 static int scan_string( struct scanner *sc);
 static int scan_step(   struct scanner *sc);
@@ -43,14 +45,6 @@ static int8_t const tab_prec[] = {
 	[type_alt] = 1,
 	[type_cat] = 2,
 	[255] = 0,
-};
-
-static uint8_t const tab_oper[] = {
-	['?'] = type_opt,
-	['*'] = type_kln,
-	['+'] = type_rep,
-	['('] = type_sub,
-	['.'] = class_dot,
 };
 
 static int (* const tab_shunt[])() = {
@@ -95,12 +89,33 @@ nomem:
 	goto finally;
 }
 
+enum type
+oper(uint8_t const *src)
+{
+	static uint8_t const tab[] = {
+		['?'] = type_opt,
+		['*'] = type_kln,
+		['+'] = type_rep,
+		['('] = type_sub,
+		['.'] = class_dot,
+	};
+
+	return tab[*src];
+}
+
 int
 scan_string(struct scanner *sc)
 {
 	if (sc->st == st_str) arr_put(sc->stk, token(type_cat));
 	else sc->st = st_str;
 
+	return scan_next(sc);
+}
+
+int
+scan_init(struct scanner *sc)
+{
+	sc->st = st_init;
 	return scan_next(sc);
 }
 
@@ -127,8 +142,7 @@ shunt_alt(struct scanner *sc)
 	tok_pop_greater(sc->que, sc->stk, tab_prec[type_alt]);
 	arr_put(sc->stk, token(type_alt));
 
-	sc->st = st_init;
-	return scan_next(sc);
+	return scan_init(sc);
 }
 
 int
@@ -144,7 +158,6 @@ shunt_close(struct scanner *sc)
 	struct token tok[1];
 
 	tok_pop_until(sc->que, sc->stk, type_nop);
-
 	if (!arr_len(sc->stk)) return PAT_ERR_BADPAREN;
 
 	arr_get(tok, sc->stk);
@@ -158,7 +171,7 @@ shunt_close(struct scanner *sc)
 int
 shunt_dot(struct scanner *sc)
 {
-	arr_put(sc->que, token(type_cls, tab_oper[*sc->src]));
+	arr_put(sc->que, token(type_cls, class_dot));
 	return scan_string(sc);
 }
 
@@ -166,6 +179,7 @@ int
 shunt_eol(struct scanner *sc)
 {
 	if (!arr_len(sc->stk)) return 0;
+
 	arr_pop(sc->que, sc->stk);
 	return shunt_eol(sc);
 }
@@ -181,16 +195,13 @@ int
 shunt_open(struct scanner *sc)
 {
 	arr_put(sc->stk, token(type_nop, sc->st));
-
-	sc->st = st_init;
-	return scan_next(sc);
+	return scan_init(sc);
 }
 
 int
 shunt_mon(struct scanner *sc)
 {
-	uint8_t ty = tab_oper[*sc->src];
-	arr_put(sc->que, token(ty, *sc->src));
+	arr_put(sc->que, token(oper(sc->src)));
 	return scan_next( sc);
 }
 
