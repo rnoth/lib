@@ -2,51 +2,6 @@
 #include <pat.ih>
 #include <util.h>
 
-bool
-is_open(uintptr_t u)
-{
-	struct node *nod;
-
-	if (!u) return false;
-	if (is_leaf(u)) return false;
-
-	nod = to_node(u);
-	if (nod->type != type_sub) return false;
-
-	return !nod->chld[0];
-}
-
-bool
-is_subexpr(uintptr_t u)
-{
-	struct node *nod;
-
-	if (!u) return false;
-	if (is_leaf(u)) return false;
-
-	nod = to_node(u);
-	if (nod->type != type_sub) return false;
-	if (!nod->chld[0]) return false;
-
-	return !nod->chld[1];
-}
-
-uintptr_t
-mk_alt(uintptr_t lef, uintptr_t rit)
-{
-	struct node *alt = 0;
-
-	alt = calloc(1, sizeof *alt);
-	if (!alt) return 0;
-
-	alt->type = type_alt;
-	alt->chld[0] = lef;
-	alt->chld[1] = rit;
-
-	return tag_node(alt);
-}
-
-
 uintptr_t
 mk_cat(uintptr_t lef, uintptr_t rit)
 {
@@ -55,62 +10,9 @@ mk_cat(uintptr_t lef, uintptr_t rit)
 	cat = calloc(1, sizeof *cat);
 	if (!cat) return 0;
 
-	cat->type = type_cat;
-	cat->chld[0] = lef;
-	cat->chld[1] = rit;
+	nod_init(tag_node(cat), type_cat, chld(lef, rit));
 
 	return tag_node(cat);
-}
-
-uintptr_t
-mk_leaf(char ch)
-{
-	uint8_t *res;
-
-	res = malloc(1);
-	if (!res) return 0;
-
-	memcpy(res, &ch, 1);
-
-	return tag_leaf(res);
-}
-
-uintptr_t
-mk_open(void)
-{
-	struct node *ret;
-
-	ret = calloc(1, sizeof *ret);
-	if (ret) ret->type = type_sub;
-	return tag_node(ret);
-}
-
-uintptr_t
-mk_rep(enum type ty, uintptr_t chld)
-{
-	struct node *ret;
-
-	ret = calloc(1, sizeof *ret);
-	if (!ret) return 0;
-
-	ret->type = ty;
-	ret->chld[0] = chld;
-
-	return tag_node(ret);
-}
-
-uintptr_t
-mk_subexpr(uintptr_t chld)
-{
-	struct node *ret;
-
-	ret = calloc(1, sizeof *ret);
-	if (!ret) return 0;
-
-	ret->type = type_sub;
-	ret->chld[0] = chld;
-
-	return tag_node(ret);
 }
 
 uintptr_t
@@ -174,4 +76,3 @@ nod_type(uintptr_t u)
 	if (is_leaf(u)) return type_lit;
 	else return to_node(u)->type;
 }
-
