@@ -10,6 +10,8 @@
 #define to_leaf(n) ((uint8_t *)((uintptr_t[]){0}[0] = n))
 
 #define chld(l, r) ((uintptr_t[]){l, r})
+#define left(n)    (to_node(n)->chld[0])
+#define right(n)   (to_node(n)->chld[1])
 
 enum class {
 	class_none  = 0x00,
@@ -39,6 +41,7 @@ enum type {
 struct token {
 	uint8_t ch;
 	uint8_t id;
+	size_t  len;
 };
 
 struct thread {
@@ -109,6 +112,9 @@ int  thr_next(struct context *, size_t, wchar_t const);
 void thr_prune(struct context *, size_t);
 int  thr_start(struct context *, wchar_t const);
 void thr_remove(struct context *, size_t);
+
+/* pat-comp.c */
+size_t type_len(enum type);
 
 /* pat-node.c */
 uintptr_t mk_cat(uintptr_t, uintptr_t);

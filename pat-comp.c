@@ -7,6 +7,23 @@
 #include <pat.ih>
 #include <pat.h>
 
+enum {
+	lef_set,
+	lef_end,
+	rig_set,
+	rig_end,
+};
+
+struct frame {
+	int (*op)(struct context *, struct thread *, char const);
+	uint8_t pos:2;
+};
+
+struct gen {
+	struct frame beg;
+	struct frame end;
+};
+
 static int comp_alt(struct ins **, struct node *);
 static int comp_cat(struct ins **, struct node *);
 static int comp_class(struct ins **, struct node *);
@@ -14,6 +31,17 @@ static int comp_chld(struct ins **, uintptr_t);
 static int comp_leaf(struct ins **, uintptr_t);
 static int comp_rep(struct ins **, struct node *);
 static int comp_sub(struct ins **, struct node *);
+
+static int comp_node(struct ins **, uintptr_t);
+static ptrdiff_t nod_off(uintptr_t, uint8_t, uint8_t);
+
+static struct gen tab_gen[] = {
+	[type_opt] = { {do_fork, lef_end}, {0} },
+	[type_rep] = { {0},                {do_fork, lef_set} },
+	[type_kln] = { {do_fork, lef_end}, {do_fork, lef_end} },
+	[type_alt] = { {do_fork, lef_end}, {do_jump, rig_end} },
+	[type_sub] = { {do_mark},          {do_save}, },
+};
 
 static int (* const pat_comp[])(struct ins **, struct node *) = {
 	[type_alt] = comp_alt,
@@ -24,6 +52,77 @@ static int (* const pat_comp[])(struct ins **, struct node *) = {
 	[type_rep] = comp_rep,
 	[type_sub] = comp_sub,
 };
+
+size_t
+type_len(enum type ty)
+{
+	return !!tab_gen[ty].beg.op + !!tab_gen[ty].end.op;
+}
+
+ptrdiff_t
+nod_off(uintptr_t nod, uint8_t dst, uint8_t pos)
+{
+	size_t off;
+	size_t lef;
+	size_t rig;
+
+	lef = nod_len(left(nod));
+	rig = nod_len(right(nod));
+
+	switch (dst) {
+	case lef_set:
+		off = 0;
+		break;
+	case lef_end:
+		off = lef;
+		break;
+	}
+
+	switch (pos) {
+	case lef_set: return 0 - off;
+	case lef_end:
+	case rig_set: return lef - off;
+	case rig_end: return lef + rig - off;
+	}
+
+	return 0;
+}
+
+int
+comp_gen(struct ins **dst, uintptr_t nod)
+{
+	if (is_leaf(nod)) return comp_leaf(dst, nod);
+	else return comp_node(dst, nod);
+}
+
+int
+comp_node(struct ins **dst, uintptr_t nod)
+{
+	struct frame *fr;
+	ptrdiff_t off;
+	int err;
+
+	fr = &tab_gen[nod_type(nod)].beg;
+
+	if (fr->op) {
+		off = nod_off(nod, fr->pos, lef_set);
+		err = vec_append(dst, ((struct ins[]){{ .op = fr->op, .arg.f = off }}));
+		if (err) return err;
+	}
+
+	err = comp_gen(dst, left(nod));
+	if (err) return err;
+
+	fr = &tab_gen[nod_type(nod)].end;
+
+	if (fr->op) {
+		off = nod_off(nod, fr->pos, lef_end);
+		err = vec_append(dst, ((struct ins[]){{ .op = fr->op, .arg.f = off }}));
+		if (err) return err;
+	}
+
+	return comp_gen(dst, right(nod));
+}
 
 int
 comp_alt(struct ins **dest, struct node *alt)
