@@ -7,6 +7,8 @@
 #define token(...) tok(__VA_ARGS__, 0, 0)
 #define tok(i, c, ...) ((struct token[]){{ .id = i, .ch = c }})
 
+#define stk_peek(t) ((struct token *)arr_peek(t))
+
 enum state {
 	st_init,
 	st_str,
@@ -33,6 +35,7 @@ static int shunt_open(  struct scanner *sc);
 static int shunt_mon(   struct scanner *sc);
 
 static void tok_pop_greater(struct token *, struct token *, int8_t);
+static void tok_pop_until(struct token *, struct token *, enum type);
 
 static int8_t const tab_prec[] = {
 	[type_sub] = 0,
@@ -140,17 +143,16 @@ shunt_close(struct scanner *sc)
 {
 	struct token tok[1];
 
+	tok_pop_until(sc->que, sc->stk, type_nop);
+
 	if (!arr_len(sc->stk)) return PAT_ERR_BADPAREN;
 
 	arr_get(tok, sc->stk);
-	if (tok->id == type_nop) { 
-		arr_put(sc->que, token(type_sub));
-		sc->st = tok->ch;
-		return scan_string(sc);
-	}
+	if (tok->id != type_nop) return PAT_ERR_BADPAREN;
 
-	arr_put(sc->que, tok);
-	return shunt_close(sc);
+	arr_put(sc->que, token(type_sub));
+	sc->st = tok->ch;
+	return scan_string(sc);
 }
 
 int
@@ -200,4 +202,14 @@ tok_pop_greater(struct token *res, struct token *stk, int8_t pr)
 
 	arr_pop(res, stk);
 	tok_pop_greater(res, stk, pr);
+}
+
+void
+tok_pop_until(struct token *res, struct token *stk, enum type ty)
+{
+	if (arr_len(stk) == 0) return;
+	if (stk_peek(stk)->id == ty) return;
+
+	arr_pop(res, stk);
+	tok_pop_until(res, stk, ty);
 }
