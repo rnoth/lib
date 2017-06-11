@@ -161,10 +161,9 @@ shunt_close(struct scanner *sc)
 	if (!arr_len(sc->stk)) return PAT_ERR_BADPAREN;
 
 	arr_get(tok, sc->stk);
-	if (tok->id != type_nop) return PAT_ERR_BADPAREN;
+	sc->st = tok->ch;
 
 	arr_put(sc->que, token(type_sub));
-	sc->st = tok->ch;
 	return scan_string(sc);
 }
 
@@ -178,10 +177,8 @@ shunt_dot(struct scanner *sc)
 int
 shunt_eol(struct scanner *sc)
 {
-	if (!arr_len(sc->stk)) return 0;
-
-	arr_pop(sc->que, sc->stk);
-	return shunt_eol(sc);
+	tok_pop_greater(sc->que, sc->stk, -1);
+	return 0;
 }
 
 int
