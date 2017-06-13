@@ -15,29 +15,25 @@
 int
 pat_compile(struct pattern *dst, char const *src)
 {
-	uintptr_t root = 0;
-	struct token *tok;
+	struct token *tok[1];
 	int err = 0;
 
 	if (!dst) return EFAULT;
 	if (!src) return EFAULT;
 
-	err = pat_scan(&tok, src);
+	err = pat_scan(tok, src);
 	if (err) goto finally;
 
-	err = pat_parse(&root, tok);
-	if (err) goto finally;
-
-	err = pat_marshal(dst, root);
+	err = pat_marshal(dst, tok);
 	if (err) goto finally;
 
 	err = vec_ctor(dst->mat);
 	if (err) goto finally;
 
 finally:
-	nod_dtor(root);
-	arr_free(tok);
+	free(*tok);
 	return err;
+
 }
 
 void
