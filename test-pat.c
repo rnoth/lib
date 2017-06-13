@@ -259,7 +259,7 @@ void test_dot(void)   { cur = dot; }
 
 void cleanup()
 {
-	try(pat_free(pat));
+	pat_free(pat);
 	memset(pat, 0, sizeof *pat);
 }
 
