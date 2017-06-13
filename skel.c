@@ -11,6 +11,7 @@ main()
 
 	for (i = 0; i < tests_len; ++i) {
 		on_failure {
+			on_failure continue;
 			cleanup();
 			continue;
 		}
