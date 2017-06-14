@@ -53,7 +53,7 @@ parse_next(uintptr_t *res, uintptr_t nod, struct token const *stk)
 	if (nod || (nod = nod_alloc()));
 	else return ENOMEM;
 
-	return tab_parse[stk->id](res, nod, stk);
+	return tab_parse[stk->op](res, nod, stk);
 }
 
 int
@@ -133,7 +133,7 @@ parse_rep(uintptr_t *res, uintptr_t nod, struct token const *stk)
 	if (!arr_len(res)) return PAT_ERR_BADREP;
 	arr_get(&chld, res);
 
-	nod_init(nod, stk->id, chld(chld, 0x0));
+	nod_init(nod, stk->op, chld(chld, 0x0));
 	arr_put(res, &nod);
 
 	return parse_next(res, 0x0, ++stk);

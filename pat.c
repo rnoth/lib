@@ -15,13 +15,13 @@
 int
 pat_compile(struct pattern *dst, char const *src)
 {
-	struct token *tok[1];
+	struct token *tok;
 	int err = 0;
 
 	if (!dst) return EFAULT;
 	if (!src) return EFAULT;
 
-	err = pat_scan(tok, src);
+	err = pat_scan(&tok, src);
 	if (err) goto finally;
 
 	err = pat_marshal(dst, tok);
@@ -31,7 +31,7 @@ pat_compile(struct pattern *dst, char const *src)
 	if (err) goto finally;
 
 finally:
-	free(*tok);
+	tok_free(tok);
 	return err;
 
 }
@@ -39,7 +39,7 @@ finally:
 void
 pat_free(struct pattern *pat)
 {
-	vec_free(pat->prog);
+	free(pat->prog);
 	vec_free(pat->mat);
 }
 

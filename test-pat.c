@@ -42,6 +42,7 @@ struct test tests[] = {
 struct a plain[] = {
 	{ "abc", (struct b[]) {
 		{ "abc", 0, 3 },
+		{ "   abc   ", 3, 3 },
 		{ 0x0 }, },
 	},
 	{ 0x0 }

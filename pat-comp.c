@@ -7,65 +7,135 @@
 #include <pat.ih>
 #include <pat.h>
 
-static int comp_cat(struct ins *, struct token const *);
-static int comp_lit(struct ins *, struct token const *);
-static int comp_nil(struct ins *, struct token const *);
+#define instr(...) ins(__VA_ARGS__, 0,)
+#define ins(OP, ARG, ...) (struct ins){ .op = tab_op[OP], .arg = ARG }
 
-static int (* const tab[])(struct ins *, struct token const *) = {
-	[type_nil] = comp_nil,
-	[type_lit] = comp_lit,
-	[type_cat] = comp_cat,
+enum {
+	from_above,
+	from_left,
+	from_right,
 };
 
-int
-comp_cat(struct ins *dst, struct token const *tok)
+static void compile(struct ins *, struct token *, int);
+static void comp_cat(struct ins *, struct token *, int);
+static void comp_una(struct ins *, struct token *, int);
+static void comp_mon(struct ins *, struct token *, int);
+static void comp_nul(struct ins *, struct token *, int);
+
+static int (* tab_op[])(struct context *, struct thread *, char const) = {
+	[op_char] = do_char,
+	[op_clss] = do_clss,
+	[op_jump] = do_jump,
+	[op_fork] = do_fork,
+	[op_save] = do_save,
+	[op_mark] = do_mark,
+	[op_halt] = do_halt,
+};
+
+static void (* tab_comp[])(struct ins *, struct token *, int) = {
+	[nop]     = comp_cat,
+	[op_char] = comp_una,
+	[op_clss] = comp_una,
+	[op_jump] = comp_mon,
+	[op_fork] = comp_mon,
+	[op_save] = comp_nul,
+	[op_mark] = comp_nul,
+	[op_halt] = comp_nul,
+
+};
+
+struct token *
+right(struct token *t)
 {
-	--tok;
-	return tab[tok->id](dst, tok);
+	return t - 1;
+}
+
+struct token *
+left(struct token *t)
+{
+	return right(t) - right(t)->len;
+}
+
+void
+compile(struct ins *dst, struct token *tok, int n)
+{
+	tab_comp[tok->op](dst, tok, n);
+}
+
+void
+walk_left(struct ins *dst, struct token *tok)
+{
+	left(tok)->up = tok;
+	compile(dst, left(tok), from_above);
+}
+
+void
+walk_right(struct ins *dst, struct token *tok)
+{
+	right(tok)->up = tok;
+	compile(dst, right(tok), from_above);
+}
+
+void
+walk_back(struct ins *dst, struct token *tok)
+{
+	if (tok->up == 0x0) return;
+	else if (tok == left( tok->up)) compile(dst, tok->up, from_left);
+	else if (tok == right(tok->up)) compile(dst, tok->up, from_right);
+}
+
+void
+comp_cat(struct ins *dst, struct token *tok, int n)
+{
+	switch (n) {
+	case from_above:
+		walk_left(dst, tok);
+		return;
+	case from_left:
+		walk_right(dst, tok);
+		return;
+	case from_right:
+		walk_back(dst, tok);
+		return;
+	}
+}
+
+void
+comp_una(struct ins *dst, struct token *tok, int n)
+{
+	*dst++ = instr(tok->op, {.b = tok->ch});
+	walk_back(dst, tok);
+}
+
+void
+comp_nul(struct ins *dst, struct token *tok, int n)
+{
+	*dst++ = instr(tok->op);
+	walk_back(dst, tok);
+}
+
+void
+comp_mon(struct ins *dst, struct token *tok, int n)
+{
+	switch (n) {
+	case from_above:
+		if (!tok->wh) *dst++ = instr(tok->op, tok->len - 1);
+		walk_right(dst, tok);
+		return;
+	case from_right:
+		if ( tok->wh) *dst++ = instr(tok->op, -tok->len + 1);
+		walk_back(dst, tok);
+		return;
+	}
 }
 
 int
-comp_lit(struct ins *dst, struct token const *tok)
+pat_marshal(struct pattern *pat, struct token *tok)
 {
-	*dst++ = (struct ins){
-		.op = do_char,
-		.arg = {.b = tok--->ch }
-	};
+	pat->prog = calloc(tok->len, sizeof *pat->prog);
+	if (!pat->prog) return ENOMEM;
 
-	return tab[tok->id](dst, tok);
+	compile(pat->prog, tok, 0x0);
 
-}
-
-int
-comp_nil(struct ins *dst, struct token const *tok)
-{
-	*dst++ = (struct ins){ .op = do_halt };
 	return 0;
 }
-
-int
-comp_gen(struct ins *dst, struct token *tok)
-{
-	return tab[tok->id](dst, tok);
-}
-
-int
-pat_marshal(struct pattern *dest, struct token **tok)
-{
-	size_t const len = tok[0]->len + 4;
-	dest->prog = calloc(len, sizeof *dest->prog);
-	if (!dest->prog) return ENOMEM;
-
-	memcpy(dest->prog, (struct ins[]) {
-		[0] = { .op = do_jump, .arg = {.f=2}, },
-		[1] = { .op = do_clss, .arg = {.i=class_any}, },
-		[2] = { .op = do_fork, .arg = {.f=-1}, },
-	}, 3 * sizeof *dest->prog);
-
-	comp_gen(dest->prog, *tok);
-
-	*tok = unwind(*tok);
-
-	return 0;
-}
-

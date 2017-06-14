@@ -10,8 +10,6 @@
 #define to_leaf(n) ((uint8_t *)((uintptr_t[]){0}[0] = n))
 
 #define chld(l, r) ((uintptr_t[]){l, r})
-#define left(n)    (to_node(n)->chld[0])
-#define right(n)   (to_node(n)->chld[1])
 
 enum class {
 	class_none  = 0x00,
@@ -24,6 +22,23 @@ enum class {
 	class_space = 0x40,
 };
 
+enum op {
+	op_null,
+	op_jump,
+	op_fork,
+	op_char,
+	op_clss,
+	op_mark,
+	op_save,
+	op_halt,
+	nop,
+};
+
+enum when {
+	before,
+	after,
+};
+
 enum type {
 	type_nil,
 	type_alt,
@@ -34,14 +49,16 @@ enum type {
 	type_rep,
 	type_kln,
 	type_sub,
-	type_exp,
+	type_reg,
 	type_nop,
 };
 
 struct token {
-	size_t    len;
-	enum type id;
-	uint8_t   ch;
+	struct token *up;
+	size_t        len;
+	uint8_t       ch;
+	uint8_t       wh:1;
+	uint8_t       op:7;
 };
 
 struct thread {
@@ -127,13 +144,15 @@ enum type nod_type(uintptr_t);
 
 /* pat-scan.c */
 int pat_scan(struct token **, char const *);
-struct token *unwind(struct token *);
+void tok_free(struct token *);
 
 /* pat-parse.c */
 int pat_parse(uintptr_t *, struct token const *);
 
+/* pat-comp.c */
+int pat_marshal(struct pattern *, struct token *);
+
 int pat_exec(struct context *);
-int pat_marshal(struct pattern *, struct token **);
 int pat_match(struct context *, struct pattern *);
 
 void       step(struct pos *p) { ++p->f; }
