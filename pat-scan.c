@@ -1,5 +1,7 @@
 #include <errno.h>
-#include <arr.h>
+#include <stdlib.h>
+#include <string.h>
+
 #include <pat.ih>
 
 #define prec(tok) (tab_prec[((struct token*){0}=(tok))->op])
@@ -10,22 +12,24 @@
 #define lit(...) _lit(__VA_ARGS__, 0,)
 #define _lit(o, c, ...) ((struct token){.op = o, .len = 1, .ch = c})
 
-#define _helper(arr) arr, sizeof arr / sizeof *arr
-#define add_tok(sc, ...) add_tokv(sc, _helper(((struct token[]){__VA_ARGS__})))
-#define add_tmp(sc, ...) add_tmpv(sc, _helper(((struct token[]){__VA_ARGS__})))
-
-enum state {
-	st_init,
-	st_str,
-};
+#define _arrlen(arr) arr, sizeof arr / sizeof *arr
+#define add_tok(sc, ...) add_tokv(sc, _arrlen(((struct token[]){__VA_ARGS__})))
+#define add_tmp(sc, ...) add_tmpv(sc, _arrlen(((struct token[]){__VA_ARGS__})))
 
 struct scanner {
 	uint8_t const *src;
 	struct token  *res;
 	struct token  *tmp;
 	size_t         len;
-	enum   state   st;
 };
+
+static void add_tokv(struct scanner *, struct token *, size_t);
+static void add_tmpv(struct scanner *, struct token *, size_t);
+static void add_lit(struct scanner *);
+static void add_init(struct scanner *);
+static void add_fini(struct scanner *);
+static void add_open(struct scanner *);
+static void add_close(struct scanner *);
 
 static int scan_step(   struct scanner *sc);
 
@@ -37,6 +41,8 @@ static int shunt_eol(   struct scanner *sc);
 static int shunt_esc(   struct scanner *sc);
 static int shunt_open(  struct scanner *sc);
 static int shunt_mon(   struct scanner *sc);
+
+static struct token *unwind(struct token *);
 
 static int8_t const tab_prec[] = {
 	[type_sub] = 1,
@@ -63,20 +69,6 @@ static int (* const tab_shunt[])() = {
 	[255]  = 0,
 };
 
-struct token *
-unwind(struct token *t)
-{
-	if (t->op == op_null) return t;
-	--t;
-	return unwind(t);
-}
-
-void
-tok_free(struct token *t)
-{
-	free(unwind(t));
-}
-
 void
 add_tokv(struct scanner *sc, struct token *tokv, size_t len)
 {
@@ -91,14 +83,6 @@ add_tmpv(struct scanner *sc, struct token *tokv, size_t len)
 {
 	memcpy(sc->tmp + 1, tokv, len * sizeof *sc->tmp);
 	sc->tmp += len;
-}
-
-void
-add_cat(struct scanner *sc)
-{
-	size_t off = sc->res[0].len;
-	size_t len = off + sc->res[-off].len;
-	*++sc->res = tok(nop, len);
 }
 
 void
@@ -139,6 +123,23 @@ add_close(struct scanner *sc)
 }
 
 int
+scan(struct scanner *sc)
+{
+	int err = 0;
+
+	add_init(sc);
+	add_open(sc);
+
+	while (!err) err = scan_step(sc);
+	if (err != -1) return err;
+	
+	add_close(sc);
+	add_fini(sc);
+
+	return 0;
+}
+
+int
 scanner_init(struct scanner *sc, void const *src)
 {
 	size_t len = strlen(src);
@@ -157,44 +158,6 @@ nomem:
 	free(sc->tmp);
 	free(sc->res);
 	return ENOMEM;
-}
-
-int
-scan(struct scanner *sc)
-{
-	int err = 0;
-
-	add_init(sc);
-	add_open(sc);
-
-	while (!err) err = scan_step(sc);
-	if (err != -1) return err;
-	
-	add_close(sc);
-	add_fini(sc);
-
-	return 0;
-}
-
-int
-pat_scan(struct token **res, char const *src)
-{
-	struct scanner sc[1] = {{0}};
-	int err;
-
-	err = scanner_init(sc, src);
-	if (err) goto finally;
-
-	err = scan(sc);
-	if (err) goto finally;
-
-finally:
-	tok_free(sc->tmp);
-
-	if (err) tok_free(sc->tmp);
-	else *res = sc->res;
-
-	return err;
 }
 
 enum type
@@ -275,4 +238,40 @@ int
 shunt_mon(struct scanner *sc)
 {
 	return -1;
+}
+
+void
+tok_free(struct token *t)
+{
+	t = unwind(t);
+	free(t);
+}
+
+struct token *
+unwind(struct token *t)
+{
+	if (t->op == op_null) return t;
+	--t;
+	return unwind(t);
+}
+
+int
+pat_scan(struct token **res, char const *src)
+{
+	struct scanner sc[1] = {{0}};
+	int err;
+
+	err = scanner_init(sc, src);
+	if (err) goto finally;
+
+	err = scan(sc);
+	if (err) goto finally;
+
+finally:
+	tok_free(sc->tmp);
+
+	if (err) tok_free(sc->tmp);
+	else *res = sc->res;
+
+	return err;
 }
