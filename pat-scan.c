@@ -12,6 +12,7 @@
 
 #define _helper(arr) arr, sizeof arr / sizeof *arr
 #define add_tok(sc, ...) add_tokv(sc, _helper(((struct token[]){__VA_ARGS__})))
+#define add_tmp(sc, ...) add_tmpv(sc, _helper(((struct token[]){__VA_ARGS__})))
 
 enum state {
 	st_init,
@@ -22,10 +23,10 @@ struct scanner {
 	uint8_t const *src;
 	struct token  *res;
 	struct token  *tmp;
+	size_t         len;
 	enum   state   st;
 };
 
-static int scan_next(   struct scanner *sc);
 static int scan_step(   struct scanner *sc);
 
 static int shunt_alt(   struct scanner *sc);
@@ -36,9 +37,6 @@ static int shunt_eol(   struct scanner *sc);
 static int shunt_esc(   struct scanner *sc);
 static int shunt_open(  struct scanner *sc);
 static int shunt_mon(   struct scanner *sc);
-
-static void tok_pop_greater(struct token **, struct token **, enum op);
-static void tok_pop_until(struct token **, struct token **, enum op);
 
 static int8_t const tab_prec[] = {
 	[type_sub] = 1,
@@ -65,8 +63,6 @@ static int (* const tab_shunt[])() = {
 	[255]  = 0,
 };
 
-static void add_cat(struct scanner *sc);
-
 struct token *
 unwind(struct token *t)
 {
@@ -87,8 +83,14 @@ add_tokv(struct scanner *sc, struct token *tokv, size_t len)
 	memcpy(sc->res + 1, tokv, len * sizeof *sc->res);
 	sc->res += len;
 
-	if (sc->st == st_str) add_cat(sc);
-	else sc->st = st_str;
+	sc->len += len;
+}
+
+void
+add_tmpv(struct scanner *sc, struct token *tokv, size_t len)
+{
+	memcpy(sc->tmp + 1, tokv, len * sizeof *sc->tmp);
+	sc->tmp += len;
 }
 
 void
@@ -116,21 +118,24 @@ add_init(struct scanner *sc)
 void
 add_fini(struct scanner *sc)
 {
-	add_tok(sc, lit(op_halt));
+	add_tok(sc, tok(op_halt, sc->len + 1, after));
 }
 
 void
 add_open(struct scanner *sc)
 {
-	add_tok(sc, lit(op_mark, sc->st));
+	add_tmp(sc, tok(nop, sc->len));
+	sc->len = 0;
 }
 
 void
 add_close(struct scanner *sc)
 {
-	size_t off = sc->res[0].len;
-	sc->st = sc->res[-off].ch;
-	add_tok(sc, lit(op_save));
+	struct token *nop = sc->tmp;
+	add_tok(sc, tok(op_mark, sc->len + 1, before),
+	            tok(op_save, sc->len + 2, after));
+	sc->len += nop->len;
+	--sc->tmp;
 }
 
 int
@@ -157,13 +162,13 @@ nomem:
 int
 scan(struct scanner *sc)
 {
-	int err;
+	int err = 0;
 
 	add_init(sc);
 	add_open(sc);
 
-	err = scan_step(sc);
-	if (err) return err;
+	while (!err) err = scan_step(sc);
+	if (err != -1) return err;
 	
 	add_close(sc);
 	add_fini(sc);
@@ -207,20 +212,18 @@ oper(uint8_t const *src)
 }
 
 int
-scan_next(struct scanner *sc)
-{
-	++sc->src;
-	return scan_step(sc);
-}
-
-int
 scan_step(struct scanner *sc)
 {
 	int (*shunt)();
+	int err;
 
 	shunt = tab_shunt[*sc->src];
-	if (shunt) return shunt(sc);
-	else return shunt_char(sc);
+
+	if (shunt) err = shunt(sc);
+	else err = shunt_char(sc);
+
+	++sc->src;
+	return err;
 }
 
 int
@@ -233,17 +236,13 @@ int
 shunt_char(struct scanner *sc)
 {
 	add_lit(sc);
-	return scan_next(sc);
+	return 0;
 }
 
 int
 shunt_close(struct scanner *sc)
 {
-	tok_pop_until(&sc->res, &sc->tmp, op_mark);
-	if (sc->tmp[0].op == op_null) return PAT_ERR_BADPAREN;
-
-	add_close(sc);
-	return 0;
+	return -1;
 }
 
 int
@@ -255,8 +254,7 @@ shunt_dot(struct scanner *sc)
 int
 shunt_eol(struct scanner *sc)
 {
-	tok_pop_greater(&sc->res, &sc->tmp, op_null);
-	return 0;
+	return -1;
 }
 
 int
@@ -270,31 +268,11 @@ int
 shunt_open(struct scanner *sc)
 {
 	add_open(sc);
-	return scan_next(sc);
+	return 0;
 }
 
 int
 shunt_mon(struct scanner *sc)
 {
 	return -1;
-}
-
-void
-tok_pop_greater(struct token **stk, struct token **aux, enum op op)
-{
-	if (aux[0]->op == op_null) return;
-	if (prec(*aux) < tab_prec[op]) return;
-
-	*++stk[0] = *aux[0]--;
-	tok_pop_greater(stk, aux, op);
-}
-
-void
-tok_pop_until(struct token **stk, struct token **aux, enum op op) // XXX
-{
-	if (aux[0][-1].op == op_null) return;
-	if (aux[0][-1].op == op) return; // XXX
-
-	*++stk[0] = *aux[0]--;
-	tok_pop_until(stk, aux, op);
 }

@@ -3,26 +3,16 @@
 #include <stdlib.h>
 
 #include <util.h>
-#include <vec.h>
 #include <pat.ih>
 #include <pat.h>
 
 #define instr(...) ins(__VA_ARGS__, 0,)
 #define ins(OP, ARG, ...) (struct ins){ .op = tab_op[OP], .arg = ARG }
 
-enum {
-	from_above,
-	from_left,
-	from_right,
-};
+static struct token *comp_nul(struct ins **, struct token *, struct token *);
+static struct token *comp_mon(struct ins **, struct token *, struct token *);
 
-static void compile(struct ins *, struct token *, int);
-static void comp_cat(struct ins *, struct token *, int);
-static void comp_una(struct ins *, struct token *, int);
-static void comp_mon(struct ins *, struct token *, int);
-static void comp_nul(struct ins *, struct token *, int);
-
-static int (* tab_op[])(struct context *, struct thread *, char const) = {
+static int (* const tab_op[])(struct context *, struct thread *, char const) = {
 	[op_char] = do_char,
 	[op_clss] = do_clss,
 	[op_jump] = do_jump,
@@ -32,100 +22,85 @@ static int (* tab_op[])(struct context *, struct thread *, char const) = {
 	[op_halt] = do_halt,
 };
 
-static void (* tab_comp[])(struct ins *, struct token *, int) = {
-	[nop]     = comp_cat,
-	[op_char] = comp_una,
-	[op_clss] = comp_una,
+static struct token *(* const tab_comp[])(struct ins **, struct token *, struct token *) = {
+	[op_char] = comp_nul,
+	[op_clss] = comp_nul,
 	[op_jump] = comp_mon,
 	[op_fork] = comp_mon,
-	[op_save] = comp_nul,
-	[op_mark] = comp_nul,
-	[op_halt] = comp_nul,
+	[op_save] = comp_mon,
+	[op_mark] = comp_mon,
+	[op_halt] = comp_mon,
 
 };
 
 struct token *
-right(struct token *t)
+chld_right(struct token *tok)
 {
-	return t - 1;
+	if (tok->len == 1) return 0x0;
+	else return tok - 1;
 }
 
 struct token *
-left(struct token *t)
+chld_next(struct token *tok, struct token *ctx)
 {
-	return right(t) - right(t)->len;
+	size_t off;
+
+	if (!ctx || tok < ctx) return chld_right(tok);
+	if (tok == ctx) return tok->up;
+
+	off = tok - ctx + ctx->len;
+
+	if (off >= tok->len) return tok;
+
+	return tok - off;
 }
 
-void
-compile(struct ins *dst, struct token *tok, int n)
+struct token *
+comp_nul(struct ins **dst, struct token *tok, struct token *ctx)
 {
-	tab_comp[tok->op](dst, tok, n);
+	*dst[0]-- = instr(tok->op, {.b = tok->ch});
+	return chld_next(ctx, tok);
 }
 
-void
-walk_left(struct ins *dst, struct token *tok)
+struct token *
+comp_mon(struct ins **dst, struct token *tok, struct token *ctx)
 {
-	left(tok)->up = tok;
-	compile(dst, left(tok), from_above);
-}
-
-void
-walk_right(struct ins *dst, struct token *tok)
-{
-	right(tok)->up = tok;
-	compile(dst, right(tok), from_above);
-}
-
-void
-walk_back(struct ins *dst, struct token *tok)
-{
-	if (tok->up == 0x0) return;
-	else if (tok == left( tok->up)) compile(dst, tok->up, from_left);
-	else if (tok == right(tok->up)) compile(dst, tok->up, from_right);
-}
-
-void
-comp_cat(struct ins *dst, struct token *tok, int n)
-{
-	switch (n) {
-	case from_above:
-		walk_left(dst, tok);
-		return;
-	case from_left:
-		walk_right(dst, tok);
-		return;
-	case from_right:
-		walk_back(dst, tok);
-		return;
+	if (ctx == tok) {
+		if (tok->wh) return tok->up;
+		*dst[0]-- = instr(tok->op, tok->len - 1);
+		return tok->up;
 	}
+
+	if (!ctx || ctx > tok) {
+		if (!tok->wh) return chld_right(tok);
+		*dst[0]-- = instr(tok->op, -tok->len + 1);
+		return chld_right(tok);
+	}
+
+	return chld_next(tok, ctx);
 }
 
 void
-comp_una(struct ins *dst, struct token *tok, int n)
+marshal(struct ins *dst, struct token *tok)
 {
-	*dst++ = instr(tok->op, {.b = tok->ch});
-	walk_back(dst, tok);
-}
+	struct token *tmp = 0x0;
+	struct token *ctx = 0x0;
 
-void
-comp_nul(struct ins *dst, struct token *tok, int n)
-{
-	*dst++ = instr(tok->op);
-	walk_back(dst, tok);
-}
+	dst += tok->len - 1;
 
-void
-comp_mon(struct ins *dst, struct token *tok, int n)
-{
-	switch (n) {
-	case from_above:
-		if (!tok->wh) *dst++ = instr(tok->op, tok->len - 1);
-		walk_right(dst, tok);
-		return;
-	case from_right:
-		if ( tok->wh) *dst++ = instr(tok->op, -tok->len + 1);
-		walk_back(dst, tok);
-		return;
+	while (tok) {
+		tmp = tab_comp[tok->op](&dst, tok, ctx);
+
+		if (!tmp) break;
+
+		if (tmp->len < tok->len) {
+			tmp->up = tok;
+			ctx = tok;
+		} else if (tmp->len > ctx->len) {
+			ctx = tok;
+		}
+
+		tok = tmp;
 	}
 }
 
@@ -135,7 +110,7 @@ pat_marshal(struct pattern *pat, struct token *tok)
 	pat->prog = calloc(tok->len, sizeof *pat->prog);
 	if (!pat->prog) return ENOMEM;
 
-	compile(pat->prog, tok, 0x0);
+	marshal(pat->prog, tok);
 
 	return 0;
 }

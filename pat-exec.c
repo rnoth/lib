@@ -56,7 +56,7 @@ do_clss(struct context *ctx, struct thread *th, char const ch)
 	size_t ind = th - ctx->thr;
 	bool res;
 
-	switch (th->ip->arg.i) {
+	switch (th->ip->arg.b) {
 	case class_any: res = true; break;
 	case class_dot: res = ch != L'\n' && ch != L'\0'; break;
 	case class_alpha: res = isalpha(ch); break;
