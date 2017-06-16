@@ -24,14 +24,27 @@ struct parser {
 
 static enum type oper(uint8_t const *);
 
+static void pop_nop(struct parser *);
+
+static void push_alt(struct parser *);
+static void push_fini(struct parser *);
+static void push_mon(struct parser *, struct token *);
+static void push_nop(struct parser *);
+static void push_rep(struct parser *, enum type);
 static void push_res(struct parser *, struct token *);
+static void push_rit(struct parser *);
+static void push_var(struct parser *, struct token *);
 
 static int shift(struct parser *);
 
+static int shunt_alt(struct parser *);
+static int shunt_dot(struct parser *);
 static int shunt_esc(struct parser *);
 static int shunt_eol(struct parser *);
+static int shunt_lef(struct parser *);
 static int shunt_lit(struct parser *);
 static int shunt_rep(struct parser *);
+static int shunt_rit(struct parser *);
 
 static int parse(struct token **, struct parser *);
 
@@ -41,6 +54,10 @@ static int (* const tab_shunt[][st_len])() = {
 	['?']  = { shunt_rep, },
 	['+']  = { shunt_rep, },
 	['*']  = { shunt_rep, },
+	['|']  = { shunt_alt, },
+	['(']  = { shunt_lef, },
+	[')']  = { shunt_rit, },
+	['.']  = { shunt_dot, },
 	[255]  = {0},
 };
 
@@ -57,29 +74,64 @@ oper(uint8_t const *src)
 }
 
 void
+pop_all(struct parser *pa)
+{
+	while (pa->tmp->op) *++pa->res = *pa->tmp--;
+}
+
+void
 pop_nop(struct parser *pa)
 {
-	struct token *tok = pa->tmp;
-	if (tok->op != nop) return;
-	else pa->tmp--;
+	size_t off = pa->siz;
+	struct token *tok = pa->res -off;
 	pa->len += tok->len;
-	pa->siz += tok->siz;
+	pa->siz += tok->siz + 1;
+	tok->len = 0;
+	tok->siz = 1;
 }
 
 void
-push_res(struct parser *pa, struct token *src)
+push_alt(struct parser *pa)
 {
-	pa->siz += src->siz = 1;
-	pa->len += src->len = type_len(src->op);
-	*++pa->res = *src;
+	*++pa->res = (struct token){
+		.op  = type_alt,
+		.len = pa->len += type_len(type_alt),
+		.siz = pa->siz += 1,
+	};
 }
 
 void
-push_nop(struct parser *pa, enum type ty)
+push_fini(struct parser *pa)
 {
-	*++pa->tmp = (struct token){
-		.op  = nop, 
-		.ch  = ty,
+	push_var(pa, token(type_reg));
+}
+
+void
+push_rit(struct parser *pa)
+{
+	push_var(pa, token(type_sub));
+}
+
+void
+push_mon(struct parser *pa, struct token *tok)
+{
+	struct token *chld = pa->res;
+	size_t len = type_len(tok->op);
+
+	pa->siz += 1;
+	pa->len += len;
+
+	tok->siz = chld->siz + 1;
+	tok->len = chld->len + len;
+
+	*++pa->res = *tok;
+}
+
+void
+push_nop(struct parser *pa)
+{
+	*++pa->res = (struct token){
+		.op  = type_nop, 
 		.len = pa->len,
 		.siz = pa->siz,
 	};
@@ -89,33 +141,25 @@ push_nop(struct parser *pa, enum type ty)
 }
 
 void
+push_res(struct parser *pa, struct token *tok)
+{
+	pa->siz += tok->siz = 1;
+	pa->len += tok->len = type_len(tok->op);
+	*++pa->res = *tok;
+}
+
+void
 push_rep(struct parser *pa, enum type ty)
 {
-	++pa->res;
-	*pa->res = (struct token){
-		.op  = ty,
-		.siz = pa->res[-1].siz + 1,
-		.len = pa->res[-1].len + type_len(ty),
-	};
-
-	pa->siz += 1;
-	pa->len += type_len(ty);
+	push_mon(pa, token(ty));
 }
 
 void
-push_reg(struct parser *pa)
+push_var(struct parser *pa, struct token *tok)
 {
-	*++pa->res = (struct token){
-		.op = type_reg,
-		.siz = pa->siz += 1,
-		.len = pa->len += type_len(type_reg),
-	};
-}
-
-void
-push_fini(struct parser *pa)
-{
-	push_reg(pa);
+	tok->siz = pa->siz += 1,
+	tok->len = pa->len += type_len(tok->op),
+	*++pa->res = *tok;
 }
 
 int
@@ -135,6 +179,20 @@ shift(struct parser *pa)
 }
 
 int
+shunt_alt(struct parser *pa)
+{
+	push_alt(pa);
+	return 0;
+}
+
+int
+shunt_dot(struct parser *pa)
+{
+	push_res(pa, token(type_cls, class_dot));
+	return 0;
+}
+
+int
 shunt_esc(struct parser *pa)
 {
 	pa->st = st_esc;
@@ -144,9 +202,20 @@ shunt_esc(struct parser *pa)
 int
 shunt_eol(struct parser *pa)
 {
-	if (pa->tmp->op) return PAT_ERR_BADPAREN;
+	size_t off = pa->siz;
+	if (pa->res[-off].op != type_nil) { // XXX
+		return  PAT_ERR_BADPAREN;
+	}
+
 	push_fini(pa);
 	return -1;
+}
+
+int
+shunt_lef(struct parser *pa)
+{
+	push_nop(pa);
+	return 0;
 }
 
 int
@@ -160,6 +229,21 @@ int
 shunt_rep(struct parser *pa)
 {
 	push_rep(pa, oper(pa->src));
+	return 0;
+}
+
+int
+shunt_rit(struct parser *pa)
+{
+	size_t off = pa->siz;
+
+	if (pa->res[-off].op != type_nop) { // XXX
+		return  PAT_ERR_BADPAREN;
+	}
+
+	push_rit(pa);
+	pop_nop(pa);
+
 	return 0;
 }
 
@@ -184,8 +268,8 @@ parser_init(struct parser *pa, void const *src)
 	pa->res = calloc(len * 2 + 6, sizeof *pa->res);
 	if (!pa->res) goto nomem;
 
-	pa->tmp = calloc(len, sizeof *pa->tmp);
-	if (!pa->tmp) goto nomem;
+	//pa->tmp = calloc(len, sizeof *pa->tmp);
+	//if (!pa->tmp) goto nomem;
 
 	pa->src = src;
 

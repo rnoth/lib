@@ -12,12 +12,15 @@
 static struct token *chld_right(struct token *);
 static struct token *chld_next(struct token *, struct token *);
 
+static struct token *comp_alt(struct ins **, struct token *, struct token *);
 static struct token *comp_lit(struct ins **, struct token *, struct token *);
 static struct token *comp_cls(struct ins **, struct token *, struct token *);
 static struct token *comp_reg(struct ins **, struct token *, struct token *);
 static struct token *comp_kln(struct ins **, struct token *, struct token *);
+static struct token *comp_nop(struct ins **, struct token *, struct token *);
 static struct token *comp_opt(struct ins **, struct token *, struct token *);
 static struct token *comp_rep(struct ins **, struct token *, struct token *);
+static struct token *comp_sub(struct ins **, struct token *, struct token *);
 
 static struct token *(* const tab_comp[])(struct ins **, struct token *, struct token *) = {
 	[type_lit] = comp_lit,
@@ -25,16 +28,23 @@ static struct token *(* const tab_comp[])(struct ins **, struct token *, struct 
 	[type_opt] = comp_opt,
 	[type_rep] = comp_rep,
 	[type_kln] = comp_kln,
+	[type_alt] = comp_alt,
+	[type_sub] = comp_sub,
 	[type_reg] = comp_reg,
+	[type_nop] = comp_nop,
+	[255] = 0,
 };
 
 static size_t tab_len[] = {
-	[type_kln] = 2,
-	[type_opt] = 1,
-	[type_rep] = 1,
 	[type_lit] = 1,
 	[type_cls] = 1,
+	[type_opt] = 1,
+	[type_rep] = 1,
+	[type_kln] = 2,
+	[type_alt] = 2,
+	[type_sub] = 2,
 	[type_reg] = 6,
+	[255] = 0,
 };
 
 struct token *
@@ -60,18 +70,44 @@ chld_next(struct token *tok, struct token *ctx)
 }
 
 struct token *
+comp_alt(struct ins **dst, struct token *tok, struct token *ctx)
+{
+	size_t off;
+
+	if (tok == ctx) {
+		*dst[0]-- = instr(do_fork, tok->siz + 1);
+		return tok->up;
+	}
+	if (tok < ctx) {
+		off = tok->up->len - tok->len - type_len(tok->up->op);
+		*dst[0]-- = instr(do_jump, off + 1);
+		return chld_right(tok);
+	}
+
+	return chld_next(tok, ctx);
+}
+
+struct token *
 comp_opt(struct ins **dst, struct token *tok, struct token *ctx)
 {
-	if (tok == ctx) *dst[0]-- = instr(do_fork, tok->siz);
-	else if (tok > ctx) return tok->up;
+	if (tok == ctx) *dst[0]-- = instr(do_fork, tok->len);
 	return chld_next(tok, ctx);
 }
 
 struct token *
 comp_rep(struct ins **dst, struct token *tok, struct token *ctx)
 {
-	if (tok < ctx) *dst[0]-- = instr(do_fork, -tok->siz + 1);
+	if (tok < ctx) *dst[0]-- = instr(do_fork, -tok->len + 1);
 	else if (tok > ctx) return tok->up;
+	return chld_next(tok, ctx);
+}
+
+struct token *
+comp_sub(struct ins **dst, struct token *tok, struct token *ctx)
+{
+	if (tok == ctx) *dst[0]-- = instr(do_mark);
+	if (tok < ctx) *dst[0]-- = instr(do_save);
+
 	return chld_next(tok, ctx);
 }
 
@@ -117,6 +153,12 @@ comp_cls(struct ins **dst, struct token *tok, struct token *ctx)
 	return chld_next(ctx, tok);
 }
 
+struct token *
+comp_nop(struct ins **dst, struct token *tok, struct token *ctx)
+{
+	return chld_next(ctx, tok);
+}
+
 size_t
 type_len(enum type ty)
 {
@@ -139,6 +181,8 @@ marshal(struct ins *dst, struct token *tok)
 		if (tmp->siz < tok->siz) {
 			tmp->up = tok;
 			ctx = tok;
+		} else if (tmp->siz < ctx->siz) {
+			tmp->up = ctx;
 		} else if (ctx->siz < tmp->siz) {
 			ctx = tok;
 		}
