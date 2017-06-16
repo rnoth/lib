@@ -9,6 +9,8 @@ size_t total_failures;
 static char stack[MINSIGSTKSZ];
 static void fault(int);
 static char *sigtostr(int);
+static void test_failed(char *);
+static void print_lineno(int);
 
 char *
 sigtostr(int src)

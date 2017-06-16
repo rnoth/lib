@@ -22,6 +22,8 @@ static struct token *comp_opt(struct ins **, struct token *, struct token *);
 static struct token *comp_rep(struct ins **, struct token *, struct token *);
 static struct token *comp_sub(struct ins **, struct token *, struct token *);
 
+static void marshal(struct ins *, struct token *tok);
+
 static struct token *(* const tab_comp[])(struct ins **, struct token *, struct token *) = {
 	[type_lit] = comp_lit,
 	[type_cls] = comp_cls,

@@ -10,21 +10,21 @@
 enum state {
 	st_init,
 	st_esc,
-	st_len,
+	st__len,
 };
 
 struct parser {
 	uint8_t const *src;
 	struct token  *res;
-	struct token  *tmp;
 	enum state     st;
 	size_t         len;
 	size_t         siz;
 };
 
-
 static bool is_closed(struct parser *);
 static bool is_open(struct parser *);
+
+static enum type oper(uint8_t const *);
 
 static void pop_nop(struct parser *);
 
@@ -48,9 +48,10 @@ static int shunt_lit(struct parser *);
 static int shunt_rep(struct parser *);
 static int shunt_rit(struct parser *);
 
+static int parser_init(struct parser *, void const *);
 static int parse(struct token **, struct parser *);
 
-static int (* const tab_shunt[][st_len])() = {
+static int (* const tab_shunt[][st__len])() = {
 	[0]    = { shunt_eol, shunt_eol, },
 	['\\'] = { shunt_esc, },
 	['?']  = { shunt_rep, },
@@ -87,12 +88,6 @@ oper(uint8_t const *src)
 	};
 
 	return tab[*src];
-}
-
-void
-pop_all(struct parser *pa)
-{
-	while (pa->tmp->id) *++pa->res = *pa->tmp--;
 }
 
 void
@@ -275,17 +270,11 @@ parser_init(struct parser *pa, void const *src)
 	size_t len = strlen(src);
 
 	pa->res = calloc(len * 2 + 6, sizeof *pa->res);
-	if (!pa->res) goto nomem;
+	if (!pa->res) return ENOMEM;
 
 	pa->src = src;
 
 	return 0;
-
-nomem:
-	free(pa->res);
-	free(pa->tmp);
-
-	return ENOMEM;
 }
 
 void
@@ -310,7 +299,6 @@ pat_parse(struct token **dst, char const *src)
 
 finally:
 	if (err) tok_free(pa->res);
-	tok_free(pa->tmp);
 
 	return err;
 }
