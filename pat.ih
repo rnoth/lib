@@ -114,12 +114,16 @@ void thr_prune(struct context *, size_t);
 int  thr_start(struct context *, wchar_t const);
 void thr_remove(struct context *, size_t);
 
+/* pat-comp.c */
+int pat_marshal(struct pattern *, struct token *);
+size_t type_len(enum type);
+
+/* pat_parse.c */
+int pat_parse(struct token **, char const *);
+
 /* pat-scan.c */
 int pat_scan(struct token **, char const *);
 void tok_free(struct token *);
-
-/* pat-comp.c */
-int pat_marshal(struct pattern *, struct token *);
 
 int pat_exec(struct context *);
 int pat_match(struct context *, struct pattern *);

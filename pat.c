@@ -15,13 +15,13 @@
 int
 pat_compile(struct pattern *dst, char const *src)
 {
-	struct token *tok;
+	struct token *tok = 0;
 	int err = 0;
 
 	if (!dst) return EFAULT;
 	if (!src) return EFAULT;
 
-	err = pat_scan(&tok, src);
+	err = pat_parse(&tok, src);
 	if (err) goto finally;
 
 	err = pat_marshal(dst, tok);

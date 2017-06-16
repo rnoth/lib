@@ -13,23 +13,24 @@
 #define _lit(o, c, ...) ((struct token){.op = o, .len = 1, .ch = c})
 
 #define _arrlen(arr) arr, sizeof arr / sizeof *arr
-#define add_tok(sc, ...) add_tokv(sc, _arrlen(((struct token[]){__VA_ARGS__})))
-#define add_tmp(sc, ...) add_tmpv(sc, _arrlen(((struct token[]){__VA_ARGS__})))
+#define push_tok(sc, ...) push_tokv(sc, _arrlen(((struct token[]){__VA_ARGS__})))
+#define push_tmp(sc, ...) push_tmpv(sc, _arrlen(((struct token[]){__VA_ARGS__})))
 
 struct scanner {
 	uint8_t const *src;
 	struct token  *res;
 	struct token  *tmp;
 	size_t         len;
+	size_t         siz;
 };
 
-static void add_tokv(struct scanner *, struct token *, size_t);
-static void add_tmpv(struct scanner *, struct token *, size_t);
-static void add_lit(struct scanner *);
-static void add_init(struct scanner *);
-static void add_fini(struct scanner *);
-static void add_open(struct scanner *);
-static void add_close(struct scanner *);
+static void push_tokv(struct scanner *, struct token *, size_t);
+static void push_tmpv(struct scanner *, struct token *, size_t);
+static void push_lit(struct scanner *);
+static void push_init(struct scanner *);
+static void push_fini(struct scanner *);
+static void push_open(struct scanner *);
+static void push_close(struct scanner *);
 
 static int scan_step(   struct scanner *sc);
 
@@ -44,7 +45,7 @@ static int shunt_mon(   struct scanner *sc);
 
 static struct token *unwind(struct token *);
 
-static int8_t const tab_prec[] = {
+int8_t const tab_prec[] = {
 	[type_sub] = 1,
 	[type_nop] = 1,
 	[type_alt] = 2,
@@ -70,53 +71,52 @@ static int (* const tab_shunt[])() = {
 };
 
 void
-add_tokv(struct scanner *sc, struct token *tokv, size_t len)
+push_tokv(struct scanner *sc, struct token *tokv, size_t len)
 {
 	memcpy(sc->res + 1, tokv, len * sizeof *sc->res);
 	sc->res += len;
-
 	sc->len += len;
 }
 
 void
-add_tmpv(struct scanner *sc, struct token *tokv, size_t len)
+push_tmpv(struct scanner *sc, struct token *tokv, size_t len)
 {
 	memcpy(sc->tmp + 1, tokv, len * sizeof *sc->tmp);
 	sc->tmp += len;
 }
 
 void
-add_lit(struct scanner *sc)
+push_lit(struct scanner *sc)
 {
-	add_tok(sc, lit(op_char, *sc->src));
+	push_tok(sc, lit(op_char, *sc->src));
 }
 
 void
-add_init(struct scanner *sc)
+push_init(struct scanner *sc)
 {
-	add_tok(sc, lit(op_clss, class_any),
+	push_tok(sc, lit(op_clss, class_any),
 	            tok(op_fork, 2, after),
 	            tok(op_jump, 3, before));
 }
 
 void
-add_fini(struct scanner *sc)
+push_fini(struct scanner *sc)
 {
-	add_tok(sc, tok(op_halt, sc->len + 1, after));
+	push_tok(sc, tok(op_halt, sc->len + 1, after));
 }
 
 void
-add_open(struct scanner *sc)
+push_open(struct scanner *sc)
 {
-	add_tmp(sc, tok(nop, sc->len));
+	push_tmp(sc, tok(nop, sc->len));
 	sc->len = 0;
 }
 
 void
-add_close(struct scanner *sc)
+push_close(struct scanner *sc)
 {
 	struct token *nop = sc->tmp;
-	add_tok(sc, tok(op_mark, sc->len + 1, before),
+	push_tok(sc, tok(op_mark, sc->len + 1, before),
 	            tok(op_save, sc->len + 2, after));
 	sc->len += nop->len;
 	--sc->tmp;
@@ -127,14 +127,14 @@ scan(struct scanner *sc)
 {
 	int err = 0;
 
-	add_init(sc);
-	add_open(sc);
+	push_init(sc);
+	push_open(sc);
 
 	while (!err) err = scan_step(sc);
 	if (err != -1) return err;
 	
-	add_close(sc);
-	add_fini(sc);
+	push_close(sc);
+	push_fini(sc);
 
 	return 0;
 }
@@ -192,26 +192,26 @@ scan_step(struct scanner *sc)
 int
 shunt_alt(struct scanner *sc)
 {
-	return -1;
+	return -2;
 }
 
 int
 shunt_char(struct scanner *sc)
 {
-	add_lit(sc);
+	push_lit(sc);
 	return 0;
 }
 
 int
 shunt_close(struct scanner *sc)
 {
-	return -1;
+	return -2;
 }
 
 int
 shunt_dot(struct scanner *sc)
 {
-	return -1;
+	return -2;
 }
 
 int
@@ -230,19 +230,20 @@ shunt_esc(struct scanner *sc)
 int
 shunt_open(struct scanner *sc)
 {
-	add_open(sc);
+	push_open(sc);
 	return 0;
 }
 
 int
 shunt_mon(struct scanner *sc)
 {
-	return -1;
+	return -2;
 }
 
 void
 tok_free(struct token *t)
 {
+	if (!t) return;
 	t = unwind(t);
 	free(t);
 }
@@ -250,9 +251,8 @@ tok_free(struct token *t)
 struct token *
 unwind(struct token *t)
 {
-	if (t->op == op_null) return t;
-	--t;
-	return unwind(t);
+	while (t->op != op_null) --t;
+	return t;
 }
 
 int
@@ -270,7 +270,7 @@ pat_scan(struct token **res, char const *src)
 finally:
 	tok_free(sc->tmp);
 
-	if (err) tok_free(sc->tmp);
+	if (err) tok_free(sc->res);
 	else *res = sc->res;
 
 	return err;
