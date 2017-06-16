@@ -5,6 +5,7 @@
 
 char filename[] = "pat.c";
 
+static void test_free(void);
 static void test_alter(void);
 static void test_esc(void);
 static void test_qmark(void);
@@ -13,7 +14,7 @@ static void test_sub(void);
 static void test_plain(void);
 static void test_plus(void);
 static void test_dot(void);
-static void loop(void);
+static void test_match(void);
 
 struct a {
 	char *pat;
@@ -29,14 +30,15 @@ struct b {
 };
 
 struct test tests[] = {
-	{ test_plain, loop,  "testing plaintext matching" },
-	{ test_esc,   loop,  "testing the \\ escapes", },
-	{ test_qmark, loop,  "testing the ? operator", },
-	{ test_star,  loop,  "testing the * operator", },
-	{ test_plus,  loop,  "testing the + operator", },
-	{ test_alter, loop,  "testing the | operator", },
-	{ test_sub,   loop,  "testing the () submatches", },
-	{ test_dot,   loop,  "testing the . metacharacter", },
+	{ "testing plaintext matching",  test_plain, test_match, test_free, },
+	{ "testing the \\ escapes",      test_esc,   test_match, test_free, },
+	{ "testing the ? operator",      test_qmark, test_match, test_free, },
+	{ "testing the * operator",      test_star,  test_match, test_free, },
+	{ "testing the + operator",      test_plus,  test_match, test_free, },
+	{ "testing the | operator",      test_alter, test_match, test_free, },
+	{ "testing the () submatches",   test_sub,   test_match, test_free, },
+	{ "testing the . metacharacter", test_dot,   test_match, test_free, },
+	{ 0x0 },
 };
 
 struct a plain[] = {
@@ -244,7 +246,6 @@ struct a dot[] = {
 	{ 0x0 },
 };
 
-size_t const tests_len = array_len(tests);
 struct a *cur;
 
 struct pattern pat[1];
@@ -258,13 +259,15 @@ void test_plus(void)  { cur = plus; }
 void test_esc(void)   { cur = esc; }
 void test_dot(void)   { cur = dot; }
 
-void cleanup()
+void
+test_free()
 {
 	pat_free(pat);
 	memset(pat, 0, sizeof *pat);
 }
 
-void loop(void)
+void
+test_match(void)
 {
 	struct a *a = 0x0;
 	struct b *b = 0x0;

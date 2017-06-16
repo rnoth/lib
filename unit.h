@@ -49,17 +49,16 @@
 #define on_failure if (sigsetjmp(checkpoint, 1))
 
 struct test {
-	void (*setup)(void);
-	void (*do_it)(void);
 	char  *msg;
+	void (*setup)();
+	void (*test)();
+	void (*cleanup)();
+	void  *ctx;
 };
 
 // must be defined
 extern struct test  tests[];
-extern size_t const tests_len;
 extern char filename[];
-
-void cleanup(void);
 
 // provided
 extern bool unit_has_init;
