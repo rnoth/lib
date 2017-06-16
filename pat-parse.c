@@ -1,6 +1,7 @@
 #include <errno.h>
 #include <stdlib.h>
 #include <string.h>
+#include <pat.h>
 #include <pat.ih>
 
 #define token(...) tok(__VA_ARGS__, 0,)
@@ -22,7 +23,8 @@ struct parser {
 };
 
 
-static enum type oper(uint8_t const *);
+static bool is_closed(struct parser *);
+static bool is_open(struct parser *);
 
 static void pop_nop(struct parser *);
 
@@ -60,6 +62,20 @@ static int (* const tab_shunt[][st_len])() = {
 	['.']  = { shunt_dot, },
 	[255]  = {0},
 };
+
+bool
+is_closed(struct parser *pa)
+{
+	size_t off = pa->siz;
+	return pa->res[-off].id == type_nil;
+}
+
+bool
+is_open(struct parser *pa)
+{
+	size_t off = pa->siz;
+	return pa->res[-off].id == type_nop;
+}
 
 enum type
 oper(uint8_t const *src)
@@ -202,10 +218,7 @@ shunt_esc(struct parser *pa)
 int
 shunt_eol(struct parser *pa)
 {
-	size_t off = pa->siz;
-	if (pa->res[-off].id != type_nil) { // XXX
-		return  PAT_ERR_BADPAREN;
-	}
+	if (is_open(pa)) return PAT_ERR_BADPAREN;
 
 	push_fini(pa);
 	return -1;
@@ -235,11 +248,7 @@ shunt_rep(struct parser *pa)
 int
 shunt_rit(struct parser *pa)
 {
-	size_t off = pa->siz;
-
-	if (pa->res[-off].id != type_nop) { // XXX
-		return  PAT_ERR_BADPAREN;
-	}
+	if (is_closed(pa)) return PAT_ERR_BADPAREN;
 
 	push_rit(pa);
 	pop_nop(pa);
