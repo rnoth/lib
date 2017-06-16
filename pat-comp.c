@@ -79,7 +79,7 @@ comp_alt(struct ins **dst, struct token *tok, struct token *ctx)
 		return tok->up;
 	}
 	if (tok < ctx) {
-		off = tok->up->len - tok->len - type_len(tok->up->op);
+		off = tok->up->len - tok->len - type_len(tok->up->id);
 		*dst[0]-- = instr(do_jump, off + 1);
 		return chld_right(tok);
 	}
@@ -174,7 +174,7 @@ marshal(struct ins *dst, struct token *tok)
 	dst += tok->len - 1;
 
 	while (tok) {
-		tmp = tab_comp[tok->op](&dst, tok, ctx);
+		tmp = tab_comp[tok->id](&dst, tok, ctx);
 
 		if (!tmp) break;
 

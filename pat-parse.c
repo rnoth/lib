@@ -4,7 +4,7 @@
 #include <pat.ih>
 
 #define token(...) tok(__VA_ARGS__, 0,)
-#define tok(t, c, ...) ((struct token[]){{.op = t, .ch = c}})
+#define tok(t, c, ...) ((struct token[]){{.id = t, .ch = c}})
 
 enum state {
 	st_init,
@@ -76,7 +76,7 @@ oper(uint8_t const *src)
 void
 pop_all(struct parser *pa)
 {
-	while (pa->tmp->op) *++pa->res = *pa->tmp--;
+	while (pa->tmp->id) *++pa->res = *pa->tmp--;
 }
 
 void
@@ -94,7 +94,7 @@ void
 push_alt(struct parser *pa)
 {
 	*++pa->res = (struct token){
-		.op  = type_alt,
+		.id  = type_alt,
 		.len = pa->len += type_len(type_alt),
 		.siz = pa->siz += 1,
 	};
@@ -116,7 +116,7 @@ void
 push_mon(struct parser *pa, struct token *tok)
 {
 	struct token *chld = pa->res;
-	size_t len = type_len(tok->op);
+	size_t len = type_len(tok->id);
 
 	pa->siz += 1;
 	pa->len += len;
@@ -131,7 +131,7 @@ void
 push_nop(struct parser *pa)
 {
 	*++pa->res = (struct token){
-		.op  = type_nop, 
+		.id  = type_nop, 
 		.len = pa->len,
 		.siz = pa->siz,
 	};
@@ -144,7 +144,7 @@ void
 push_res(struct parser *pa, struct token *tok)
 {
 	pa->siz += tok->siz = 1;
-	pa->len += tok->len = type_len(tok->op);
+	pa->len += tok->len = type_len(tok->id);
 	*++pa->res = *tok;
 }
 
@@ -158,7 +158,7 @@ void
 push_var(struct parser *pa, struct token *tok)
 {
 	tok->siz = pa->siz += 1,
-	tok->len = pa->len += type_len(tok->op),
+	tok->len = pa->len += type_len(tok->id),
 	*++pa->res = *tok;
 }
 
@@ -203,7 +203,7 @@ int
 shunt_eol(struct parser *pa)
 {
 	size_t off = pa->siz;
-	if (pa->res[-off].op != type_nil) { // XXX
+	if (pa->res[-off].id != type_nil) { // XXX
 		return  PAT_ERR_BADPAREN;
 	}
 
@@ -237,7 +237,7 @@ shunt_rit(struct parser *pa)
 {
 	size_t off = pa->siz;
 
-	if (pa->res[-off].op != type_nop) { // XXX
+	if (pa->res[-off].id != type_nop) { // XXX
 		return  PAT_ERR_BADPAREN;
 	}
 
@@ -283,7 +283,7 @@ void
 tok_free(struct token *tok)
 {
 	if (!tok) return;
-	while (tok->op) --tok;
+	while (tok->id) --tok;
 	free(tok);
 }
 
