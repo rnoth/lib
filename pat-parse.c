@@ -268,9 +268,6 @@ parser_init(struct parser *pa, void const *src)
 	pa->res = calloc(len * 2 + 6, sizeof *pa->res);
 	if (!pa->res) goto nomem;
 
-	//pa->tmp = calloc(len, sizeof *pa->tmp);
-	//if (!pa->tmp) goto nomem;
-
 	pa->src = src;
 
 	return 0;
@@ -280,6 +277,14 @@ nomem:
 	free(pa->tmp);
 
 	return ENOMEM;
+}
+
+void
+tok_free(struct token *tok)
+{
+	if (!tok) return;
+	while (tok->op) --tok;
+	free(tok);
 }
 
 int
