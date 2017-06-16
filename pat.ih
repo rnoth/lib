@@ -47,11 +47,10 @@ enum type {
 
 struct token {
 	struct token *up;
-	size_t        len;
-	size_t        siz;
+	patoff_t      len;
+	patoff_t      siz;
 	uint8_t       ch;
-	uint8_t       wh:1;
-	uint8_t       op:7;
+	uint8_t       id;
 };
 
 struct thread {

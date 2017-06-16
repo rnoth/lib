@@ -3,6 +3,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include <stddef.h>
+#include <stdint.h>
 
 enum {
 	PAT_ERR_NOMATCH  = -1,
@@ -10,6 +11,7 @@ enum {
 	PAT_ERR_BADREP   = -3
 };
 
+typedef uint16_t patoff_t; // ought to be enough for anyone
 
 struct pattern {
 	long opts;
