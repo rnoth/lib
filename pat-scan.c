@@ -1,21 +1,31 @@
 #include <errno.h>
-#include <arr.h>
+#include <stdlib.h>
+#include <string.h>
+
 #include <pat.ih>
 
-#define prec(tok) (tab_prec[((struct token*){0}=(tok))->id])
+#define prec(tok) (tab_prec[((struct token*){0}=(tok))->op])
 
+<<<<<<< HEAD
 #define stk_peek(t) ((struct token*){0}=arr_peek(t))
 
 #define token(...) tok(__VA_ARGS__, 0, 0)
 #define tok(i, c, ...) ((struct token[]){{ .id = i, .ch = c }})
+=======
+#define tok(...) _tok(__VA_ARGS__, 0,)
+#define _tok(o, n, w, ...) ((struct token){ .op = o, .len = n, .wh = w})
+>>>>>>> oneshot
 
-enum state {
-	st_init,
-	st_str,
-};
+#define lit(...) _lit(__VA_ARGS__, 0,)
+#define _lit(o, c, ...) ((struct token){.op = o, .len = 1, .ch = c})
+
+#define _arrlen(arr) arr, sizeof arr / sizeof *arr
+#define push_tok(sc, ...) push_tokv(sc, _arrlen(((struct token[]){__VA_ARGS__})))
+#define push_tmp(sc, ...) push_tmpv(sc, _arrlen(((struct token[]){__VA_ARGS__})))
 
 struct scanner {
 	uint8_t const *src;
+<<<<<<< HEAD
 	struct token  *stk;
 	enum state     st;
 };
@@ -40,16 +50,46 @@ static int8_t const tab_prec[] = {
 	[type_alt] = 1,
 	[type_cat] = 2,
 	[255] = 0,
+=======
+	struct token  *res;
+	struct token  *tmp;
+	size_t         len;
+	size_t         siz;
+>>>>>>> oneshot
 };
 
-static uint8_t const tab_oper[] = {
-	['?'] = type_opt,
-	['*'] = type_kln,
-	['+'] = type_rep,
-	['('] = type_sub,
-	['.'] = class_dot,
-};
+static void push_tokv(struct scanner *, struct token *, size_t);
+static void push_tmpv(struct scanner *, struct token *, size_t);
+static void push_lit(struct scanner *);
+static void push_init(struct scanner *);
+static void push_fini(struct scanner *);
+static void push_open(struct scanner *);
+static void push_close(struct scanner *);
 
+static int scan_step(   struct scanner *sc);
+
+static int shunt_alt(   struct scanner *sc);
+static int shunt_char(  struct scanner *sc);
+static int shunt_close( struct scanner *sc);
+static int shunt_dot(   struct scanner *sc);
+static int shunt_eol(   struct scanner *sc);
+static int shunt_esc(   struct scanner *sc);
+static int shunt_open(  struct scanner *sc);
+static int shunt_mon(   struct scanner *sc);
+
+static struct token *unwind(struct token *);
+
+int8_t const tab_prec[] = {
+	[type_sub] = 1,
+	[type_nop] = 1,
+	[type_alt] = 2,
+	[type_cat] = 3,
+	[type_rep] = 4,
+	[type_opt] = 4,
+	[type_kln] = 4,
+	[type_lit] = 5,
+	[type_cls] = 5,
+};
 
 static int (* const tab_shunt[])() = {
 	['\0'] = shunt_eol,
@@ -64,79 +104,142 @@ static int (* const tab_shunt[])() = {
 	[255]  = 0,
 };
 
-int
-pat_scan(struct token **res, void const *src)
+void
+push_tokv(struct scanner *sc, struct token *tokv, size_t len)
 {
-	size_t const len = strlen(src) + 1;
-	struct scanner sc[1] = {{ .src = src, }};
-	int err;
+	memcpy(sc->res + 1, tokv, len * sizeof *sc->res);
+	sc->res += len;
+	sc->len += len;
+}
 
-	*res = arr_alloc(sizeof **res, len * 2);
-	if (!*res) goto nomem;
+void
+push_tmpv(struct scanner *sc, struct token *tokv, size_t len)
+{
+	memcpy(sc->tmp + 1, tokv, len * sizeof *sc->tmp);
+	sc->tmp += len;
+}
 
-	sc->stk = arr_alloc(sizeof *sc->stk, len);
-	if (!sc->stk) goto nomem;
+void
+push_lit(struct scanner *sc)
+{
+	push_tok(sc, lit(op_char, *sc->src));
+}
 
-	err = shunt_step(*res, sc);
-	if (err) goto finally;
+void
+push_init(struct scanner *sc)
+{
+	push_tok(sc, lit(op_clss, class_any),
+	            tok(op_fork, 2, after),
+	            tok(op_jump, 3, before));
+}
 
-finally:
-	if (err) arr_free(*res);
-	arr_free(sc->stk);
+void
+push_fini(struct scanner *sc)
+{
+	push_tok(sc, tok(op_halt, sc->len + 1, after));
+}
 
-	return err;
+void
+push_open(struct scanner *sc)
+{
+	push_tmp(sc, tok(nop, sc->len));
+	sc->len = 0;
+}
+
+void
+push_close(struct scanner *sc)
+{
+	struct token *nop = sc->tmp;
+	push_tok(sc, tok(op_mark, sc->len + 1, before),
+	            tok(op_save, sc->len + 2, after));
+	sc->len += nop->len;
+	--sc->tmp;
+}
+
+int
+scan(struct scanner *sc)
+{
+	int err = 0;
+
+	push_init(sc);
+	push_open(sc);
+
+	while (!err) err = scan_step(sc);
+	if (err != -1) return err;
+	
+	push_close(sc);
+	push_fini(sc);
+
+	return 0;
+}
+
+int
+scanner_init(struct scanner *sc, void const *src)
+{
+	size_t len = strlen(src);
+
+	sc->res = calloc(len * 2 + 10, sizeof *sc->res);
+	if (!sc->res) goto nomem;
+
+	sc->tmp = calloc(len, sizeof *sc->tmp);
+	if (!sc->tmp) goto nomem;
+
+	sc->src = src;
+
+	return 0;
 
 nomem:
-	err = ENOMEM;
-	goto finally;
+	free(sc->tmp);
+	free(sc->res);
+	return ENOMEM;
+}
+
+enum type
+oper(uint8_t const *src)
+{
+	static uint8_t const tab[] = {
+		['?'] = type_opt,
+		['*'] = type_kln,
+		['+'] = type_rep,
+		['('] = type_sub,
+		['.'] = class_dot,
+	};
+
+	return tab[*src];
 }
 
 int
-shunt_string(struct token *res, struct scanner *sc)
+scan_step(struct scanner *sc)
 {
+	int (*shunt)();
+	int err;
+
+	shunt = tab_shunt[*sc->src];
+
+	if (shunt) err = shunt(sc);
+	else err = shunt_char(sc);
+
 	++sc->src;
-	if (sc->st == st_str) arr_put(sc->stk, token(type_cat));
-	else sc->st = st_str;
-
-	return shunt_step(res, sc);
+	return err;
 }
 
 int
-shunt_next(struct token *res, struct scanner *sc)
+shunt_alt(struct scanner *sc)
 {
-	++sc->src;
-	return shunt_step(res, sc);
+	return -2;
 }
 
 int
-shunt_step(struct token *res, struct scanner *sc)
+shunt_char(struct scanner *sc)
 {
-	int (*sh)();
-
-	sh = tab_shunt[*sc->src];
-	if (sh) return sh(res, sc);
-	else return shunt_char(res, sc);
+	push_lit(sc);
+	return 0;
 }
 
 int
-shunt_alt(struct token *res, struct scanner *sc)
+shunt_close(struct scanner *sc)
 {
-	tok_pop_greater(res, sc->stk, tab_prec[type_alt]);
-	arr_put(sc->stk, token(type_alt));
-	sc->st = st_init;
-	return shunt_next(res, sc);
-}
-
-int
-shunt_char(struct token *res, struct scanner *sc)
-{
-	arr_put(res, token(type_lit, *sc->src));
-	return shunt_string(res, sc);
-}
-
-int
-shunt_close(struct token *res, struct scanner *sc)
-{
+<<<<<<< HEAD
 	struct token tok[1];
 
 	tok_pop_until(res, sc->stk, type_nop);
@@ -148,58 +251,77 @@ shunt_close(struct token *res, struct scanner *sc)
 	arr_put(res, token(type_sub));
 	sc->st = tok->ch;
 	return shunt_string(res, sc);
+=======
+	return -2;
+>>>>>>> oneshot
 }
 
 int
-shunt_dot(struct token *res, struct scanner *sc)
+shunt_dot(struct scanner *sc)
 {
-	arr_put(res, token(type_cls, tab_oper[*sc->src]));
-	return shunt_string(res, sc);
+	return -2;
 }
 
 int
-shunt_eol(struct token *res, struct scanner *sc)
+shunt_eol(struct scanner *sc)
 {
-	struct token tok[1];
-
-	if (!arr_len(sc->stk)) return 0;
-
-	arr_get(tok, sc->stk);
-	arr_put(res, tok);
-	return shunt_eol(res, sc);
+	return -1;
 }
 
 int
-shunt_esc(struct token *res, struct scanner *sc)
+shunt_esc(struct scanner *sc)
 {
-	++sc->src;
-	return shunt_char(res, sc);
+	++sc->src; // XXX
+	return shunt_char(sc);
 }
 
 int
-shunt_open(struct token *res, struct scanner *sc)
+shunt_open(struct scanner *sc)
 {
-	arr_put(sc->stk, token(type_nop, sc->st));
-	sc->st = st_init;
-	return shunt_next(res, sc);
+	push_open(sc);
+	return 0;
 }
 
 int
-shunt_mon(struct token *res, struct scanner *sc)
+shunt_mon(struct scanner *sc)
 {
-	uint8_t ty = tab_oper[*sc->src];
-	arr_put(res, token(ty, *sc->src));
-	return shunt_next(res, sc);
+	return -2;
 }
 
 void
-tok_pop_greater(struct token *res, struct token *stk, int8_t pr)
+tok_free(struct token *t)
 {
-	if (arr_len(stk) == 0) return;
-	if (prec(arr_peek(stk)) < pr) return;
+	if (!t) return;
+	t = unwind(t);
+	free(t);
+}
 
-	arr_pop(res, stk);
-	tok_pop_greater(res, stk, pr);
+struct token *
+unwind(struct token *t)
+{
+	while (t->op != op_null) --t;
+	return t;
+}
+
+int
+pat_scan(struct token **res, char const *src)
+{
+	struct scanner sc[1] = {{0}};
+	int err;
+
+	err = scanner_init(sc, src);
+	if (err) goto finally;
+
+	err = scan(sc);
+	if (err) goto finally;
+
+finally:
+	tok_free(sc->tmp);
+
+	if (err) tok_free(sc->res);
+	else *res = sc->res;
+
+	return err;
 }
 
 void

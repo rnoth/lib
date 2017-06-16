@@ -28,6 +28,16 @@
 				  ++var)
 
 static inline
+void
+ptr_swap(void *a, void *b)
+{
+	register void *tmp;
+	tmp = b;
+	b = a;
+	a = tmp;
+}
+
+static inline
 unsigned long
 umin(unsigned long a, unsigned long b)
 {

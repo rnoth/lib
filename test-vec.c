@@ -4,8 +4,6 @@
 
 char filename[] = "vec.c";
 
-void cleanup(void);
-
 static void test_alloc(void);
 static void test_clone(void);
 static void test_concat(void);
@@ -13,6 +11,7 @@ static void test_copy(void);
 static void test_delete(void);
 static void test_elim(void);
 static void test_insert(void);
+static void test_free(void);
 static void test_fun(void);
 static void test_large_insert(void);
 static void test_pop(void);
@@ -23,29 +22,28 @@ static void test_transfer(void);
 static void test_truncat(void);
 
 struct test tests[] = {
-	{ 0x0,                test_alloc,         "allocating & freeing a vector", },
-	{ test_alloc,         test_insert,        "adding some elements to a simple vector", },
-	{ 0x0,                test_large_insert,  "adding a large number of elements", },
-	{ test_large_insert,  test_delete,        "deleting elements from a vector", },
-	{ test_large_insert,  test_elim,          "eliminating elements from a vector", },
-	{ test_large_insert,  test_clone,         "duplicating a vector", },
-	{ test_large_insert,  test_truncat,       "truncating a vector", },
-	{ test_large_insert,  test_concat,        "concatenating a vector with an array", },
-	{ test_large_insert,  test_fun,           "testing fancy macros", },
-	{ test_large_insert,  test_shift,         "shifting a vector", },
-	{ test_large_insert,  test_copy,          "copying vectors", },
-	{ test_large_insert,  test_slice,         "slicing a vector", },
-	{ test_large_insert,  test_splice,        "splicing a vector with an array", },
-	{ test_large_insert,  test_transfer,      "transfering elements to an array", },
-	{ test_large_insert,  test_pop,           "popping elements from a vector" },
+	{ "allocating & freeing a vector",           0x0,                test_alloc,        test_free, },
+	{ "adding some elements to a simple vector", test_alloc,         test_insert,       test_free, },
+	{ "adding a large number of elements",       0x0,                test_large_insert, test_free, },
+	{ "deleting elements from a vector",         test_large_insert,  test_delete,       test_free, },
+	{ "eliminating elements from a vector",      test_large_insert,  test_elim,         test_free, },
+	{ "duplicating a vector",                    test_large_insert,  test_clone,        test_free, },
+	{ "truncating a vector",                     test_large_insert,  test_truncat,      test_free, },
+	{ "concatenating a vector with an array",    test_large_insert,  test_concat,       test_free, },
+	{ "testing fancy macros",                    test_large_insert,  test_fun,          test_free, },
+	{ "shifting a vector",                       test_large_insert,  test_shift,        test_free, },
+	{ "copying vectors",                         test_large_insert,  test_copy,         test_free, },
+	{ "slicing a vector",                        test_large_insert,  test_slice,        test_free, },
+	{ "splicing a vector with an array",         test_large_insert,  test_splice,       test_free, },
+	{ "transfering elements to an array",        test_large_insert,  test_transfer,     test_free, },
+	{ "popping elements from a vector",          test_large_insert,  test_pop,          test_free, },
+	{ 0x0 }
 };
-
-size_t const tests_len = array_len(tests);
 
 static int *intvec;
 
 void
-cleanup(void)
+test_free(void)
 {
 	if (intvec) {
 		try(vec_free(intvec));

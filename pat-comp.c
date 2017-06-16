@@ -3,191 +3,201 @@
 #include <stdlib.h>
 
 #include <util.h>
-#include <vec.h>
 #include <pat.ih>
 #include <pat.h>
 
-static int comp_alt(struct ins **, struct node *);
-static int comp_cat(struct ins **, struct node *);
-static int comp_class(struct ins **, struct node *);
-static int comp_chld(struct ins **, uintptr_t);
-static int comp_leaf(struct ins **, uintptr_t);
-static int comp_rep(struct ins **, struct node *);
-static int comp_sub(struct ins **, struct node *);
+#define instr(...) ins(__VA_ARGS__, 0,)
+#define ins(OP, ARG, ...) (struct ins){ .op = OP, .arg = ARG }
 
-static int (* const pat_comp[])(struct ins **, struct node *) = {
-	[type_alt] = comp_alt,
-	[type_cat] = comp_cat,
-	[type_cls] = comp_class,
-	[type_opt] = comp_rep,
-	[type_kln] = comp_rep,
+static struct token *chld_right(struct token *);
+static struct token *chld_next(struct token *, struct token *);
+
+static struct token *comp_alt(struct ins **, struct token *, struct token *);
+static struct token *comp_lit(struct ins **, struct token *, struct token *);
+static struct token *comp_cls(struct ins **, struct token *, struct token *);
+static struct token *comp_reg(struct ins **, struct token *, struct token *);
+static struct token *comp_kln(struct ins **, struct token *, struct token *);
+static struct token *comp_nop(struct ins **, struct token *, struct token *);
+static struct token *comp_opt(struct ins **, struct token *, struct token *);
+static struct token *comp_rep(struct ins **, struct token *, struct token *);
+static struct token *comp_sub(struct ins **, struct token *, struct token *);
+
+static struct token *(* const tab_comp[])(struct ins **, struct token *, struct token *) = {
+	[type_lit] = comp_lit,
+	[type_cls] = comp_cls,
+	[type_opt] = comp_opt,
 	[type_rep] = comp_rep,
+	[type_kln] = comp_kln,
+	[type_alt] = comp_alt,
 	[type_sub] = comp_sub,
+	[type_reg] = comp_reg,
+	[type_nop] = comp_nop,
+	[255] = 0,
 };
 
-int
-comp_alt(struct ins **dest, struct node *alt)
+static size_t tab_len[] = {
+	[type_lit] = 1,
+	[type_cls] = 1,
+	[type_opt] = 1,
+	[type_rep] = 1,
+	[type_kln] = 2,
+	[type_alt] = 2,
+	[type_sub] = 2,
+	[type_reg] = 6,
+	[255] = 0,
+};
+
+struct token *
+chld_right(struct token *tok)
 {
-	size_t fork;
-	size_t jump;
-	int err;
-
-	fork = vec_len(*dest);
-	err = vec_append(dest, (struct ins[]) {
-		{ .op = do_fork }
-	});
-	if (err) return err;
-
-	err = comp_chld(dest, alt->chld[0]);
-	if (err) return err;
-
-	jump = vec_len(*dest);
-	err = vec_append(dest, (struct ins[]) {
-		{ .op = do_jump }
-	});
-	if (err) return err;
-
-	dest[0][fork].arg.f = vec_len(*dest) - fork;
-
-	err = comp_chld(dest, alt->chld[1]);
-	if (err) return err;
-
-	dest[0][jump].arg.f = vec_len(*dest) - jump;
-
-	return 0;
+	if (tok->siz == 1) return 0x0;
+	else return tok - 1;
 }
 
-int
-comp_cat(struct ins **dest, struct node *nod)
+struct token *
+chld_next(struct token *tok, struct token *ctx)
 {
-	int err = 0;
-
-	err = comp_chld(dest, nod->chld[0]);
-	if (err) return err;
-
-	return comp_chld(dest, nod->chld[1]);
-}
-
-int
-comp_chld(struct ins **dest, uintptr_t n)
-{
-	if (!n) return 0;
-	if (is_leaf(n)) return comp_leaf(dest, n);
-	struct node *nod = to_node(n);
-	return pat_comp[nod->type](dest, nod);
-}
-
-int
-comp_leaf(struct ins **dest, uintptr_t lea)
-{
-	int err;
-
-	err = vec_append(dest, ((struct ins[]) {{
-		.op = do_char,
-		.arg = {.b = *to_leaf(lea)},
-	}}));
-	if (err) return err;
-
-	return 0;
-}
-
-int
-comp_class(struct ins **dest, struct node *nod)
-{
-	int err;
-
-	err = vec_append(dest, ((struct ins[]) {
-		{.op = do_clss, .arg = {.i = *to_leaf(nod->chld[0])}}
-	}));
-	if (err) return err;
-
-	return comp_chld(dest, nod->chld[1]);
-}
-
-int
-comp_rep(struct ins **dest, struct node *rep)
-{
-	size_t beg;
 	size_t off;
-	int err;
 
-	off = vec_len(*dest);
+	if (!ctx || tok < ctx) return chld_right(tok);
+	if (tok == ctx) return tok->up;
 
-	if (rep->type != type_rep) {
-		err = vec_append(dest, (struct ins[]) {{ .op = do_fork }});
-		if (err) return err;
+	off = tok - ctx + ctx->siz;
+
+	if (off >= tok->siz) return tok;
+
+	return tok - off;
+}
+
+struct token *
+comp_alt(struct ins **dst, struct token *tok, struct token *ctx)
+{
+	size_t off;
+
+	if (tok == ctx) {
+		*dst[0]-- = instr(do_fork, tok->siz + 1);
+		return tok->up;
+	}
+	if (tok < ctx) {
+		off = tok->up->len - tok->len - type_len(tok->up->op);
+		*dst[0]-- = instr(do_jump, off + 1);
+		return chld_right(tok);
 	}
 
-	beg = vec_len(*dest);
+	return chld_next(tok, ctx);
+}
 
-	err = comp_chld(dest, rep->chld[0]);
-	if (err) return err;
+struct token *
+comp_opt(struct ins **dst, struct token *tok, struct token *ctx)
+{
+	if (tok == ctx) *dst[0]-- = instr(do_fork, tok->len);
+	return chld_next(tok, ctx);
+}
 
-	if (rep->type != type_opt) {
-		err = vec_append(dest, ((struct ins[]) {{
-			.op = do_fork,
-			.arg = { .f = beg - vec_len(*dest) },
-		}}));
-		if (err) return err;
+struct token *
+comp_rep(struct ins **dst, struct token *tok, struct token *ctx)
+{
+	if (tok < ctx) *dst[0]-- = instr(do_fork, -tok->len + 1);
+	else if (tok > ctx) return tok->up;
+	return chld_next(tok, ctx);
+}
+
+struct token *
+comp_sub(struct ins **dst, struct token *tok, struct token *ctx)
+{
+	if (tok == ctx) *dst[0]-- = instr(do_mark);
+	if (tok < ctx) *dst[0]-- = instr(do_save);
+
+	return chld_next(tok, ctx);
+}
+
+struct token *
+comp_kln(struct ins **dst, struct token *tok, struct token *ctx)
+{
+	if (tok < ctx) *dst[0]-- = instr(do_fork, -tok->siz + 1);
+	if (tok == ctx) *dst[0]-- = instr(do_fork, tok->siz);
+
+	return chld_next(tok, ctx);
+}
+
+struct token *
+comp_reg(struct ins **dst, struct token *tok, struct token *ctx)
+{
+	if (!ctx) {
+		*dst[0]-- = instr(do_halt);
+		*dst[0]-- = instr(do_save);
+		return chld_right(tok);
+	}
+	if (tok == ctx) {
+		*dst[0]-- = instr(do_mark);
+		*dst[0]-- = instr(do_fork, -1);
+		*dst[0]-- = instr(do_clss, 1);
+		*dst[0]-- = instr(do_jump, 2);
+		return 0x0;
 	}
 
-	if (rep->type != type_rep) {
-		(*dest)[off].arg.f = vec_len(*dest) - off;
-	}
+	return chld_next(tok, ctx);
+}
 
-	return comp_chld(dest, rep->chld[1]);
+struct token *
+comp_lit(struct ins **dst, struct token *tok, struct token *ctx)
+{
+	*dst[0]-- = instr(do_char, {.b = tok->ch});
+	return chld_next(ctx, tok);
+}
+
+struct token *
+comp_cls(struct ins **dst, struct token *tok, struct token *ctx)
+{
+	*dst[0]-- = instr(do_clss, {.b = tok->ch});
+	return chld_next(ctx, tok);
+}
+
+struct token *
+comp_nop(struct ins **dst, struct token *tok, struct token *ctx)
+{
+	return chld_next(ctx, tok);
+}
+
+size_t
+type_len(enum type ty)
+{
+	return tab_len[ty] ? tab_len[ty] : *(volatile size_t*)0x0;
+}
+
+void
+marshal(struct ins *dst, struct token *tok)
+{
+	struct token *tmp = 0x0;
+	struct token *ctx = 0x0;
+
+	dst += tok->len - 1;
+
+	while (tok) {
+		tmp = tab_comp[tok->op](&dst, tok, ctx);
+
+		if (!tmp) break;
+
+		if (tmp->siz < tok->siz) {
+			tmp->up = tok;
+			ctx = tok;
+		} else if (tmp->siz < ctx->siz) {
+			tmp->up = ctx;
+		} else if (ctx->siz < tmp->siz) {
+			ctx = tok;
+		}
+
+		tok = tmp;
+	}
 }
 
 int
-comp_sub(struct ins **dest, struct node *root)
+pat_marshal(struct pattern *pat, struct token *tok)
 {
-	int err;
+	pat->prog = calloc(tok->len, sizeof *pat->prog);
+	if (!pat->prog) return ENOMEM;
 
-	err = vec_append(dest, ((struct ins[]) {
-		{ .op = do_mark, .arg = {0}, },
-	}));
-	if (err) goto finally;
+	marshal(pat->prog, tok);
 
-	err = comp_chld(dest, root->chld[0]);
-	if (err) goto finally;
-
-	err = vec_append(dest, ((struct ins[]) {
-		{ .op = do_save, .arg = {0}, },
-	}));
-	if (err) goto finally;
-
-	err = comp_chld(dest, root->chld[1]);
-	if (err) goto finally;
-
-finally:
-	if (err) vec_truncat(dest, 0);
-	return err;
-}
-
-int
-pat_marshal(struct pattern *dest, uintptr_t root)
-{
-	int err = 0;
-
-	err = vec_ctor(dest->prog);
-	if (err) return ENOMEM;
-
-	err = vec_concat_arr(&dest->prog, ((struct ins[]) {
-		[0] = { .op = do_jump, .arg = {.f=2}, },
-		[1] = { .op = do_clss, .arg = {.i=class_any}, },
-		[2] = { .op = do_fork, .arg = {.f=-1}, },
-	}));
-	if (err) goto finally;
-
-	err = comp_chld(&dest->prog, root);
-	if (err) goto finally;
-
-	err = vec_append(&dest->prog, ((struct ins[]) {
-		{ .op = do_halt, .arg = {0}, },
-	}));
-	if (err) goto finally;
-
-finally:
-	if (err) vec_truncat(&dest->prog, 0);
-	return err;
+	return 0;
 }

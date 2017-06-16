@@ -15,6 +15,7 @@ char **reply = 0x0;
 
 void test_alloc(void);
 void test_add(void);
+void test_free(void);
 void test_query(void);
 void test_remove(void);
 void test_fixed(void);
@@ -23,22 +24,21 @@ void test_large_add(void);
 void test_dup(void);
 
 struct test tests[] = {
-	{ 0x0,         test_alloc,       "allocating a set", },
-	{ 0x0,         test_add,         "inserting a string", },
-	{ test_add,    test_query,       "querying the set", },
-	{ test_add,    test_remove,      "removing an element", },
-	{ test_add,    test_fixed,       "querying with a fixed-size buffer", },
-	{ test_add,    test_prefix,      "testing the prefix check", },
-	{ test_alloc,  test_large_add,   "adding a large number of strings", },
-	{ test_add,    test_dup,         "attempting to add duplicate strings" },
+	{ "allocating a set",                    0x0,         test_alloc,     test_free, },
+	{ "inserting a string",                  0x0,         test_add,       test_free, },
+	{ "querying the set",                    test_add,    test_query,     test_free, },
+	{ "removing an element",                 test_add,    test_remove,    test_free, },
+	{ "querying with a fixed-size buffer",   test_add,    test_fixed,     test_free, },
+	{ "testing the prefix check",            test_add,    test_prefix,    test_free, },
+	{ "adding a large number of strings",    test_alloc,  test_large_add, test_free, },
+	{ "attempting to add duplicate strings", test_add,    test_dup,       test_free, },
+	{ 0x0 },
 };
-
-size_t const tests_len = array_len(tests);
 
 char *strings[] = { "foo", "bar", "baz", "quux", };
 
 void
-cleanup(void)
+test_free(void)
 {
 	set_free(set), set = 0x0;
 	free(reply), reply = 0;

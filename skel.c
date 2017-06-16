@@ -1,25 +1,27 @@
 #include "unit.h"
 
+#define callq(F, A) do if (F) F(A); while (0)
+
 int
 main()
 {
-	size_t i = 0;
+	volatile size_t i = 0;
 
 	unit_init();
 
 	printf("testing %s\n", filename);
 
-	for (i = 0; i < tests_len; ++i) {
+	for (i = 0; tests[i].msg; ++i) {
 		on_failure {
-			cleanup();
+			on_failure continue;
+			callq(tests[i].cleanup, (tests[i].ctx));
 			continue;
 		}
 
-		if (tests[i].setup) tests[i].setup();
 		printf("\t%s...\n", tests[i].msg);
-		if (tests[i].do_it) tests[i].do_it();
-
-		cleanup();
+		callq(tests[i].setup, tests[i].ctx);
+		callq(tests[i].test, tests[i].ctx);
+		callq(tests[i].cleanup, tests[i].ctx);
 	}
 
 	printf("testing finished (%s) -- %zu failed tests\n", filename, total_failures);
