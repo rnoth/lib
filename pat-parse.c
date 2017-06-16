@@ -3,7 +3,8 @@
 #include <string.h>
 #include <pat.ih>
 
-#define token(t, c) ((struct token[]){{.op = t, .ch = c}})
+#define token(...) tok(__VA_ARGS__, 0,)
+#define tok(t, c, ...) ((struct token[]){{.op = t, .ch = c}})
 
 enum state {
 	st_init,
@@ -20,6 +21,9 @@ struct parser {
 	size_t         siz;
 };
 
+
+static enum type oper(uint8_t const *);
+
 static void push_res(struct parser *, struct token *);
 
 static int shift(struct parser *);
@@ -27,14 +31,30 @@ static int shift(struct parser *);
 static int shunt_esc(struct parser *);
 static int shunt_eol(struct parser *);
 static int shunt_lit(struct parser *);
+static int shunt_rep(struct parser *);
 
 static int parse(struct token **, struct parser *);
 
 static int (* const tab_shunt[][st_len])() = {
 	[0]    = { shunt_eol, shunt_eol, },
 	['\\'] = { shunt_esc, },
+	['?']  = { shunt_rep, },
+	['+']  = { shunt_rep, },
+	['*']  = { shunt_rep, },
 	[255]  = {0},
 };
+
+enum type
+oper(uint8_t const *src)
+{
+	static enum type const tab[] = {
+		['*'] = type_kln,
+		['+'] = type_rep,
+		['?'] = type_opt,
+	};
+
+	return tab[*src];
+}
 
 void
 pop_nop(struct parser *pa)
@@ -69,13 +89,17 @@ push_nop(struct parser *pa, enum type ty)
 }
 
 void
-push_kln(struct parser *pa)
+push_rep(struct parser *pa, enum type ty)
 {
-	*++pa->res = (struct token){
-		.op  = type_kln,
-		.siz = pa->siz += 1,
-		.len = pa->len += type_len(type_kln),
+	++pa->res;
+	*pa->res = (struct token){
+		.op  = ty,
+		.siz = pa->res[-1].siz + 1,
+		.len = pa->res[-1].len + type_len(ty),
 	};
+
+	pa->siz += 1;
+	pa->len += type_len(ty);
 }
 
 void
@@ -114,7 +138,7 @@ int
 shunt_esc(struct parser *pa)
 {
 	pa->st = st_esc;
-	return -2;
+	return 0;
 }
 
 int
@@ -129,7 +153,13 @@ int
 shunt_lit(struct parser *pa)
 {
 	push_res(pa, token(type_lit, *pa->src));
+	return 0;
+}
 
+int
+shunt_rep(struct parser *pa)
+{
+	push_rep(pa, oper(pa->src));
 	return 0;
 }
 
@@ -138,7 +168,7 @@ parse(struct token **dst, struct parser *pa)
 {
 	int err = 0;
 
-	while (!err) err = tab_shift[pa->st](pa);
+	while (!err) err = shift(pa);
 	if (err != -1) return err;
 
 	*dst = pa->res;
