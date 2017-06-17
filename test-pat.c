@@ -5,6 +5,8 @@
 
 char filename[] = "pat.c";
 
+#define subm(...) ((struct patmatch[]){__VA_ARGS__, {-1, -1}})
+
 static void test_free(void);
 static void test_alter(void);
 static void test_esc(void);
@@ -24,8 +26,6 @@ struct a {
 
 struct b {
 	char *txt;
-	size_t off;
-	size_t ext;
 	struct patmatch *sub;
 };
 
@@ -43,31 +43,49 @@ struct test tests[] = {
 
 struct a plain[] = {
 	{ "abc", (struct b[]) {
-		{ "abc", 0, 3 },
-		{ "   abc   ", 3, 3 },
+		{ "abc", subm({0, 3}) },
+		{ "   abc   ", subm({3, 3}) },
 		{ 0x0 }, },
 	},
 	{ 0x0 }
 };
 
+struct a esc[] = {
+	{ "a\\*", (struct b[]) { 
+		{ "a*", subm({0, 2}) },
+		{ 0x0 } },
+
+		(struct b[]) {
+		{ "aaa" },
+		{ 0x0 } },
+	},
+
+	{ "\\\\", (struct b[]) {
+		{ "\\", subm({0, 1}) },
+		{ 0x0 } },
+	},
+
+	{ 0x0 }
+};
+
 struct a qmark[] = {
 	{ "foo?", (struct b[]) {
-		{ "foo",          0, 3, },
-                { "fo",           0, 2, },
-	        { "fe fi fo fum", 6, 2, },
+		{ "foo",          subm({0, 3}) },
+                { "fo",           subm({0, 2}) },
+	        { "fe fi fo fum", subm({6, 2}) },
 		{ 0x0 }, },
 
 		(struct b[]) {
-		{ "it's no here", },
+		{ "it's not here", },
 	        { "ffffff", },
 		{ 0x0 }, },
 	},
 
 	{ "b?a?r?", (struct b[]) {
-		{ "bar",     0, 3, },
-		{ "a",       0, 1, },
-		{ "bababar", 0, 2, },
-		{ "",        0, 0, },
+		{ "bar",     subm({0, 3}) },
+		{ "a",       subm({0, 1}) },
+		{ "bababar", subm({0, 2}) },
+		{ "",        subm({0, 0}) },
 		{ 0x0 }, },
 	},
 
@@ -76,10 +94,10 @@ struct a qmark[] = {
 
 struct a star[] = {
 	{ "bleh*", (struct b[]) {
-		{ "ble",                  0,  3, },
-		{ "bleh",                 0,  4, },
-		{ "blehhhh",              0,  7, },
-		{ "blah blah blehh blah", 10, 5, },
+		{ "ble",                  subm({ 0, 3}) },
+		{ "bleh",                 subm({ 0, 4}) },
+		{ "blehhhh",              subm({ 0, 7}) },
+		{ "blah blah blehh blah", subm({10, 5}) },
 		{ 0x0 }, },
 	
 		(struct b[]) {
@@ -89,10 +107,10 @@ struct a star[] = {
 	},
 
 	{ "b*a*r*", (struct b[]) {
-		{ "bar",   0, 3, },
-		{ "bbaaa", 0, 5, },
-		{ "r",     0, 1, },
-		{ "",      0, 0, },
+		{ "bar",   subm({0, 3}) },
+		{ "bbaaa", subm({0, 5}) },
+		{ "r",     subm({0, 1}) },
+		{ "",      subm({0, 0}) },
 		{ 0x0 }, },
 	},
 
@@ -101,8 +119,8 @@ struct a star[] = {
 
 struct a plus[] = {
 	{ "hi+", (struct b[]) {
-		{ "hi",    0, 2, },
-		{ "hiiii", 0, 5, },
+		{ "hi",    subm({0, 2}) },
+		{ "hiiii", subm({0, 5}) },
 		{ 0x0 }, },
 	
 		(struct b[]) {
@@ -116,9 +134,9 @@ struct a plus[] = {
 
 struct a alter[] = {
 	{ "a|b", (struct b[]) {
-		{ "a",  0, 1, },
-		{ "b",  0, 1, },
-		{ "ab", 0, 1 },
+		{ "a",  subm({0, 1}) },
+		{ "b",  subm({0, 1}) },
+		{ "ab", subm({0, 1}) },
 		{ 0x0 }, }, 
 
 		(struct b[]) {
@@ -127,90 +145,67 @@ struct a alter[] = {
 	},
 
 	{ "abc|def", (struct b[]) {
-		{ "abc",    0, 3, },
-		{ "def",    0, 3, },
-		{ "defabc", 0, 3, },
+		{ "abc",    subm({0, 3}) },
+		{ "def",    subm({0, 3}) },
+		{ "defabc", subm({0, 3}) },
 		{ 0x0 }, },
 	},
 
 	{ "ab+c|de*f?", (struct b[]) {
-		{ "abc", 0, 3, },
-		{ "def", 0, 3, },
-		{ "abbbbbbc", 0, 8, },
-		{ "d",        0, 1, },
-		{ "dee",      0, 3, },
+		{ "abc",      subm({0, 3}) },
+		{ "def",      subm({0, 3}) },
+		{ "abbbbbbc", subm({0, 8}) },
+		{ "d",        subm({0, 1}) },
+		{ "dee",      subm({0, 3}) },
 		{ "Yeah, definitetly",
-	                      6, 3, },
+	                      subm({6, 3}) },
 		{ 0x0 }, },
 	},
 	
 	{ 0x0 },
 };
 
-struct a esc[] = {
-	{ "a\\*", (struct b[]) { 
-		{ "a*", 0, 2, },
-		{ 0x0 } },
-
-		(struct b[]) {
-		{ "aaa" },
-		{ 0x0 } },
-	},
-
-	{ "\\\\", (struct b[]) {
-		{ "\\", 0, 1, },
-		{ 0x0 } },
-	},
-
-	{ 0x0 }
-};
-
 struct a sub[] = {
 	{ "abc(def)", (struct b[]) {
-		{ "abcdef",   0, 6, (struct patmatch[]) {{ 3, 3 }, {-1}} },
-		{ "123abcdef", 3, 6, (struct patmatch[]) {{ 6, 3 }, {-1}} },
+		{ "abcdef",    subm({0, 6}, {3, 3}) },
+		{ "123abcdef", subm({3, 6}, {6, 3}) },
 		{ 0x0 } },
 	},
 
 	{ "a(b)c", (struct b[]) {
-		{ "abc", 0, 3, (struct patmatch[]) {{ 1, 1 }, {-1}} },
+		{ "abc", subm({0, 3}, {1, 1}) },
 		{ 0x0 }, },
 	},
 
 	{ "a(b(c)d)e", (struct b[]) {
-		{ "abcde", 0, 5, (struct patmatch[]) {
-			{ 1, 3, },
-			{ 2, 1, },
-			{ -1 },
-		} },
+		{ "abcde", subm({0, 5}, {1, 3}, {2, 1}) },
 		{ 0x0 }, },
 	},
 
 	{ "ab*(c+d?)ff", (struct b[]) {
-		{ "abbbcccdff", 0, 10, (struct patmatch[]) { { 4, 4 }, { -1 } } },
-		{ "acff",       0, 4,  (struct patmatch[]) { { 1, 1 }, { -1 } } },
+		{ "abbbcccdff", subm({0, 10}, {4, 4}) },
+		{ "acff",       subm({0,  4}, {1, 1}) },
 		{ 0x0 } },
 	},
 
 	{ "abc(def|ghi)jkl", (struct b[]) {
-		{ "abcdefjkl", 0, 9, (struct patmatch[]) {{3,3},{-1}}},
-		{ "abcghijkl", 0, 9, (struct patmatch[]) {{3,3},{-1}}},
+		{ "abcdefjkl", subm({0, 9}, {3,3})},
+		{ "abcghijkl", subm({0, 9}, {3,3})},
 		{ 0x0 } },
 	},
 
 	{ "abc(def)+", (struct b[]) {
-		{ "abcdefdefdef", 0, 12, (struct patmatch[]) {{3,3}, {6,3}, {9,3},{-1}}},
+		{ "abcdefdefdef", subm({0,12}, {3,3}, {6,3}, {9,3})},
 		{ 0x0 } },
 	},
 
-	// posix
 	{ "a(b+)b", (struct b[]) {
-		{ "abbb", 0, 4, (struct patmatch[]) {{1,2},{-1}}},
+		{ "abbb", subm({0, 4},{1,2})},
 		{ 0x0 } },
 	},
 
 	{ "(a*)bc", (struct b[]) {
-		{ "bc", 0, 2, (struct patmatch[]) {{0,0}, {-1}}},
+		{ "bc", subm({0, 2}, {0,0})},
 		{ 0x0 } }
 	},
 
@@ -219,8 +214,8 @@ struct a sub[] = {
 
 struct a dot[] = {
 	{ ".oo", (struct b[]) {
-		{ "foo", 0, 3 },
-		{ "boo", 0, 3 },
+		{ "foo", subm({0, 3}) },
+		{ "boo", subm({0, 3}) },
 		{ 0x0 } },
 
 		(struct b[]) {
@@ -229,17 +224,17 @@ struct a dot[] = {
 	},
 
 	{ "(..)|(.)(.)", (struct b[]) {
-		{ "ab", 0, 2, (struct patmatch[]) {{0,2}, {-1}} },
+		{ "ab", subm({0,2},{0,2}) },
 		{ 0x0 } }
 	},
 
 	{ "(.)?(a)?", (struct b[]) {
-		{ "a", 0, 1, (struct patmatch[]) {{0,1}, {-1}} },
+		{ "a", subm({0, 1}, {0,1}) },
 		{ 0x0 } }
 	},
 
 	{ "a*(.*)", (struct b[]) {
-		{ "aaabbb", 0, 6, (struct patmatch[]) {{0, 6}, {-1}} },
+		{ "aaabbb", subm({0, 6}, {0, 6}) },
 		{ 0x0 } },
 	},
 
@@ -280,21 +275,23 @@ test_match(void)
 		for (b = a->accept; b && b->txt; ++b) {
 			expectf(0, pat_execute(pat, b->txt),
 			        "failed to match '%s' over '%s'", a->pat, b->txt);
-			expect(b->off, pat->mat->off);
-			expect(b->ext, pat->mat->ext);
 
-			if (b->sub) {
-				for (i = 1; b->sub[i-1].off < (size_t)-1; ++i) {
-					expect(b->sub[i-1].off, pat->mat[i].off);
-					expect(b->sub[i-1].ext, pat->mat[i].ext);
-				}
+			for (i = 0; b->sub[i].off < (size_t)-1; ++i) {
+				expectf(b->sub[i].off, pat->mat[i].off,
+				        "bad submatch offset (#%zd) for %s over %s",
+				         i, a->pat, b->txt);
 
-				expect(-1, pat->mat[i].off);
-				expect(-1, pat->mat[i].ext);
+				expectf(b->sub[i].ext, pat->mat[i].ext,
+				        "bad submatch extent (#%zd) for %s over %s",
+				         i, a->pat, b->txt);
 			}
+
+			expect(-1, pat->mat[i].off);
+			expect(-1, pat->mat[i].ext);
 		}
 
-		for (b = a->reject; b && b->txt; ++b)
+		for (b = a->reject; b && b->txt; ++b) {
 			expect(-1, pat_execute(pat, b->txt));
+		}
 	}
 }
