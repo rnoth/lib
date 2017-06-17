@@ -47,8 +47,8 @@ enum type {
 
 struct token {
 	struct token *up;
-	patoff_t      len;
-	patoff_t      siz;
+	uint16_t      len;
+	uint16_t      siz;
 	uint8_t       ch;
 	uint8_t       id;
 };
@@ -63,7 +63,7 @@ struct context {
 	void          *cbx;
 	size_t         pos;
 	struct thread *thr;
-	struct thread  fin[1];
+	struct thread *fin;
 };
 
 union arg {

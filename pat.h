@@ -11,10 +11,7 @@ enum {
 	PAT_ERR_BADREP   = -3
 };
 
-typedef uint16_t patoff_t; // ought to be enough for anyone
-
 struct pattern {
-	long opts;
 	struct patmatch *mat;
 	size_t nmat;
 	struct ins *prog;
