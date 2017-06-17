@@ -179,31 +179,17 @@ pat_match(struct context *ctx, struct pattern *pat)
 int
 pat_exec(struct context *ctx)
 {
-	char c[8];
+	char c;
 	int err;
-	int len;
-	wchar_t wc = 0;
-	wchar_t *wcs = 0;
 
-	err = vec_ctor(wcs);
-	if (err) return err;
+	while (ctx->cb(&c, ctx->cbx)) {
 
-	while (ctx->cb(c, ctx->cbx)) {
-
-		len = mbtowc(&wc, c, 8);
-		if (len <= 0) wc = *c; // XXX
-
-		err = vec_concat(&wcs, &wc, len);
+		err = thr_start(ctx, c);
 		if (err) break;
 
-		err = thr_start(ctx, wc);
-		if (err) break;
-
-		ctx->pos += len;
+		++ctx->pos;
 	}
 	
-	vec_free(wcs);
-
 	if (err > 0) return err;
 	if (nomatch(ctx)) return -1;
 
