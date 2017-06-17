@@ -206,24 +206,6 @@ do_save(struct context *ctx, char const ch)
 }
 
 int
-get_char(char *dst, void *x)
-{
-	union {
-		void *p;
-		struct pos *v;
-	} str = { .p = x };
-	struct pos *p = str.v;
-
-	if (p->f > p->n) return 0;
-
-	*dst = p->v[p->f];
-
-	++p->f;
-
-	return 1;
-}
-
-int
 pat_match(struct context *ctx, struct pattern *pat)
 {
 	int err;

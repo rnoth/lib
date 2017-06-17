@@ -13,6 +13,21 @@
 #include <pat.ih>
 
 int
+get_char(char *dst, void *x)
+{
+	char **p = x;
+
+	if (!*p) return 0;
+
+	*dst = *p[0];
+
+	if (!**p) *p = 0;
+	else ++*p;
+
+	return 1;
+}
+
+int
 pat_compile(struct pattern *dst, char const *src)
 {
 	struct token *tok = 0;
@@ -47,9 +62,7 @@ int
 pat_execute(struct pattern *pat, char const *str)
 {
 	if (!str) return EFAULT;
-	return pat_execute_callback(pat, get_char, (struct pos[]){
-			{ .n = strlen(str) + 1, .v = str },
-	});
+	return pat_execute_callback(pat, get_char, &str);
 }
 
 int
