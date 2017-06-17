@@ -29,19 +29,11 @@ enum type {
 	type_nop,
 };
 
-struct token {
-	struct token *up;
-	uint16_t      len;
-	uint16_t      siz;
-	uint8_t       ch;
-	uint8_t       id;
-};
-
-struct thread {
-	struct thread   *next;
-	struct ins      *ip;
-	struct patmatch *mat;
-};
+struct context;
+struct ins;
+struct thread;
+struct token;
+union arg;
 
 struct context {
 	int          (*cb)(char *, void *);
@@ -51,6 +43,20 @@ struct context {
 	struct thread *que[2];
 	struct thread *res;
 	struct thread *frl[2];
+};
+
+struct thread {
+	struct thread   *next;
+	struct ins      *ip;
+	struct patmatch *mat;
+};
+
+struct token {
+	struct token *up;
+	uint16_t      len;
+	uint16_t      siz;
+	uint8_t       ch;
+	uint8_t       id;
 };
 
 union arg {
