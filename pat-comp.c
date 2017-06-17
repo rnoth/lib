@@ -9,7 +9,6 @@
 #define instr(...) ins(__VA_ARGS__, 0,)
 #define ins(OP, ARG, ...) (struct ins){ .op = OP, .arg = ARG }
 
-static struct token *chld_right(struct token *);
 static struct token *chld_next(struct token *, struct token *);
 
 static struct token *comp_alt(struct ins **, struct token *, struct token *);
@@ -50,18 +49,11 @@ static size_t tab_len[] = {
 };
 
 struct token *
-chld_right(struct token *tok)
-{
-	if (tok->siz == 1) return 0x0;
-	else return tok - 1;
-}
-
-struct token *
 chld_next(struct token *tok, struct token *ctx)
 {
 	size_t off;
 
-	if (!ctx || tok < ctx) return chld_right(tok);
+	if (!ctx || tok < ctx) return tok - 1;
 	if (tok == ctx) return tok->up;
 
 	off = tok - ctx + ctx->siz;
@@ -83,7 +75,7 @@ comp_alt(struct ins **dst, struct token *tok, struct token *ctx)
 	if (tok < ctx) {
 		off = tok->up->len - tok->len - type_len(tok->up->id);
 		*dst[0]-- = instr(do_jump, off + 1);
-		return chld_right(tok);
+		return tok - 1;
 	}
 
 	return chld_next(tok, ctx);
@@ -128,7 +120,7 @@ comp_reg(struct ins **dst, struct token *tok, struct token *ctx)
 	if (!ctx) {
 		*dst[0]-- = instr(do_halt);
 		*dst[0]-- = instr(do_save);
-		return chld_right(tok);
+		return tok - 1;
 	}
 	if (tok == ctx) {
 		*dst[0]-- = instr(do_mark);
