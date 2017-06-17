@@ -48,7 +48,9 @@ struct context {
 	void          *cbx;
 	size_t         pos;
 	struct thread *thr;
-	struct thread  fin[1];
+	struct thread *que[2];
+	struct thread *res;
+	struct thread *frl[2];
 };
 
 union arg {
@@ -58,7 +60,7 @@ union arg {
 };
 
 struct ins {
-        int      (*op)(struct context *, struct thread *, char const);
+        int      (*op)(struct context *, char const);
 	union arg arg;
 };
 
@@ -72,30 +74,28 @@ static inline void       step(struct pos *);
 static inline bool        eol(struct pos const *);
 static inline char const *str(struct pos const *);
 
-static inline
-bool nomatch(struct context *);
-
+/* pat-exec.c */
+struct thread *ctx_get(struct context *);
 void ctx_fini(struct context *);
 int  ctx_init(struct context *, struct pattern *);
 
-int do_char(struct context *, struct thread *, char const);
-int do_clss(struct context *, struct thread *, char const);
-int do_fork(struct context *, struct thread *, char const);
-int do_halt(struct context *, struct thread *, char const);
-int do_jump(struct context *, struct thread *, char const);
-int do_mark(struct context *, struct thread *, char const);
-int do_save(struct context *, struct thread *, char const);
+int do_char(struct context *, char const);
+int do_clss(struct context *, char const);
+int do_fork(struct context *, char const);
+int do_halt(struct context *, char const);
+int do_jump(struct context *, char const);
+int do_mark(struct context *, char const);
+int do_save(struct context *, char const);
 
 int get_char(char *, void *);
 
-int  thr_cmp(struct thread *, struct thread *);
-int  thr_init(struct thread *, struct ins *);
-void thr_finish(struct context *, size_t);
-int  thr_fork(struct thread *, struct thread *);
-int  thr_next(struct context *, size_t, wchar_t const);
-void thr_prune(struct context *, size_t);
-int  thr_start(struct context *, wchar_t const);
-void thr_remove(struct context *, size_t);
+/* pat-thr.c */
+int  thr_alloc(struct thread *[static 2]);
+int  thr_cmp(  struct thread *, struct thread *);
+int  thr_init( struct thread *, struct ins *);
+int  thr_fork( struct thread *, struct thread *);
+void thr_free( struct thread *);
+void thr_mv(   struct thread *[static 2], struct thread **);
 
 /* pat-comp.c */
 int pat_marshal(struct pattern *, struct token *);
@@ -114,7 +114,5 @@ int pat_match(struct context *, struct pattern *);
 void       step(struct pos *p) { ++p->f; }
 bool        eol(struct pos const *p) { return p->f >= p->n; }
 char const *str(struct pos const *p) { return p->v + p->f; }
-
-bool nomatch(struct context *ctx) { return !ctx->fin->ip; }
 
 #endif
