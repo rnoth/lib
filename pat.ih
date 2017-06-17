@@ -52,7 +52,6 @@ struct context {
 
 union arg {
 	ptrdiff_t f;
-	int       i;
 	char      b;
 	size_t    z;
 };
