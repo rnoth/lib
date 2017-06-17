@@ -6,46 +6,25 @@
 #include <pat.h>
 #include <pat.ih>
 
+struct context {
+	size_t         pos;
+	struct thread *thr;
+	struct thread *que[2];
+	struct thread *res;
+	struct thread *frl[2];
+};
+
+static void ctx_fini(struct context *);
+static int  ctx_init(struct context *, struct pattern *);
+static int  ctx_next(struct context *, char const);
 static void ctx_prune(struct context *);
-static int ctx_step(struct context *ctx, char const);
+static void ctx_rm(struct context *);
+static void ctx_shift(struct context *);
+static int  ctx_step(struct context *, char const);
 
-void
-ctx_shift(struct context *ctx)
-{
-	ctx->thr = ctx->que[0];
-	ctx->que[0] = 0;
-	ctx->que[1] = 0;
-}
+static struct thread *ctx_get(struct context *);
 
-int
-ctx_next(struct context *ctx, char const ch)
-{
-	ctx_prune(ctx); 
-	if (!ctx->thr) return 0;
-	return ctx_step(ctx, ch);
-}
-
-int
-ctx_step(struct context *ctx, char const ch)
-{
-	return ctx->thr->ip->op(ctx, ch);
-}
-
-void
-ctx_rm(struct context *ctx)
-{
-	thr_mv(ctx->frl, &ctx->thr);
-}
-
-void
-ctx_prune(struct context *ctx)
-{
-	while (ctx->thr) {
-		if (thr_cmp(ctx->res, ctx->thr) < 0) {
-			break;
-		} else ctx_rm(ctx);
-	}
-}
+static int pat_exec(struct context *, int (*)(char *, void *), void *);
 
 struct thread *
 ctx_get(struct context *ctx)
@@ -81,7 +60,7 @@ ctx_init(struct context *ctx, struct pattern *pat)
 	int err = 0;
 
 	ctx->que[0] = ctx_get(ctx);
-	if (!ctx->que) return ENOMEM;
+	if (!ctx->que[0]) return ENOMEM;
 
 	err = thr_init(ctx->que[0], pat->prog);
 	if (err) goto fail;
@@ -91,6 +70,44 @@ ctx_init(struct context *ctx, struct pattern *pat)
 fail:
 	ctx_fini(ctx);
 	return err;
+}
+
+int
+ctx_next(struct context *ctx, char const ch)
+{
+	ctx_prune(ctx); 
+	if (!ctx->thr) return 0;
+	return ctx_step(ctx, ch);
+}
+
+void
+ctx_prune(struct context *ctx)
+{
+	while (ctx->thr) {
+		if (thr_cmp(ctx->res, ctx->thr) < 0) {
+			break;
+		} else ctx_rm(ctx);
+	}
+}
+
+void
+ctx_rm(struct context *ctx)
+{
+	thr_mv(ctx->frl, &ctx->thr);
+}
+
+void
+ctx_shift(struct context *ctx)
+{
+	ctx->thr = ctx->que[0];
+	ctx->que[0] = 0;
+	ctx->que[1] = 0;
+}
+
+int
+ctx_step(struct context *ctx, char const ch)
+{
+	return ctx->thr->ip->op(ctx, ch);
 }
 
 int
@@ -206,24 +223,12 @@ do_save(struct context *ctx, char const ch)
 }
 
 int
-pat_match(struct context *ctx, struct pattern *pat)
+pat_exec(struct context *ctx, int (*cb)(char *, void *), void *cbx)
 {
 	int err;
-	
-	err = pat_exec(ctx);
-	if (err) return err;
-
-	if (!ctx->res) return -1;
-	return vec_copy(&pat->mat, ctx->res->mat);
-}
-
-int
-pat_exec(struct context *ctx)
-{
 	char c;
-	int err;
 
-	while (ctx->cb(&c, ctx->cbx)) {
+	while (cb(&c, cbx)) {
 
 		ctx_shift(ctx);	
 
@@ -236,4 +241,26 @@ pat_exec(struct context *ctx)
 	if (err) return err;
 
 	return 0;
+}
+
+int
+pat_match(struct pattern *pat, int (*cb)(char *, void *), void *cbx)
+{
+	struct context ctx[1] = {{0}};
+	int err;
+
+	err = ctx_init(ctx, pat);
+	if (err) return err;
+	
+	err = pat_exec(ctx, cb, cbx);
+	if (err) goto finally;
+
+	if (!ctx->res) return -1;
+
+finally:
+	vec_copy(&pat->mat, ctx->res->mat);
+	
+	ctx_fini(ctx);
+
+	return err;
 }

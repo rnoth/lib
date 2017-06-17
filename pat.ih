@@ -3,18 +3,6 @@
 #include <stdint.h>
 #include <pat.h>
 
-enum op {
-	op_null,
-	op_jump,
-	op_fork,
-	op_char,
-	op_clss,
-	op_mark,
-	op_save,
-	op_halt,
-	nop,
-};
-
 enum type {
 	type_nil,
 	type_alt,
@@ -34,16 +22,6 @@ struct ins;
 struct thread;
 struct token;
 union arg;
-
-struct context {
-	int          (*cb)(char *, void *);
-	void          *cbx;
-	size_t         pos;
-	struct thread *thr;
-	struct thread *que[2];
-	struct thread *res;
-	struct thread *frl[2];
-};
 
 struct thread {
 	struct thread   *next;
@@ -71,9 +49,7 @@ struct ins {
 };
 
 /* pat-exec.c */
-struct thread *ctx_get(struct context *);
-void ctx_fini(struct context *);
-int  ctx_init(struct context *, struct pattern *);
+int pat_match(struct pattern *, int (*)(char *, void *), void *);
 
 int do_char(struct context *, char const);
 int do_clss(struct context *, char const);
@@ -82,8 +58,6 @@ int do_halt(struct context *, char const);
 int do_jump(struct context *, char const);
 int do_mark(struct context *, char const);
 int do_save(struct context *, char const);
-
-int get_char(char *, void *);
 
 /* pat-thr.c */
 int  thr_alloc(struct thread *[static 2]);
@@ -99,12 +73,6 @@ size_t type_len(enum type);
 
 /* pat_parse.c */
 int pat_parse(struct token **, char const *);
-
-/* pat-scan.c */
-int pat_scan(struct token **, char const *);
 void tok_free(struct token *);
-
-int pat_exec(struct context *);
-int pat_match(struct context *, struct pattern *);
 
 #endif
