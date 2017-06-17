@@ -70,16 +70,6 @@ struct ins {
 	union arg arg;
 };
 
-struct pos {
-	char   const *v;
-	size_t const  n;
-	size_t        f;
-};
-
-static inline void       step(struct pos *);
-static inline bool        eol(struct pos const *);
-static inline char const *str(struct pos const *);
-
 /* pat-exec.c */
 struct thread *ctx_get(struct context *);
 void ctx_fini(struct context *);
@@ -116,9 +106,5 @@ void tok_free(struct token *);
 
 int pat_exec(struct context *);
 int pat_match(struct context *, struct pattern *);
-
-void       step(struct pos *p) { ++p->f; }
-bool        eol(struct pos const *p) { return p->f >= p->n; }
-char const *str(struct pos const *p) { return p->v + p->f; }
 
 #endif
