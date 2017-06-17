@@ -125,7 +125,7 @@ comp_reg(struct ins **dst, struct token *tok, struct token *ctx)
 	if (tok == ctx) {
 		*dst[0]-- = instr(do_mark);
 		*dst[0]-- = instr(do_fork, -1);
-		*dst[0]-- = instr(do_clss, 1);
+		*dst[0]-- = instr(do_clss, 0);
 		*dst[0]-- = instr(do_jump, 2);
 		return 0x0;
 	}

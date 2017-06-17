@@ -3,22 +3,6 @@
 #include <stdint.h>
 #include <pat.h>
 
-enum class {
-	class_none  = 0x00,
-	class_any   = 0x01,
-	class_dot   = 0x02,
-	class_alpha = 0x04,
-	class_upper = 0x08,
-	class_lower = 0x10,
-	class_digit = 0x20,
-	class_space = 0x40,
-};
-
-enum when {
-	before,
-	after,
-};
-
 enum op {
 	op_null,
 	op_jump,

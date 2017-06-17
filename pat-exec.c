@@ -57,15 +57,8 @@ do_clss(struct context *ctx, struct thread *th, char const ch)
 	bool res;
 
 	switch (th->ip->arg.b) {
-	case class_any: res = true; break;
-	case class_dot: res = ch != L'\n' && ch != L'\0'; break;
-	case class_alpha: res = isalpha(ch); break;
-	case class_upper: res = isupper(ch); break;
-	case class_lower: res = islower(ch); break;
-	case class_space: res = isspace(ch); break;
-	case class_digit: res = isdigit(ch); break;
-	default:
-		return -1; // XXX
+	case 0: res = true; break;
+	case '.': res = ch != L'\n' && ch != L'\0'; break;
 	}
 
 	if (!res) thr_remove(ctx, ind), --ind;

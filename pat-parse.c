@@ -199,7 +199,7 @@ shunt_alt(struct parser *pa)
 int
 shunt_dot(struct parser *pa)
 {
-	push_res(pa, token(type_cls, class_dot));
+	push_res(pa, token(type_cls, '.'));
 	return 0;
 }
 
