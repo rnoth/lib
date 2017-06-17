@@ -1,5 +1,5 @@
-#ifndef _pat_
-#define _pat_
+#ifndef _lib_pat_
+#define _lib_pat_
 #include <stdbool.h>
 #include <stdint.h>
 #include <stddef.h>
@@ -27,4 +27,4 @@ int  pat_execute(struct pattern *, char const *);
 int  pat_execute_callback(struct pattern *, int (*)(char *, void *), void *);
 void pat_free(struct pattern *);
 
-#endif // _edna_pat_
+#endif // _lib_pat_
