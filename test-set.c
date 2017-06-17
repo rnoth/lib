@@ -10,7 +10,7 @@
 
 char filename[] = "set.c";
 
-set_t *set;
+struct set *set;
 char **reply = 0x0;
 
 void test_alloc(void);

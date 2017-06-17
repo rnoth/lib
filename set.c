@@ -305,14 +305,14 @@ nod_walk(uintptr_t *dest, struct internal *nod, struct key *key)
 	return dest;
 }
 
-set_t *
+struct set *
 set_alloc(void)
 {
-	return calloc(1, sizeof (set_t));
+	return calloc(1, sizeof (struct set));
 }
 
 void
-set_free(set_t *t)
+set_free(struct set *t)
 {
 	if (isleaf(t->root)) free((void *)t->root);
 	else nod_freetree(t->root);
@@ -320,7 +320,7 @@ set_free(set_t *t)
 }
 
 int
-set_add(set_t *t, uint8_t *src, size_t len)
+set_add(struct set *t, uint8_t *src, size_t len)
 {
 	struct key key = { .src = src, .len = len, };
 	uintptr_t *dest = &t->root;
@@ -374,7 +374,7 @@ finally:
 }
 
 int
-set_remove(set_t *t, uint8_t *src, size_t len)
+set_remove(struct set *t, uint8_t *src, size_t len)
 {
 	struct key key = { .src = src, .len = len, };
 
@@ -426,7 +426,7 @@ set_do_remove(uintptr_t *dst, struct key *key)
 }
 
 bool
-set_contains(set_t *t, uint8_t *src, size_t len)
+set_contains(struct set *t, uint8_t *src, size_t len)
 {
 	struct key key = { .src = src, .len = len, };
 	uintptr_t *dest = &t->root;
@@ -445,7 +445,7 @@ set_contains(set_t *t, uint8_t *src, size_t len)
 }
 
 bool
-set_prefix(set_t *t, uint8_t *src, size_t len)
+set_prefix(struct set *t, uint8_t *src, size_t len)
 {
 	struct key key = { .src = src, .len = len, };
 	uintptr_t nod = 0x0;
@@ -465,7 +465,7 @@ set_prefix(set_t *t, uint8_t *src, size_t len)
 }
 
 size_t
-set_query(void ***res, size_t nmemb, set_t *t, uint8_t *src, size_t len)
+set_query(void ***res, size_t nmemb, struct set *t, uint8_t *src, size_t len)
 {
 	struct key key = { .src = src, .len = len, };
 	size_t ind = 0;
