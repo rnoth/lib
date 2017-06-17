@@ -38,6 +38,7 @@ struct token {
 };
 
 struct thread {
+	struct thread   *next;
 	struct ins      *ip;
 	struct patmatch *mat;
 };
