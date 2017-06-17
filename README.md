@@ -1,4 +1,4 @@
-simple library implementing several generic datatypes for C programming
+simple library implementing several useful data structures for C programming
 
 ## vec
 
@@ -23,8 +23,6 @@ Free a vector with `vec_free(myvec)`
 If you just pass the vector itself, your program might blow up.
 
 - `vec_append(void *vec_ptr, void *item)`
-
-- `vec_prepend(void *vec_ptr, void *item)`
 
 - `vec_insert(void *vec_ptr, void *item, size_t position)`
 
@@ -195,7 +193,7 @@ the fix is simply to wrap it in paranthese
 
 ## set
 
-declare a crit-bit tree with `set_t *instance`
+declare a crit-bit tree with `struct set *instance`
 
 alloc & initialize:
 
@@ -214,9 +212,9 @@ Both of them have equivalent behavior, what differs is how length is calculated.
 
 **adding members:**
 
-- `set_add_bytes(set_t *set, void *elem, size_t length)`
+- `set_add_bytes(struct set *set, void *elem, size_t length)`
 
-- `set_add_string(set_t *set, char *elem)`
+- `set_add_string(struct set *set, char *elem)`
 
 	- *insert* `elem` into `set`
 
@@ -229,9 +227,9 @@ Both of them have equivalent behavior, what differs is how length is calculated.
 `EINVAL` if the length of `elem` is zero,
 
 
-- `set_remove_bytes(set_t *set, void *elem, size_t length)`
+- `set_remove_bytes(struct set *set, void *elem, size_t length)`
 
-- `set_remove_string(set_t *set, char *elem)`
+- `set_remove_string(struct set *set, char *elem)`
 
 	- *remove* `elem` from `set`
 
@@ -239,17 +237,17 @@ Both of them have equivalent behavior, what differs is how length is calculated.
 `ENOENT` if the `elem` is not in `set`,
 `EFAULT` if given the null pointer as an argument,
 
-- `set_contains_bytes(set_t *set, void *elem, size_t length)`
+- `set_contains_bytes(struct set *set, void *elem, size_t length)`
 
-- `set_contains_string(set_t *set, char *elem, size_t length)`
+- `set_contains_string(struct set *set, char *elem, size_t length)`
 
 	- check if `elem` is contained in `set`
 
 	- return `true` iff `elem` is in `set`, `false` otherwise
 
-- `set_prefix_bytes(set_t *set, void *prefix, size_t length)`
+- `set_prefix_bytes(struct set *set, void *prefix, size_t length)`
 
-- `set_prefix_string(set_t *set, char *prefix)`
+- `set_prefix_string(struct set *set, char *prefix)`
 
 	- check if any elements of `set` have the prefix `prefix`
 
