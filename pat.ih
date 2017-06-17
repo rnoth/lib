@@ -63,7 +63,7 @@ struct context {
 	void          *cbx;
 	size_t         pos;
 	struct thread *thr;
-	struct thread *fin;
+	struct thread  fin[1];
 };
 
 union arg {
