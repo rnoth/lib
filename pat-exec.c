@@ -195,5 +195,3 @@ pat_exec(struct context *ctx)
 
 	return 0;
 }
-
-
