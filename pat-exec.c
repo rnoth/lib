@@ -135,8 +135,8 @@ do_fork(struct context *ctx, char const ch)
 	err = thr_fork(new, ctx->thr);
 	if (err) goto fail;
 	new->ip += ctx->thr->ip->arg.f;
-
-	thr_mv(ctx->que, &new);
+	new->next = ctx->thr->next;
+	ctx->thr->next = new;
 
 	++ctx->thr->ip;
 	return ctx->thr->ip->op(ctx, ch);
@@ -196,7 +196,9 @@ do_mark(struct context *ctx, char const ch)
 int
 do_save(struct context *ctx, char const ch)
 {
-	size_t off = vec_len(ctx->thr->mat) - 1;
+	size_t off = vec_len(ctx->thr->mat);
+
+	while (ctx->thr->mat[--off].ext != -1UL) continue;
 
 	ctx->thr->mat[off].ext = ctx->pos - ctx->thr->mat[off].off;
 	++ctx->thr->ip;
