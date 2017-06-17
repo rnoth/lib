@@ -253,11 +253,11 @@ Both of them have equivalent behavior, what differs is how length is calculated.
 
 	- return `true` iff so, `false` otherwise
 
-- `set_query_bytes(void ***out, size_t nmemb, Set *set, void *prefix, size_t length)`
+- `set_query_bytes(void ***out, size_t nmemb, struct set *set, void *prefix, size_t length)`
 
-- `set_query_string(void ***out, size_t nmemb, Set *set, char *prefix)`
+- `set_query_string(void ***out, size_t nmemb, struct set *set, char *prefix)`
 
-- `set_query_vector(void ***out, size_t nmemb, Set *set, void *prefix)`
+- `set_query_vector(void ***out, size_t nmemb, struct set *set, void *prefix)`
 
 	- return the number of elements in `set` with the prefix `prefix`
 
