@@ -242,6 +242,7 @@ pat_exec(struct context *ctx, int (*cb)(char *, void *), void *cbx)
 	}
 	
 	if (err) return err;
+	if (!ctx->res) return PAT_ERR_NOMATCH;
 
 	return 0;
 }
@@ -258,12 +259,10 @@ pat_match(struct pattern *pat, int (*cb)(char *, void *), void *cbx)
 	err = pat_exec(ctx, cb, cbx);
 	if (err) goto finally;
 
-	if (!ctx->res) return -1;
-
-finally:
 	memcpy(pat->mat, ctx->res->mat, sizeof pat->mat);
 	pat->nmat = ctx->res->nmat;
 
+finally:
 	ctx_fini(ctx);
 
 	return err;
