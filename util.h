@@ -38,7 +38,7 @@ static inline
 unsigned long
 ucmp(unsigned long a, unsigned long b)
 {
-	return a > b ? 1 : a < b ? -1 : 0;
+	return (a > b) - (a < b);
 }
 
 #endif /* _util_ */
