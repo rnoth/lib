@@ -75,8 +75,6 @@ thr_mv(struct thread *dst[static 2], struct thread **src)
 	struct thread *tmp;
 	tmp = src[0];
 	src[0] = src[0]->next;
-	tmp->next = 0;
-	if (dst[1]) dst[1]->next = tmp;
-	else dst[0] = tmp;
-	dst[1] = tmp;
+	tmp->next = dst[0];
+	dst[0] = tmp;
 }
