@@ -42,9 +42,6 @@ pat_compile(struct pattern *dst, char const *src)
 	err = pat_marshal(dst, tok);
 	if (err) goto finally;
 
-	err = vec_ctor(dst->mat);
-	if (err) goto finally;
-
 finally:
 	tok_free(tok);
 	return err;
@@ -55,7 +52,6 @@ void
 pat_free(struct pattern *pat)
 {
 	free(pat->prog);
-	vec_free(pat->mat);
 }
 
 int

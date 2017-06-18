@@ -26,7 +26,8 @@ union arg;
 struct thread {
 	struct thread   *next;
 	struct ins      *ip;
-	struct patmatch *mat;
+	size_t           nmat;
+	struct patmatch  mat[10];
 };
 
 struct token {

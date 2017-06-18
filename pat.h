@@ -11,15 +11,15 @@ enum {
 	PAT_ERR_BADREP   = -3
 };
 
-struct pattern {
-	struct patmatch *mat;
-	size_t nmat;
-	struct ins *prog;
-};
-
 struct patmatch {
 	size_t off;
 	size_t ext;
+};
+
+struct pattern {
+	size_t nmat;
+	struct patmatch  mat[10];
+	struct ins      *prog;
 };
 
 int  pat_compile(struct pattern *, char const *);

@@ -1,16 +1,18 @@
 #include <errno.h>
+#include <string.h>
 #include <stdint.h>
 #include <stdlib.h>
-#include <vec.h>
+
 #include <util.h>
+
 #include <pat.h>
 #include <pat.ih>
 
 struct context {
 	size_t         pos;
+	struct thread *res;
 	struct thread *thr;
 	struct thread *que[2];
-	struct thread *res;
 	struct thread *frl[2];
 };
 
@@ -97,6 +99,12 @@ ctx_rm(struct context *ctx)
 }
 
 void
+ctx_que(struct context *ctx)
+{
+	thr_mv(ctx->que, &ctx->thr);
+}
+
+void
 ctx_shift(struct context *ctx)
 {
 	ctx->thr = ctx->que[0];
@@ -115,8 +123,8 @@ do_char(struct context *ctx, char const ch)
 {
 	if (ctx->thr->ip->arg.b == ch) {
 		++ctx->thr->ip;
-		thr_mv(ctx->que, &ctx->thr);
-	} else thr_mv(ctx->frl, &ctx->thr);
+		ctx_que(ctx);
+	} else ctx_rm(ctx);
 
 	return ctx_next(ctx, ch);
 }
@@ -133,9 +141,9 @@ do_clss(struct context *ctx, char const ch)
 
 	if (res) {
 		++ctx->thr->ip;
-		thr_mv(ctx->que, &ctx->thr);
+		ctx_que(ctx);
 	}
-	else thr_mv(ctx->frl, &ctx->thr);
+	else ctx_rm(ctx);
 
 	return ctx_next(ctx, ch);
 }
@@ -151,11 +159,13 @@ do_fork(struct context *ctx, char const ch)
 
 	err = thr_fork(new, ctx->thr);
 	if (err) goto fail;
-	new->ip += ctx->thr->ip->arg.f;
-	new->next = ctx->thr->next;
-	ctx->thr->next = new;
 
+	new->ip += ctx->thr->ip->arg.f;
 	++ctx->thr->ip;
+
+	new->next = ctx->thr;
+	ctx->thr = new;
+
 	return ctx->thr->ip->op(ctx, ch);
 
 fail:
@@ -167,16 +177,11 @@ int
 do_halt(struct context *ctx, char const ch)
 {
 	struct thread *th;
-	struct patmatch term[] = {{ .off = -1, .ext = -1 }};
-	int err;
 
 	if (thr_cmp(ctx->res, ctx->thr) > 0) {
-		thr_mv(ctx->frl, &ctx->thr);
+		ctx_rm(ctx);
 		return ctx_next(ctx, ch);
 	}
-
-	err = vec_append(&ctx->thr->mat, term);
-	if (err) return err;
 
 	// abstract
 	if (ctx->res) thr_mv(ctx->frl, &ctx->res);
@@ -197,29 +202,27 @@ do_jump(struct context *ctx, char const ch)
 int
 do_mark(struct context *ctx, char const ch)
 {
-	struct patmatch mat = {0};
-	int err = 0;
+	struct thread *th = ctx->thr;
 
-	mat.off = ctx->pos;
-	mat.ext = -1;
+	if (th->nmat < 10) {
+		th->mat[th->nmat++] = (struct patmatch){ ctx->pos, -1 };
+	}
 
-	err = vec_append(&ctx->thr->mat, &mat);
-	if (err) return err;
-
-	++ctx->thr->ip;
-	return ctx->thr->ip->op(ctx, ch);
+	++th->ip;
+	return th->ip->op(ctx, ch);
 }
 
 int
 do_save(struct context *ctx, char const ch)
 {
-	size_t off = vec_len(ctx->thr->mat);
+	struct thread *th = ctx->thr;
+	size_t off = th->nmat;
 
-	while (ctx->thr->mat[--off].ext != -1UL) continue;
+	while (th->mat[--off].ext != -1UL) continue;
 
-	ctx->thr->mat[off].ext = ctx->pos - ctx->thr->mat[off].off;
-	++ctx->thr->ip;
-	return ctx->thr->ip->op(ctx, ch);
+	th->mat[off].ext = ctx->pos - th->mat[off].off;
+	++th->ip;
+	return th->ip->op(ctx, ch);
 }
 
 int
@@ -258,8 +261,9 @@ pat_match(struct pattern *pat, int (*cb)(char *, void *), void *cbx)
 	if (!ctx->res) return -1;
 
 finally:
-	vec_copy(&pat->mat, ctx->res->mat);
-	
+	memcpy(pat->mat, ctx->res->mat, sizeof pat->mat);
+	pat->nmat = ctx->res->nmat;
+
 	ctx_fini(ctx);
 
 	return err;

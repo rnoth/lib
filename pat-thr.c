@@ -1,6 +1,6 @@
 #include <errno.h>
+#include <string.h>
 #include <util.h>
-#include <vec.h>
 #include <pat.ih>
 
 int
@@ -20,14 +20,14 @@ thr_alloc(struct thread *thr[static 2])
 int
 thr_cmp(struct thread *lt, struct thread *rt)
 {
-	size_t min = 0;
-	ptrdiff_t cmp = 0;
+	size_t min;
+	ptrdiff_t cmp;
 
 	if (!lt && !rt) return 0;
 	if (!lt) return -1;
 	if (!rt) return  1;
 
-	min = umin(vec_len(lt->mat), vec_len(rt->mat));
+	min = umin(lt->nmat, rt->nmat);
 
 	iterate(i, min) {
 		cmp = ucmp(lt->mat[i].off, rt->mat[i].off);
@@ -45,8 +45,7 @@ thr_init(struct thread *th, struct ins *prog)
 {
 	th->ip = prog;
 
-	th->mat = vec_new(struct thread);
-	if (!th->mat) return ENOMEM;;
+	th->nmat = 0;
 
 	return 0;
 }
@@ -55,7 +54,8 @@ int
 thr_fork(struct thread *dst, struct thread *src)
 {
 	dst->ip = src->ip;
-	dst->mat = vec_clone(src->mat);
+	dst->nmat = src->nmat;
+	memcpy(dst->mat, src->mat, sizeof dst->mat);
 
 	return dst->mat ? 0 : ENOMEM;
 }

@@ -276,7 +276,7 @@ test_match(void)
 			expectf(0, pat_execute(pat, b->txt),
 			        "failed to match '%s' over '%s'", a->pat, b->txt);
 
-			for (i = 0; b->sub[i].off < (size_t)-1; ++i) {
+			for (i = 0; i < pat->nmat; ++i) {
 				expectf(b->sub[i].off, pat->mat[i].off,
 				        "bad submatch offset (#%zd) for %s over %s",
 				         i, a->pat, b->txt);
@@ -285,9 +285,6 @@ test_match(void)
 				        "bad submatch extent (#%zd) for %s over %s",
 				         i, a->pat, b->txt);
 			}
-
-			expect(-1, pat->mat[i].off);
-			expect(-1, pat->mat[i].ext);
 		}
 
 		for (b = a->reject; b && b->txt; ++b) {
