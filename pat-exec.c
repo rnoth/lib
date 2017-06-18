@@ -3,8 +3,6 @@
 #include <stdint.h>
 #include <stdlib.h>
 
-#include <util.h>
-
 #include <pat.h>
 #include <pat.ih>
 

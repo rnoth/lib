@@ -2,7 +2,6 @@
 #include <stdint.h>
 #include <stdlib.h>
 
-#include <util.h>
 #include <pat.ih>
 #include <pat.h>
 
