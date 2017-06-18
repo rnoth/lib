@@ -64,7 +64,7 @@ int do_save(struct context *, char const);
 int  thr_alloc(struct thread *[static 2]);
 int  thr_cmp(  struct thread *, struct thread *);
 int  thr_init( struct thread *, struct ins *);
-int  thr_fork( struct thread *, struct thread *);
+void thr_fork( struct thread *, struct thread *);
 void thr_free( struct thread *);
 void thr_mv(   struct thread *[static 2], struct thread **);
 

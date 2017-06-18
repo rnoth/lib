@@ -1,5 +1,7 @@
 #include <errno.h>
 #include <string.h>
+#include <stdlib.h>
+
 #include <util.h>
 #include <pat.ih>
 
@@ -20,6 +22,7 @@ thr_alloc(struct thread *thr[static 2])
 int
 thr_cmp(struct thread *lt, struct thread *rt)
 {
+	size_t i;
 	size_t min;
 	ptrdiff_t cmp;
 
@@ -29,7 +32,7 @@ thr_cmp(struct thread *lt, struct thread *rt)
 
 	min = umin(lt->nmat, rt->nmat);
 
-	iterate(i, min) {
+	for (i = 0; i < min; ++i) {
 		cmp = ucmp(lt->mat[i].off, rt->mat[i].off);
 		if (cmp) return -cmp;
 
@@ -50,14 +53,12 @@ thr_init(struct thread *th, struct ins *prog)
 	return 0;
 }
 
-int
+void
 thr_fork(struct thread *dst, struct thread *src)
 {
 	dst->ip = src->ip;
 	dst->nmat = src->nmat;
 	memcpy(dst->mat, src->mat, sizeof dst->mat);
-
-	return dst->mat ? 0 : ENOMEM;
 }
 
 void

@@ -152,13 +152,11 @@ int
 do_fork(struct context *ctx, char const ch)
 {
 	struct thread *new;
-	int err = 0;
 
 	new = ctx_get(ctx);
 	if (!new) return ENOMEM;
 
-	err = thr_fork(new, ctx->thr);
-	if (err) goto fail;
+	thr_fork(new, ctx->thr);
 
 	new->ip += ctx->thr->ip->arg.f;
 	++ctx->thr->ip;
@@ -167,10 +165,6 @@ do_fork(struct context *ctx, char const ch)
 	ctx->thr = new;
 
 	return ctx->thr->ip->op(ctx, ch);
-
-fail:
-	thr_free(new);
-	return err;
 }
 
 int
