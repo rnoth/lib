@@ -11,6 +11,7 @@
 enum state {
 	st_init,
 	st_esc,
+	st_bra,
 	st__len,
 };
 
@@ -39,20 +40,24 @@ static void push_rit(struct parser *);
 static void push_var(struct parser *, struct token *);
 
 static int shift(struct parser *);
+static int shift_esc(struct parser *);
+static int shift_bra(struct parser *);
 
 static int shunt_alt(struct parser *);
 static int shunt_dot(struct parser *);
 static int shunt_esc(struct parser *);
 static int shunt_eol(struct parser *);
+static int shunt_lbr(struct parser *);
 static int shunt_lef(struct parser *);
 static int shunt_lit(struct parser *);
 static int shunt_rep(struct parser *);
+static int shunt_rbr(struct parser *);
 static int shunt_rit(struct parser *);
 
 static int parser_init(struct parser *, void const *);
 static int parse(struct token **, struct parser *);
 
-static int (* const tab_shunt[][st__len])() = {
+static int (* const tab_shunt[255][st__len])() = {
 	[0]    = { shunt_eol, shunt_eol, },
 	['\\'] = { shunt_esc, },
 	['?']  = { shunt_rep, },
@@ -62,7 +67,14 @@ static int (* const tab_shunt[][st__len])() = {
 	['(']  = { shunt_lef, },
 	[')']  = { shunt_rit, },
 	['.']  = { shunt_dot, },
-	[255]  = {0},
+	['[']  = { shunt_lbr, },
+	[']']  = { shunt_rbr, },
+};
+
+static int (* const tab_shift[st__len])() = {
+	[st_init] = shift,
+	[st_esc]  = shift_esc,
+	[st_bra]  = shift_bra,
 };
 
 bool
@@ -191,6 +203,25 @@ shift(struct parser *pa)
 }
 
 int
+shift_bra(struct parser *pa)
+{
+	return -2;
+}
+
+int
+shift_esc(struct parser *pa)
+{
+	int err;
+
+	err = shift(pa);
+	if (err) return err;
+
+	pa->st = st_init;
+
+	return 0;
+}
+
+int
 shunt_alt(struct parser *pa)
 {
 	push_alt(pa);
@@ -221,6 +252,12 @@ shunt_eol(struct parser *pa)
 }
 
 int
+shunt_lbr(struct parser *pa)
+{
+	return -2;
+}
+
+int
 shunt_lef(struct parser *pa)
 {
 	push_nop(pa);
@@ -242,6 +279,12 @@ shunt_rep(struct parser *pa)
 }
 
 int
+shunt_rbr(struct parser *pa)
+{
+	return -2;
+}
+
+int
 shunt_rit(struct parser *pa)
 {
 	if (is_closed(pa)) return PAT_ERR_BADPAREN;
@@ -257,7 +300,7 @@ parse(struct token **dst, struct parser *pa)
 {
 	int err = 0;
 
-	while (!err) err = shift(pa);
+	while (!err) err = tab_shift[pa->st](pa);
 	if (err != -1) return err;
 
 	*dst = pa->res;
