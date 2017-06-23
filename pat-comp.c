@@ -32,7 +32,6 @@ static struct token *(* const tab_comp[])(struct ins **, struct token *, struct 
 	[type_sub] = comp_sub,
 	[type_reg] = comp_reg,
 	[type_nop] = comp_nop,
-	[255] = 0,
 };
 
 static size_t tab_len[] = {
@@ -44,7 +43,6 @@ static size_t tab_len[] = {
 	[type_alt] = 2,
 	[type_sub] = 2,
 	[type_reg] = 6,
-	[255] = 0,
 };
 
 struct token *
