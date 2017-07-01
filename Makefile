@@ -26,7 +26,7 @@ test-%: test-%.c.o
 	@$(call link,$@,$< skel.c.o)
 	@$(call write-deps, test-$*.d, $@)
 	@$(info TEST $(patsubst test-%,%.c, $@))
-	@$@
+	@$(shell $@ > /dev/tty)
 	@echo
 
 test: 
