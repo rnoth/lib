@@ -8,11 +8,6 @@
 #include <set.h>
 #include <util.h>
 
-char filename[] = "set.c";
-
-struct set *set;
-char **reply = 0x0;
-
 void test_alloc(void);
 void test_add(void);
 void test_free(void);
@@ -23,7 +18,9 @@ void test_prefix(void);
 void test_large_add(void);
 void test_dup(void);
 
-struct test tests[] = {
+char unit_filename[] = "set.c"; 
+
+struct test unit_tests[] = {
 	{ "allocating a set",                    0x0,         test_alloc,     test_free, },
 	{ "inserting a string",                  0x0,         test_add,       test_free, },
 	{ "querying the set",                    test_add,    test_query,     test_free, },
@@ -34,6 +31,9 @@ struct test tests[] = {
 	{ "attempting to add duplicate strings", test_add,    test_dup,       test_free, },
 	{ 0x0 },
 };
+
+struct set *set;
+char **reply = 0x0;
 
 char *strings[] = { "foo", "bar", "baz", "quux", };
 

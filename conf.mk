@@ -12,8 +12,6 @@ DEP	:= $(wildcard *.d */*.d)
 BIN	:= $(patsubst %.c, %, $(filter %-test.c, $(SRC)))
 TESTS	:= $(patsubst %.c, %, $(filter test-%.c, $(SRC)))
 
-$(TESTS): skel.c.o
-
 ifndef NDEBUG
 CFLAGS	+= -O0 -ggdb3 -Werror
 CFLAGS	+= -Wunreachable-code \

@@ -8,45 +8,41 @@
 #include <string.h>
 #include <unistd.h>
 
-// TODO this all should be cleaned up
-
-#define ok(TEST) do {                         \
-	if (!unit_has_init) unit_init();      \
-	int _signal = sigsetjmp(env, 1);      \
-	int _result = -1;                     \
-	alarm(3);                             \
-	if (!_signal) _result = (TEST);       \
-	alarm(0);                             \
-	if (!_signal && _result) break;       \
-	ok_failed(#TEST, __LINE__, _signal);  \
-	raise(SIGTRAP);                       \
-	siglongjmp(checkpoint, 1);            \
+#define unit_begin(name, ln, ...) do {    \
+	if (!unit_has_init) unit_init(); \
+	unit_set_lineno(ln);             \
+	unit_##name##_init(__VA_ARGS__); \
+	alarm(3);                        \
 } while (0)
 
-#define try(ACT) ok((ACT, 1))
+#define ok(TEST) do {                  \
+	unit_begin(ok,__LINE__,#TEST); \
+	int unit_result = (TEST);      \
+	alarm(0);                      \
+	if (unit_result) break;        \
+	unit_fail();                   \
+} while (0)
+
+#define try(TEST) do {                  \
+	unit_begin(try,__LINE__,#TEST); \
+	TEST;                           \
+	alarm(0);                       \
+} while (0)
+
 #define expect(VAL, TEST) expectm(VAL, TEST, #TEST)
 #define expectf(VAL, TEST, ...) do {    \
 	char buf[256];                  \
 	snprintf(buf, 256, __VA_ARGS__);\
-	expectm(VAL, TEST, buf);       \
+	expectm(VAL, TEST, buf);        \
 } while (0)
 
-#define expectm(VAL, TEST, MSG) do {                \
-	if (!unit_has_init) unit_init();            \
-	int _signal = sigsetjmp(env, 1);            \
-	int _result = -1;                           \
-	alarm(3);                                   \
-	int _expect = (VAL);                        \
-	if (!_signal) _result = (TEST);             \
-	alarm(0);                                   \
-	if (!_signal && _result == _expect) break;  \
-	expect_failed(MSG,__LINE__,                 \
-	              _expect,_result,_signal);     \
-	raise(SIGTRAP);                             \
-	siglongjmp(checkpoint, 1);                  \
+#define expectm(VAL, TEST, MSG) do {            \
+	unit_begin(expect, __LINE__, VAL, MSG); \
+	int unit_result = (TEST);               \
+	alarm(0);                               \
+	if (unit_expected(unit_result)) break;  \
+	else unit_fail();                       \
 } while (0)
-
-#define on_failure if (sigsetjmp(checkpoint, 1))
 
 struct test {
 	char  *msg;
@@ -57,17 +53,19 @@ struct test {
 };
 
 // must be defined
-extern struct test  tests[];
-extern char filename[];
+extern struct test  unit_tests[];
+extern char         unit_filename[];
 
 // provided
-extern bool unit_has_init;
-extern sigjmp_buf env;
-extern sigjmp_buf checkpoint;
-extern size_t total_failures;
+extern bool       unit_has_init;
+extern size_t     unit_total_failures;
 
-void expect_failed(char *, int , int, int, int);
+void unit_fail(void);
+void unit_ok_init(char *);
+void unit_expect_init(int, char *);
+bool unit_expected(int);
+void unit_set_lineno(int);
+void unit_try_init(char *);
 void unit_init(void);
-void ok_failed(char *, int, int);
 
 #endif
