@@ -8,15 +8,15 @@
 #include <set.h>
 #include <util.h>
 
-void test_alloc(void);
-void test_add(void);
-void test_free(void);
-void test_query(void);
-void test_remove(void);
-void test_fixed(void);
-void test_prefix(void);
-void test_large_add(void);
-void test_dup(void);
+static void test_alloc(void);
+static void test_add(void);
+static void test_free(void);
+static void test_query(void);
+static void test_remove(void);
+static void test_fixed(void);
+static void test_prefix(void);
+static void test_large_add(void);
+static void test_dup(void);
 
 char unit_filename[] = "set.c"; 
 
