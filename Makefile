@@ -26,7 +26,6 @@ test-%: test-%.c.o
 	@$(call link,$@,$<)
 	@$(call write-deps, test-$*.d, $@)
 	@$(info TEST $(patsubst test-%,%.c, $@))
-	@$(info $@, $<)
 	@$(shell $@ > /dev/tty)
 	@echo
 
