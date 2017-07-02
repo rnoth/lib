@@ -2,7 +2,7 @@
 #include <util.h>
 #include <vec.h>
 
-char filename[] = "vec.c";
+char unit_filename[] = "vec.c";
 
 static void test_alloc(void);
 static void test_clone(void);
@@ -21,7 +21,7 @@ static void test_splice(void);
 static void test_transfer(void);
 static void test_truncat(void);
 
-struct test tests[] = {
+struct test unit_tests[] = {
 	{ "allocating & freeing a vector",           0x0,                test_alloc,        test_free, },
 	{ "adding some elements to a simple vector", test_alloc,         test_insert,       test_free, },
 	{ "adding a large number of elements",       0x0,                test_large_insert, test_free, },
@@ -30,14 +30,14 @@ struct test tests[] = {
 	{ "duplicating a vector",                    test_large_insert,  test_clone,        test_free, },
 	{ "truncating a vector",                     test_large_insert,  test_truncat,      test_free, },
 	{ "concatenating a vector with an array",    test_large_insert,  test_concat,       test_free, },
-	{ "testing fancy macros",                    test_large_insert,  test_fun,          test_free, },
 	{ "shifting a vector",                       test_large_insert,  test_shift,        test_free, },
 	{ "copying vectors",                         test_large_insert,  test_copy,         test_free, },
 	{ "slicing a vector",                        test_large_insert,  test_slice,        test_free, },
 	{ "splicing a vector with an array",         test_large_insert,  test_splice,       test_free, },
 	{ "transfering elements to an array",        test_large_insert,  test_transfer,     test_free, },
 	{ "popping elements from a vector",          test_large_insert,  test_pop,          test_free, },
-	{ 0x0 }
+	{ 0x0 },
+	{ "testing fancy macros",                    test_large_insert,  test_fun,          test_free, },
 };
 
 static int *intvec;

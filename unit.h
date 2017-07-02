@@ -20,7 +20,7 @@
 	int unit_result = (TEST);      \
 	alarm(0);                      \
 	if (unit_result) break;        \
-	unit_fail();                   \
+	unit_longjmp();                \
 } while (0)
 
 #define try(TEST) do {                  \
@@ -41,7 +41,7 @@
 	int unit_result = (TEST);               \
 	alarm(0);                               \
 	if (unit_expected(unit_result)) break;  \
-	else unit_fail();                       \
+	else unit_longjmp();                    \
 } while (0)
 
 struct test {
@@ -60,6 +60,7 @@ extern char         unit_filename[];
 extern bool       unit_has_init;
 extern size_t     unit_total_failures;
 
+void unit_longjmp(void);
 void unit_fail(void);
 void unit_ok_init(char *);
 void unit_expect_init(int, char *);

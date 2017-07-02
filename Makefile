@@ -23,9 +23,10 @@ clean:
 
 test-%: test-%.c.o
 	@$(info LD -o $@)
-	@$(call link,$@,$< skel.c.o)
+	@$(call link,$@,$<)
 	@$(call write-deps, test-$*.d, $@)
 	@$(info TEST $(patsubst test-%,%.c, $@))
+	@$(info $@, $<)
 	@$(shell $@ > /dev/tty)
 	@echo
 

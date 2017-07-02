@@ -33,20 +33,26 @@ fault(int sig)
 }
 
 void
+unit_longjmp(void)
+{
+	siglongjmp(checkpoint,1);
+}
+
+
+void
 unit_fail(void)
 {
 	++unit_total_failures;
-	printf("failed\n");
-	printf("!!! test failed: ");
-	printf("%s", current_test);
-	printf(" -- ");
-	printf("%s", error_message);
+	printf("failed ");
+	printf("\n\t\t(%s %s)", current_test, error_message);
 	printf("\n");
+	fflush(stdout); 
 }
 
 bool
 unit_expected(int res)
 {
+	snprintf(error_message, 256, "%d", res);
 	return expected == res;
 }
 
@@ -54,7 +60,7 @@ void
 unit_expect_init(int exp, char *msg)
 {
 	expected = exp;
-	snprintf(current_test, 256, "%s -- expected %d, got", msg, exp);
+	snprintf(current_test, 256, "%s ― expected %d, got", msg, exp);
 }
 
 void
@@ -122,7 +128,7 @@ main()
 			continue;
 		}
 
-		printf("\t%s...", unit_tests[i].msg);
+		printf("\t%s…", unit_tests[i].msg);
 		callq(unit_tests[i].setup,   unit_tests[i].ctx);
 		callq(unit_tests[i].test,    unit_tests[i].ctx);
 		callq(unit_tests[i].cleanup, unit_tests[i].ctx);
@@ -130,7 +136,7 @@ main()
 	}
 
 	printf("testing finished (%s)", unit_filename);
-	printf(" -- %zu failed tests\n", unit_total_failures);
+	printf(" ― %zu failed tests\n", unit_total_failures);
 
 	return 0;
 }

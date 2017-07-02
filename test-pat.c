@@ -3,8 +3,6 @@
 #include <util.h>
 #include <vec.h>
 
-char filename[] = "pat.c";
-
 #define subm(...) ((struct patmatch[]){__VA_ARGS__, {-1, -1}})
 
 static void test_free(void);
@@ -29,7 +27,8 @@ struct b {
 	struct patmatch *sub;
 };
 
-struct test tests[] = {
+char unit_filename[] = "pat.c";
+struct test unit_tests[] = {
 	{ "testing plaintext matching",  test_plain, test_match, test_free, },
 	{ "testing the \\ escapes",      test_esc,   test_match, test_free, },
 	{ "testing the ? operator",      test_qmark, test_match, test_free, },
@@ -275,19 +274,19 @@ test_match(void)
 
 	for (a = cur; a->pat; ++a) {
 		try(pat_free(pat));
-		expectf(0, pat_compile(pat, a->pat), "failed to compile: '%s'", a->pat);
+		expectf(0, pat_compile(pat, a->pat), "couldn't compile: '%s'", a->pat);
 
 		for (b = a->accept; b && b->txt; ++b) {
 			expectf(0, pat_execute(pat, b->txt),
-			        "failed to match '%s' over '%s'", a->pat, b->txt);
+			        "couldn't match '%s' over '%s'", a->pat, b->txt);
 
 			for (i = 0; i < pat->nmat; ++i) {
 				expectf(b->sub[i].off, pat->mat[i].off,
-				        "bad submatch offset (#%zd) for %s over %s",
+				        "bad submatch offset (\\%zd) for '%s' on '%s'",
 				         i, a->pat, b->txt);
 
 				expectf(b->sub[i].ext, pat->mat[i].ext,
-				        "bad submatch extent (#%zd) for %s over %s",
+				        "bad submatch extent (\\%zd) for '%s' on '%s'",
 				         i, a->pat, b->txt);
 			}
 		}
