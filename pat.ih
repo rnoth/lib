@@ -21,7 +21,6 @@ struct context;
 struct ins;
 struct thread;
 struct token;
-union arg;
 
 struct context {
 	char const    *str;
@@ -48,15 +47,9 @@ struct token {
 	uint8_t       id;
 };
 
-union arg {
-	ptrdiff_t f;
-	char      b;
-	size_t    z;
-};
-
 struct ins {
         int      (*op)(struct context *, char const *);
-	union arg arg;
+	int16_t    arg;
 };
 
 /* pat-exec.c */

@@ -133,14 +133,14 @@ comp_reg(struct ins **dst, struct token *tok, struct token *ctx)
 struct token *
 comp_lit(struct ins **dst, struct token *tok, struct token *ctx)
 {
-	*dst[0]-- = instr(do_char, {.b = tok->ch});
+	*dst[0]-- = instr(do_char, tok->ch);
 	return chld_next(ctx, tok);
 }
 
 struct token *
 comp_cls(struct ins **dst, struct token *tok, struct token *ctx)
 {
-	*dst[0]-- = instr(do_clss, {.b = tok->ch});
+	*dst[0]-- = instr(do_clss, tok->ch);
 	return chld_next(ctx, tok);
 }
 

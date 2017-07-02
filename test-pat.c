@@ -29,14 +29,14 @@ struct b {
 
 char unit_filename[] = "pat.c";
 struct test unit_tests[] = {
-	{ "testing plaintext matching",  test_plain, test_match, test_free, },
-	{ "testing the \\ escapes",      test_esc,   test_match, test_free, },
-	{ "testing the ? operator",      test_qmark, test_match, test_free, },
-	{ "testing the * operator",      test_star,  test_match, test_free, },
-	{ "testing the + operator",      test_plus,  test_match, test_free, },
-	{ "testing the | operator",      test_alter, test_match, test_free, },
-	{ "testing the () submatches",   test_sub,   test_match, test_free, },
-	{ "testing the . metacharacter", test_dot,   test_match, test_free, },
+	{ "matching plaintext",  test_plain, test_match, test_free, },
+	{ "matching escapes",      test_esc,   test_match, test_free, },
+	{ "matching ?",      test_qmark, test_match, test_free, },
+	{ "matching *",      test_star,  test_match, test_free, },
+	{ "matching +",      test_plus,  test_match, test_free, },
+	{ "matching |",      test_alter, test_match, test_free, },
+	{ "matching submatches",   test_sub,   test_match, test_free, },
+	{ "matching .", test_dot,   test_match, test_free, },
 	{ 0x0 },
 };
 

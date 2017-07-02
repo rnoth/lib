@@ -111,7 +111,7 @@ ctx_step(struct context *ctx, char const *txt)
 int
 do_char(struct context *ctx, char const *txt)
 {
-	char ch = ctx->thr->ip->arg.b;
+	char ch = ctx->thr->ip->arg;
 
 	if (txt && ch == *txt) {
 		++ctx->thr->ip;
@@ -126,7 +126,7 @@ do_clss(struct context *ctx, char const *txt)
 {
 	bool res;
 
-	if (txt) switch (ctx->thr->ip->arg.b) {
+	if (txt) switch (ctx->thr->ip->arg) {
 	case 0: res = true; break;
 	case '.': res = *txt != '\n' && *txt != '\0'; break;
 	}
@@ -150,7 +150,7 @@ do_fork(struct context *ctx, char const *txt)
 
 	thr_fork(new, ctx->thr);
 
-	new->ip += ctx->thr->ip->arg.f;
+	new->ip += ctx->thr->ip->arg;
 	++ctx->thr->ip;
 
 	new->next = ctx->thr;
@@ -180,7 +180,7 @@ do_halt(struct context *ctx, char const *txt)
 int
 do_jump(struct context *ctx, char const *txt)
 {
-	ctx->thr->ip += ctx->thr->ip->arg.f;
+	ctx->thr->ip += ctx->thr->ip->arg;
 	return ctx->thr->ip->op(ctx, txt);
 }
 
@@ -226,7 +226,6 @@ pat_exec(struct context *ctx)
 	}
 	
 	if (err) return err;
-	if (!ctx->res) return PAT_ERR_NOMATCH;
 
 	return 0;
 }
