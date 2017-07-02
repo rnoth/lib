@@ -44,7 +44,7 @@ unit_fail(void)
 {
 	++unit_total_failures;
 	printf("failed ");
-	printf("\n\t\t(%s %s)", current_test, error_message);
+	printf("(%s %s)", current_test, error_message);
 	printf("\n");
 	fflush(stdout); 
 }
@@ -128,7 +128,7 @@ main()
 			continue;
 		}
 
-		printf("\t%s…", unit_tests[i].msg);
+		printf("\t%s … ", unit_tests[i].msg);
 		callq(unit_tests[i].setup,   unit_tests[i].ctx);
 		callq(unit_tests[i].test,    unit_tests[i].ctx);
 		callq(unit_tests[i].cleanup, unit_tests[i].ctx);
