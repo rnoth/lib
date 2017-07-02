@@ -6,25 +6,17 @@
 #include <pat.h>
 #include <pat.ih>
 
-struct context {
-	size_t         pos;
-	struct thread *res;
-	struct thread *thr;
-	struct thread *que[2];
-	struct thread *frl[2];
-};
-
 static void ctx_fini(struct context *);
 static int  ctx_init(struct context *, struct pattern *);
-static int  ctx_next(struct context *, char const);
+static int  ctx_next(struct context *, char const *);
 static void ctx_prune(struct context *);
 static void ctx_rm(struct context *);
 static void ctx_shift(struct context *);
-static int  ctx_step(struct context *, char const);
+static int  ctx_step(struct context *, char const *);
 
 static struct thread *ctx_get(struct context *);
 
-static int pat_exec(struct context *, int (*)(char *, void *), void *);
+static int pat_exec(struct context *);
 
 struct thread *
 ctx_get(struct context *ctx)
@@ -73,11 +65,11 @@ fail:
 }
 
 int
-ctx_next(struct context *ctx, char const ch)
+ctx_next(struct context *ctx, char const *txt)
 {
 	ctx_prune(ctx); 
 	if (!ctx->thr) return 0;
-	return ctx_step(ctx, ch);
+	return ctx_step(ctx, txt);
 }
 
 void
@@ -111,43 +103,45 @@ ctx_shift(struct context *ctx)
 }
 
 int
-ctx_step(struct context *ctx, char const ch)
+ctx_step(struct context *ctx, char const *txt)
 {
-	return ctx->thr->ip->op(ctx, ch);
+	return ctx->thr->ip->op(ctx, txt);
 }
 
 int
-do_char(struct context *ctx, char const ch)
+do_char(struct context *ctx, char const *txt)
 {
-	if (ctx->thr->ip->arg.b == ch) {
+	char ch = ctx->thr->ip->arg.b;
+
+	if (txt && ch == *txt) {
 		++ctx->thr->ip;
 		ctx_que(ctx);
 	} else ctx_rm(ctx);
 
-	return ctx_next(ctx, ch);
+	return ctx_next(ctx, txt);
 }
 
 int
-do_clss(struct context *ctx, char const ch)
+do_clss(struct context *ctx, char const *txt)
 {
 	bool res;
 
-	switch (ctx->thr->ip->arg.b) {
+	if (txt) switch (ctx->thr->ip->arg.b) {
 	case 0: res = true; break;
-	case '.': res = ch != L'\n' && ch != L'\0'; break;
+	case '.': res = *txt != '\n' && *txt != '\0'; break;
 	}
 
-	if (res) {
+	if (txt && res) {
 		++ctx->thr->ip;
 		ctx_que(ctx);
 	}
 	else ctx_rm(ctx);
 
-	return ctx_next(ctx, ch);
+	return ctx_next(ctx, txt);
 }
 
 int
-do_fork(struct context *ctx, char const ch)
+do_fork(struct context *ctx, char const *txt)
 {
 	struct thread *new;
 
@@ -162,37 +156,36 @@ do_fork(struct context *ctx, char const ch)
 	new->next = ctx->thr;
 	ctx->thr = new;
 
-	return ctx->thr->ip->op(ctx, ch);
+	return ctx->thr->ip->op(ctx, txt);
 }
 
 int
-do_halt(struct context *ctx, char const ch)
+do_halt(struct context *ctx, char const *txt)
 {
 	struct thread *th;
 
 	if (thr_cmp(ctx->res, ctx->thr) > 0) {
 		ctx_rm(ctx);
-		return ctx_next(ctx, ch);
+		return ctx_next(ctx, txt);
 	}
 
-	// abstract
 	if (ctx->res) thr_mv(ctx->frl, &ctx->res);
 	th = ctx->thr;
 	ctx->thr = ctx->thr->next;
 	ctx->res = th;
 	ctx->res->next = 0;
-	return ctx_next(ctx, ch);
+	return ctx_next(ctx, txt);
 }
 
 int
-do_jump(struct context *ctx, char const ch)
+do_jump(struct context *ctx, char const *txt)
 {
 	ctx->thr->ip += ctx->thr->ip->arg.f;
-	return ctx->thr->ip->op(ctx, ch);
+	return ctx->thr->ip->op(ctx, txt);
 }
 
 int
-do_mark(struct context *ctx, char const ch)
+do_mark(struct context *ctx, char const *txt)
 {
 	struct thread *th = ctx->thr;
 
@@ -201,11 +194,11 @@ do_mark(struct context *ctx, char const ch)
 	}
 
 	++th->ip;
-	return th->ip->op(ctx, ch);
+	return th->ip->op(ctx, txt);
 }
 
 int
-do_save(struct context *ctx, char const ch)
+do_save(struct context *ctx, char const *txt)
 {
 	struct thread *th = ctx->thr;
 	size_t off = th->nmat;
@@ -214,20 +207,19 @@ do_save(struct context *ctx, char const ch)
 
 	th->mat[off].ext = ctx->pos - th->mat[off].off;
 	++th->ip;
-	return th->ip->op(ctx, ch);
+	return th->ip->op(ctx, txt);
 }
 
 int
-pat_exec(struct context *ctx, int (*cb)(char *, void *), void *cbx)
+pat_exec(struct context *ctx)
 {
 	int err;
-	char c;
 
-	while (cb(&c, cbx)) {
+	while (ctx->pos < ctx->len) {
 
 		ctx_shift(ctx);	
 
-		err = ctx_next(ctx, c);
+		err = ctx_next(ctx, ctx->str + ctx->pos);
 		if (err) break;
 
 		++ctx->pos;
@@ -240,15 +232,31 @@ pat_exec(struct context *ctx, int (*cb)(char *, void *), void *cbx)
 }
 
 int
-pat_match(struct pattern *pat, int (*cb)(char *, void *), void *cbx)
+pat_fini(struct context *ctx)
 {
-	struct context ctx[1] = {{0}};
+	int err;
+
+	ctx_shift(ctx);
+
+	err = ctx_next(ctx, 0x0);
+	if (err) return err;
+	if (!ctx->res) return PAT_ERR_NOMATCH;
+
+	return 0;
+}
+
+int
+pat_match(struct pattern *pat, struct context *ctx)
+{
 	int err;
 
 	err = ctx_init(ctx, pat);
 	if (err) return err;
 	
-	err = pat_exec(ctx, cb, cbx);
+	err = pat_exec(ctx);
+	if (err) goto finally;
+
+	err = pat_fini(ctx);
 	if (err) goto finally;
 
 	memcpy(pat->mat, ctx->res->mat, sizeof pat->mat);

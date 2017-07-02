@@ -23,6 +23,16 @@ struct thread;
 struct token;
 union arg;
 
+struct context {
+	char const    *str;
+	size_t         len;
+	size_t         pos;
+	struct thread *res;
+	struct thread *thr;
+	struct thread *que[2];
+	struct thread *frl[2];
+};
+
 struct thread {
 	struct thread   *next;
 	struct ins      *ip;
@@ -45,20 +55,20 @@ union arg {
 };
 
 struct ins {
-        int      (*op)(struct context *, char const);
+        int      (*op)(struct context *, char const *);
 	union arg arg;
 };
 
 /* pat-exec.c */
-int pat_match(struct pattern *, int (*)(char *, void *), void *);
+int pat_match(struct pattern *, struct context *);
 
-int do_char(struct context *, char const);
-int do_clss(struct context *, char const);
-int do_fork(struct context *, char const);
-int do_halt(struct context *, char const);
-int do_jump(struct context *, char const);
-int do_mark(struct context *, char const);
-int do_save(struct context *, char const);
+int do_char(struct context *, char const *);
+int do_clss(struct context *, char const *);
+int do_fork(struct context *, char const *);
+int do_halt(struct context *, char const *);
+int do_jump(struct context *, char const *);
+int do_mark(struct context *, char const *);
+int do_save(struct context *, char const *);
 
 /* pat-thr.c */
 int  thr_alloc(struct thread *[static 2]);

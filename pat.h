@@ -24,7 +24,6 @@ struct pattern {
 
 int  pat_compile(struct pattern *, char const *);
 int  pat_execute(struct pattern *, char const *);
-int  pat_execute_callback(struct pattern *, int (*)(char *, void *), void *);
 void pat_free(struct pattern *);
 
 #endif // _lib_pat_
